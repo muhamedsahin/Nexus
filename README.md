@@ -1,30 +1,81 @@
 # Nexus
 
-Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli olarak gelistirilmistir.
+Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf öğrencisi Muhammed Fatih Şahin tarafından yapay zeka destekli olarak geliştirilmiştir.
 
-Nexus, alti C++20 kutuphanesini tek CMake hedefine baglayan bir derin ogrenme ve pekistirmeli ogrenme cercevesidir. Bellek kopyasini gereksiz yere yapmaz. Matris carpimi CPU AVX yolunda, cuBLAS FP32 yolunda ya da ikisinin zamanlayicisinda kosar. Kullanici, kutuphane kaynaklarina girmeden aktivasyon, kayip, katman ve optimizator ekler. Egitim dongusu `TrainerBuilder` ile kurulur.
+C++20 derin öğrenme ve pekiştirmeli öğrenme çerçevesi. Altı kütüphane tek statik hedefte toplanır: `nexus::nexus`. Python kabuğu aynı çağrı adlarını kullanır. PyTorch taklidi yoktur.
 
-## Ne var
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/20)
+[![CMake](https://img.shields.io/badge/CMake-3.24-064F8C?style=flat-square&logo=cmake&logoColor=white)](CMakeLists.txt)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)](python/README.md)
 
-| Parca | Is |
-| --- | --- |
-| MatrixFlash-Pro | GEMM, kolektifler, heterojen zamanlayici |
-| NexusData | Batch ve CSV yukleyici |
-| NexusLoss | Kayip ve tek gecis gradyan |
-| NexusOptim | SGD, Adam, AdamW ve diger guncelleyiciler |
-| NexusModel | Linear, normalizasyon, aktivasyon, geri yayilim |
-| NexusTrain | Callback ve dagitik ortalama |
-| `include/nexus` | Akici API, ozel genisletme, RL |
+Dokümantasyon sitesi bu deponun `web/` klasöründedir. `npm install` ve `npm run build` ile derlenir.
 
-`nexus::nexus` bu parcalari tek link satirina toplar.
+## İç mimari
+
+Eğitim döngüsü soldan sağa akar. Hesap, alttaki kütüphanelerde durur. `include/nexus` bu kütüphanelerin üstüne ince bir çağrı yüzeyi koyar.
+
+```mermaid
+flowchart TB
+  subgraph facade ["include/nexus"]
+    nn[nn Sequential ve katmanlar]
+    train[TrainerBuilder]
+    py[Python kabugu]
+  end
+  subgraph engines [lib]
+    data[NexusData]
+    model[NexusModel]
+    loss[NexusLoss]
+    optim[NexusOptim]
+    trainer[NexusTrain]
+    flash[MatrixFlash-Pro]
+  end
+  py --> nn
+  py --> train
+  train --> trainer
+  nn --> model
+  trainer --> model
+  trainer --> loss
+  trainer --> optim
+  trainer --> data
+  model --> flash
+  optim --> flash
+  data --> model
+```
+
+Bir adım şöyle biter:
+
+1. **NexusData** batch'i host bellekte hazırlar. Sayısal CSV ve görüntü buradan gelir.
+2. **NexusModel** `forward` çalıştırır. Linear ve dikkat, **MatrixFlash-Pro** GEMM'ine iner.
+3. **NexusLoss** logit ile hedefi karşılaştırır ve gradyanı çağıranın tamponuna yazar.
+4. **NexusModel** `backward` ağırlık gradyanını biriktirir.
+5. **NexusOptim** gradyanı parametreye uygular.
+6. **NexusTrain** epok, erken duruş, zamanlayıcı ve kayıp ölçeğini sıraya dizer.
+
+`nexus` statik kütüphanesi üç çeviri birimini kendisi derler: `src/core/memory.cpp`, `src/core/mirrored_tensor.cpp`, `src/model/nxs.cpp`. Geri kalan API başlıktadır ve `PUBLIC` bağımlılıklarla gelir.
+
+## Kütüphaneler
+
+| Kütüphane | CMake hedefi | Depo | Bağlandığı yer |
+| --- | --- | --- | --- |
+| MatrixFlash-Pro | `matrix_pro` | [MatrixFlash_Pro](https://github.com/muhamedsahin/MatrixFlash_Pro) | `nexus::nexus` her derlemede. GEMM, kolektif, CUDA conv |
+| NexusData | `nexusdata` | [NexusData](https://github.com/muhamedsahin/NexusData) | Eğitmenin batch kaynağı. Model tensörüne kopyalanır |
+| NexusLoss | `nexusloss` | [NexusLoss](https://github.com/muhamedsahin/NexusLoss) | `Trainer` içindeki CrossEntropy ve MSE |
+| NexusOptim | `nexus_optim` | [NexusOptim](https://github.com/muhamedsahin/NexusOptim) | `AdamW` ve `SGD` adımı. Çekirdekte daha geniş bir optimizer listesi durur |
+| NexusModel | `nexus_model` | [NexusModel](https://github.com/muhamedsahin/NexusModel) | `nn::` katmanları. MatrixFlash GEMM'ini çağırır |
+| NexusTrain | `nexus_train` | Bu deponun `lib/NexusTrain` yolu | Epok döngüsü, callback, kayıp ölçeği |
+
+Beş kütüphane Git alt modülüdür. NexusTrain'in ayrı uzak deposu yoktur; kaynak bu ağacın içindedir.
 
 ```cmake
 target_link_libraries(my_app PRIVATE nexus::nexus)
 ```
 
+`matrix_pro` CUDA açıkken `CUDA::cudart` ile birlikte bağlanır. `MATRIX_PRO_ENABLE_CUDNN` kök CMake'de kapalıdır.
+
 ## Kurulum
 
-Windows, Visual Studio 2022, CMake 3.24 ve Ninja gerekir. CUDA 13 varsa GPU yolu acilir; yoksa derleme CPU'da kalir.
+Windows, Visual Studio 2022, CMake 3.24 ve Ninja. CUDA 13.4 isteğe bağlıdır. PATH üzerindeki `cmake` ESP-IDF olabilir; tam yolu kullanın.
 
 ```bat
 call "C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Auxiliary\Build\vcvars64.bat"
@@ -33,9 +84,27 @@ call "C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Auxiliary\Build\v
 "C:\Program Files\CMake\bin\cmake.exe" -E chdir build-phase1 ctest --output-on-failure -C Release
 ```
 
-Onemli anahtarlar `cmake/NexusOptions.cmake` icindedir: `NEXUS_ENABLE_CUDA`, `NEXUS_BUILD_TESTS`, `NEXUS_BUILD_BENCHMARKS`, `NEXUS_BUILD_EXAMPLES`.
+Anahtarlar `cmake/NexusOptions.cmake` içindedir: `NEXUS_ENABLE_CUDA`, `NEXUS_BUILD_TESTS`, `NEXUS_BUILD_BENCHMARKS`, `NEXUS_BUILD_PYTHON`.
 
-## Egitim
+Alt modüller ilk klonda boş kalırsa:
+
+```bat
+git clone --recurse-submodules https://github.com/muhamedsahin/Nexus.git
+```
+
+## Python
+
+Anaconda 3.11. ESP-IDF Python 3.14 kullanılmaz.
+
+```bat
+"C:\Program Files\CMake\bin\cmake.exe" -S . -B build-phase1 -DNEXUS_BUILD_PYTHON=ON -DPython3_EXECUTABLE=C:\ProgramData\anaconda3\python.exe
+"C:\Program Files\CMake\bin\cmake.exe" --build build-phase1 --target _core --parallel
+set PYTHONPATH=python\src
+```
+
+Modül `python/src/nexus/_core.cp311-win_amd64.pyd` olur. Ayrıntı [python/README.md](python/README.md).
+
+## Eğitim
 
 ```cpp
 #include <nexus/nexus.hpp>
@@ -43,130 +112,68 @@ Onemli anahtarlar `cmake/NexusOptions.cmake` icindedir: `NEXUS_ENABLE_CUDA`, `NE
 auto model = nexus::nn::Sequential()
     .add<nexus::nn::Linear>(16, 32)
     .add(nexus::nn::swish())
-    .add<nexus::nn::LayerNorm>(32)
     .add<nexus::nn::Linear>(32, 3);
 
 auto trainer = nexus::TrainerBuilder(model)
-    .optimizer(nexus::optim::AdamW(model->parameters(), {.lr = 0.05f, .weight_decay = 0.0f}))
-    .loss(nexus::loss::CrossEntropy(0.1f))
+    .optimizer(nexus::optim::AdamW(model->parameters(), {.lr = 0.05f}))
+    .loss(nexus::loss::CrossEntropy(0.0f))
     .execution_policy(nexus::ExecutionPolicy::cpu())
-    .mixed_precision(true)
     .gradient_clip_norm(1.0f)
     .metric<nexus::metrics::Accuracy>()
-    .metric<nexus::metrics::F1Score>()
     .callback<nexus::callbacks::EarlyStopping>(5)
     .build();
 
 trainer.fit(train_loader, val_loader, 12);
+model.save_nxs("ag.nxs");
 ```
 
-`mixed_precision(true)` kayip olcegi uygular. Matmul FP32 kalir. Sonsuz gradyanda adim atlanir ve olcek yarilanir.
+`mixed_precision(true)` kayıp ölçeği uygular. Matmul FP32 kalır. Sonlu olmayan gradyanda adım atlanır.
 
-`ExecutionPolicy::hybrid_cpu_multi_gpu()` Linear carpimini MatrixFlash zamanlayicisina verir. Kucuk matrislerde kopya maliyeti saf GPU'yu gecer. Buyuk ve cihaz icinde kalan carpimda cuBLAS yolu kullanilir.
+`ExecutionPolicy::hybrid_cpu_multi_gpu()` yalnız açıkça istenirse Linear çarpımını MatrixFlash zamanlayıcısına verir. `ExecutionPolicy::cuda` bugün matmul'u CPU çekirdeğinde bırakır. Aygıt evrişimi ayrı çağrıdır: Python'da `nexus.nn.conv2d_device`.
 
-## Ozel fonksiyon
+## Model dosyası
 
-```cpp
-auto swish = nexus::nn::make_activation(
-    "Swish",
-    [](float x) { return x / (1.0f + std::exp(-x)); });
-```
+`save_nxs` sihri `NXS2` olan tek dosya yazar. Ağ, ağırlık, isteğe bağlı optimizer ve eğitmen durumu aynı arşivdedir. `NXS1` yalnızca eski eğitmen kaydıdır; model diye açılmaz ve okuyucu `bu egitmen durumu, model arsivi degil` der.
 
-Geri turev verilmezse merkezil sonlu fark kullanilir. `make_loss`, `make_loss_autograd` ve `make_loss_tape` kaybi ya acik gradyanla, ya sayisal turevle, ya da `MicroTape` ile kurar. `CustomModule::add_parameter` agirligi `parameters()` listesine koyar.
+`Swish` C++ formülüdür. Başka bir adlı aktivasyonun gövdesi dosyaya girer. Kapalı hücre yalnız float, int veya bool ise yeni süreçte geri kurulur.
 
-## Pekistirmeli ogrenme
+## Pekiştirmeli öğrenme
 
-Tek ajan: `LineWorld`, `GridWorld`, `CartPole`, `PointMass`. Algoritmalar: DQN (Double, Dueling, PER), PPO, A2C, SAC.
+Tek ajan ortamları `LineWorld`, `GridWorld`, `CartPole`, `PointMass`. Algoritmalar DQN, PPO, SAC, Actor-Critic. Çok ajan `ButtonWorld` ve `TeamButton`. `League` ELO tutar. `VectorEnv` birden fazla ortamı aynı adımda yürütür.
 
-Cok ajan: `ButtonWorld` ve N ajanli `TeamButton` uzerinde IPPO ve MAPPO. `League` ELO ve agirlik anlik goruntusu tutar. `VectorEnv` sekiz ve daha cok kopyada kalici isci kullanir; her adim thread acmaz.
+Python'dan türetilen `Environment` ve `Callback` kabul edilir. Gövde C++ sanal işlevine trampoline ile iner.
 
-```cpp
-nexus::rl::ButtonWorld env;
-nexus::rl::MultiAgentTrainer trainer;
-auto report = trainer.train_independent(env, 10, 36, 11);
-```
+## Bu makinede ölçülen hız
 
-## Donanim
+21 Ekim 2026 akşamı. Ryzen 7 5800H, RTX 3070 Laptop, CPU, iş parçacığı etiketi `"8"`. Ham sayılar `docs/benchmarks/` altındadır. Dünya sıralaması yoktur.
 
-`Device::cpu()`, `Device::cuda(0)`, `Device::tpu(0)` ve `Device::hybrid()` etiket uretir. Gercek hesap su an CPU AVX ve CUDA cuBLAS icindir. ROCm, bir `hipblas` kutuphanesi yuklenirse GEMM yapar; DLL yoksa cihaz sayisi sifirdir. NPU, Vulkan, DirectML ve Metal bir eklenti girisi bekler. Olmayan bir aygita bellek ayirma istegi hata verir.
+| İş | Nexus | PyTorch | TensorFlow |
+| --- | ---: | ---: | ---: |
+| GEMM N=2048, GFLOPS | 362 ve 369, sıcak tur 330 | 336 | 389 |
+| Conv2d, GFLOPS | 5.43 ve 6.78 | 31.6 | 12.7 |
+| Depthwise, GFLOPS | 10.4 ve 12.1 | 4.93 | 0.688 |
+| Attention, çağrı/s | 9653 ve 6870 | 1192 | 1076 |
+| Adam, GB/s | 28.2 ve 24.8 | 4.71 | 3.23 |
 
-Kolektifler halka ve agactir. `nexus::train::all_reduce_mean` iki veya daha fazla host tamponunu ortalar.
+GEMM'de seçili çekirdek `avx2-4x16`. Bu işlemcide AVX-512 seçilmez. Üç GEMM turu da TensorFlow'un 389 değerinin altındadır. Conv2d CPU sütununda PyTorch öndedir.
 
-## Python
-
-Anaconda 3.11 kullanilir. ESP-IDF Python 3.14 kullanilmaz.
-
-```bat
-call "C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Auxiliary\Build\vcvars64.bat"
-"C:\Program Files\CMake\bin\cmake.exe" -S . -B build-phase1 -DNEXUS_BUILD_PYTHON=ON -DPython3_EXECUTABLE=C:\ProgramData\anaconda3\python.exe
-"C:\Program Files\CMake\bin\cmake.exe" --build build-phase1 --target _core --parallel
-set PYTHONPATH=python\src
-```
-
-Cagri adlari C++ yuzeyinin kendisidir. Model dosyasi `NXS2` sihirli `.nxs` dir. Egitmen durumunun `NXS1` dosyasi model diye acilmaz. Ayrinti `python/README.md` ve `web/` dokumantasyon sitesindedir.
-
-## Bu makinede olculen hiz
-
-Rakip protokol 21 Ekim 2026 aksamidir. CPU, is parcacigi etiketi "8", Ryzen 7 5800H, RTX 3070 Laptop. Ham sayilar `docs/benchmarks/2026-10-21-*.json` icindedir. Dunya siralamasi yoktur.
-
-GEMM N=2048: Nexus turlari 330, 362 ve 369 GFLOPS. TensorFlow 389. NumPy 353, PyTorch 336, JAX 292. Nexus uc turun hepsinde TensorFlow'un altindadir; 362 ve 369 NumPy, PyTorch ve JAX'in onundedir.
-
-Conv2d ayni aksam: Nexus 4.90–6.78 GFLOPS, PyTorch 31.6, TensorFlow 12.7, JAX 7.55. Depthwise: Nexus 8.95–12.1, PyTorch 4.93, TensorFlow 0.688.
-
-Attention, LSTM, GRU, MSE ve Adam bu aksamki 8 is parcacigi sutununda Nexus'un olculen en dusuk turu rakiplerin onundedir. Attention en dusuk Nexus 6870 cagri/s, PyTorch 1192.
-
-CUDA conv kapisi Nexus'un kendi CPU conv'una karstir: protokol sekli 8x3x32x32, 16 filtre, 3x3, pad 1. CPU 6.39 GFLOPS, aygitta kalan cekirdek 48.7, host gidis-donus 19.0. Bu sayi PyTorch satirina yazilmaz. cuDNN bu kurulumda yoktur.
-
-`ExecutionPolicy::cuda` matmul'u CPU cekirdeginde birakir. Hibrit politika yalniz acikca istenirse baglanir.
-
-## Fazlar
-
-1. Kok CMake hedefi, sifir kopya kopru, `backward_into`, `MirroredTensor`.
-2. Cihaz soyutlamasi, halka/agac kolektifler, hibrit CPU+GPU GEMM. AVX2 cekirdegi 4x16 MASM.
-3. Optimizator SIMD, Linear politikasi, tek gecis kayip.
-4. Kullanici aktivasyonu, kaybi, katmani, optimizatoru ve metrigi.
-5. Ortam, tampon, DQN, PPO, SAC ve N ajanli IPPO/MAPPO.
-6. `TrainerBuilder` ve dort uygulama.
-7. Bu sayfadaki olcum tablosu ve iki `.txt` rapor.
-8. `nexus::nn::Conv2d`, `MultiHeadAttention` ve `LSTM`.
-9. `TransformerEncoder`, `GRU`, `Embedding` ve `BatchNorm1d`.
-10. `MaxPool2d`, `AvgPool2d`, `GlobalAvgPool2d`, `Flatten`, `Dropout`, `BatchNorm2d` ve `Residual`. `train` ve `eval` alt katmana iner.
-11. `PositionalEncoding`, `TransformerDecoder`, `RNN` ve `Reshape`.
-12. `Conv1d`, `Conv3d`, `DepthwiseConv2d`, `GroupNorm` ve `InstanceNorm`. Katalog burada kapanir.
-13. GEMM cekirdek adi. Seri AVX-512, AVX2 varken secilmez. Taban olcum.
-14. GEMM: K acilimi 8, Nc 128, AVX2 paket ve kenar.
-15. 3x3 depthwise ve kucuk gruplar dogrudan konvolusyon.
-16. Softmax geri, log-softmax ve erf-GELU AVX2.
-17. GRU adayi `tanh_fwd`. LSTM kapisi AVX2 carpma.
-18. Batch/GroupNorm ic eksen, dropout maskesi, embedding `memcpy`.
-19. MSE surucusu `forward_and_backward`. Seyrek CE one-hot ayirmaz.
-20. Hibrit Adam/SGD surec omurlu is parcacigi. Varsayilan adim CPU'da kalir.
-21. `persistent_workers` epoch boyunca iscileri tutar.
-22. MLP cekirdek carpimi. IndexPool ic ice cagriyi seri yapar.
-23. Ozel aktivasyon kalici isci. WorkStealingPool yok.
-24. Ayni boyutlarin kapanis olcumu.
-25. Dikkat `probs @ V`. V devrigi yok.
-26. Zaman-major tekrarlayan duzen olculdu, LSTM yavasladi, geri alindi.
-27. Havuz hizali pencere, LayerNorm geri, GELU geri.
-28. Duz Conv2d dogrudan 3x3 im2col'dan yavas, im2col kaldi.
-29. GEMM onceden cekme N=512'yi dusurdu, geri alindi.
-30. PPO, DQN, VectorEnv tamponu ve kapanis olcumu.
-
-## Uygulamalar
-
-| Dizin | Ne yapar |
-| --- | --- |
-| `apps/dl_vision_classifier` | 8x8 tablo siniflandirma |
-| `apps/custom_ops_showcase` | Swish ve teyp MSE |
-| `apps/multi_agent_rl_arena` | IPPO, MAPPO, uc ajan ve ELO |
-| `apps/hybrid_cluster_benchmark` | CPU, hibrit GEMM ve all-reduce |
+CUDA conv kapısı Nexus'un kendi CPU conv'una karşıdır. Şekil `8×3×32×32`, 16 filtre, `3×3`, pad 1. CPU 6.39 GFLOPS, aygıtta kalan çekirdek 48.7, host gidiş-dönüş 19.0. Bu satır PyTorch ile karşılaştırılmaz. cuDNN bu kurulumda yoktur.
 
 ## Belgeler
 
-Okuma sirasi `docs/README.md` icindedir. Faz notlari `docs/architecture/` altindadir. Kisa ornekler `docs/examples/` altindadir.
+| Yol | İçerik |
+| --- | --- |
+| `web/` | Kurulum, C++, Python, API, benchmark |
+| `docs/benchmarks/` | 21 Ekim protokolü ve JSON |
+| `docs/architecture/` | Faz notları |
+| `python/README.md` | Kabuk derlemesi ve `.nxs` |
 
-## Test
+## Lisans
 
-`ctest` Release agacinda faz koprusu, donanim, fuzyon, ozel genisletme, RL, egitmen ve olcum programlarini kosar. Son kosu CPU ve CUDA agaclarinda 15/15 gecti. Olcum programinin cikis kodu 0'dir ve `sink` 0.1024'tur.
+Apache License 2.0. Metin `LICENSE` dosyasındadır.
 
-Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli olarak gelistirilmistir.
+---
+
+Bu proje Muhammed Fatih Şahin tarafından geliştirilmiştir.
+
+Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf öğrencisi Muhammed Fatih Şahin tarafından yapay zeka destekli olarak geliştirilmiştir.
