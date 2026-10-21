@@ -1,0 +1,59 @@
+{
+  "note": "Ayni 4x16 ikili. Uc ardisik CPU kosusu. Kucuk N satirlarinda saat farki buyuk.",
+  "runs": [
+    {
+      "label": "deney-sonrasi-1",
+      "pool_workers": 16,
+      "kernel": "avx2-4x16",
+      "rows": [
+        {"name": "gemm_n256", "seconds": 0.0002673, "value": 125.531, "unit": "GFLOPS"},
+        {"name": "gemm_n512", "seconds": 0.0010371, "value": 258.833, "unit": "GFLOPS"},
+        {"name": "gemm_n1024", "seconds": 0.0064799666666666665, "value": 331.404, "unit": "GFLOPS"},
+        {"name": "gemm_n2048", "seconds": 0.0474652, "value": 361.947, "unit": "GFLOPS"},
+        {"name": "conv2d", "seconds": 0.00130245, "value": 5.434, "unit": "GFLOPS"},
+        {"name": "depthwise", "seconds": 0.00011395, "value": 10.352, "unit": "GFLOPS"},
+        {"name": "attention", "seconds": 0.0001036, "value": 9652.51, "unit": "cagri/s"},
+        {"name": "lstm", "seconds": 0.00021865, "value": 4573.52, "unit": "cagri/s"},
+        {"name": "gru", "seconds": 0.000195975, "value": 5102.69, "unit": "cagri/s"},
+        {"name": "mse", "seconds": 0.00067425, "value": 18.662, "unit": "GB/s"},
+        {"name": "adam", "seconds": 0.0005947, "value": 28.211, "unit": "GB/s"}
+      ]
+    },
+    {
+      "label": "deney-sonrasi-2-sicak",
+      "pool_workers": 16,
+      "kernel": "avx2-4x16",
+      "rows": [
+        {"name": "gemm_n256", "seconds": 0.00029063333333333331, "value": 115.453, "unit": "GFLOPS"},
+        {"name": "gemm_n512", "seconds": 0.00097723333333333347, "value": 274.689, "unit": "GFLOPS"},
+        {"name": "gemm_n1024", "seconds": 0.0079580666666666678, "value": 269.850, "unit": "GFLOPS"},
+        {"name": "gemm_n2048", "seconds": 0.052046133333333335, "value": 330.089, "unit": "GFLOPS"},
+        {"name": "conv2d", "seconds": 0.001444075, "value": 4.901, "unit": "GFLOPS"},
+        {"name": "depthwise", "seconds": 0.000131825, "value": 8.949, "unit": "GFLOPS"},
+        {"name": "attention", "seconds": 0.00010545, "value": 9483.17, "unit": "cagri/s"},
+        {"name": "lstm", "seconds": 0.000237825, "value": 4204.77, "unit": "cagri/s"},
+        {"name": "gru", "seconds": 0.00017945, "value": 5572.58, "unit": "cagri/s"},
+        {"name": "mse", "seconds": 0.000764925, "value": 16.450, "unit": "GB/s"},
+        {"name": "adam", "seconds": 0.000783225, "value": 21.421, "unit": "GB/s"}
+      ]
+    },
+    {
+      "label": "rakip-sonrasi",
+      "pool_workers": 16,
+      "kernel": "avx2-4x16",
+      "rows": [
+        {"name": "gemm_n256", "seconds": 0.00053683333333333328, "value": 62.504, "unit": "GFLOPS"},
+        {"name": "gemm_n512", "seconds": 0.0014251333333333335, "value": 188.358, "unit": "GFLOPS"},
+        {"name": "gemm_n1024", "seconds": 0.0061298666666666666, "value": 350.331, "unit": "GFLOPS"},
+        {"name": "gemm_n2048", "seconds": 0.046590433333333327, "value": 368.742, "unit": "GFLOPS"},
+        {"name": "conv2d", "seconds": 0.0010442, "value": 6.778, "unit": "GFLOPS"},
+        {"name": "depthwise", "seconds": 9.7449999999999997e-05, "value": 12.105, "unit": "GFLOPS"},
+        {"name": "attention", "seconds": 0.00014555, "value": 6870.49, "unit": "cagri/s"},
+        {"name": "lstm", "seconds": 0.00017645, "value": 5667.33, "unit": "cagri/s"},
+        {"name": "gru", "seconds": 0.00013845, "value": 7222.82, "unit": "cagri/s"},
+        {"name": "mse", "seconds": 0.000455875, "value": 27.602, "unit": "GB/s"},
+        {"name": "adam", "seconds": 0.000676375, "value": 24.805, "unit": "GB/s"}
+      ]
+    }
+  ]
+}

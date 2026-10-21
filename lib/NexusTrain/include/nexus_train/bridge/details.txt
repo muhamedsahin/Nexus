@@ -1,0 +1,3 @@
+LossDriver, NexusLoss'un şablon ve sınıf-indisi API'lerini Trainer'dan gizler.
+OptimizerHandle, CRTP step()'i batch başına bir sanal çağrıya indirger.
+Sıcak eleman döngüsü hâlâ optimizer'ın kendi step_impl'indedir.

@@ -1,0 +1,3 @@
+Replika başına ayrı modül. Batch satırlara bölünür, dilimler ödünç alınır.
+Join sonrası gradyanlar ortalanır, optimizer replika 0'ı günceller, parametreler yayınlanır.
+İlk sürüm katman katman overlap yapmaz; tek all-reduce backward bitince çalışır.

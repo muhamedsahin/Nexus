@@ -1,0 +1,5 @@
+NexusTrain eğitim döngüsünü yürütür. Katman, loss, optimizer ve veri yükleme bu klasörde yoktur.
+
+Trainer: epoch/batch sırası, biriktirme, clipping tetikleme, mixed-precision ölçeği, callback.
+TrainConfig / TrainingState / LoopProfile: zamanlama, paylaşılan durum, aşama süreleri.
+tensor_batch: NDArray'den float32 host ise ödünç Tensor; aksi halde tek kopya.

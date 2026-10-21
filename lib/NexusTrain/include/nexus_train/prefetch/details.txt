@@ -1,0 +1,4 @@
+Tek üretici, tek tüketici, sınırlı kuyruk, condition_variable.
+Üretici DataLoader'ı yalnızca kendi thread'inde yürür.
+Kilit altında yalnızca batch başlığı taşınır; tensör baytları kopyalanmaz.
+deterministic_mode bu sınıfı kurmaz.

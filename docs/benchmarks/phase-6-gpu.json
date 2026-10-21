@@ -1,0 +1,65 @@
+{
+  "parts": [
+    {
+      "library": "nexus",
+      "device": "gpu",
+      "threads": "device",
+      "pool_workers": 16,
+      "kernel": "avx2-4x16",
+      "compiler": "MSVC 194434823",
+      "gpu_name": "NVIDIA GeForce RTX 3070 Laptop GPU",
+      "rows": [
+        {
+          "library": "nexus",
+          "device": "gpu",
+          "threads": "device",
+          "name": "gemm_n256",
+          "seconds": 3.64e-05,
+          "value": 921.8250549450551,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "nexus",
+          "device": "gpu",
+          "threads": "device",
+          "name": "gemm_n512",
+          "seconds": 0.0003534333333333333,
+          "value": 759.5080335754031,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "nexus",
+          "device": "gpu",
+          "threads": "device",
+          "name": "gemm_n1024",
+          "seconds": 0.0004992666666666667,
+          "value": 4301.275833889705,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "nexus",
+          "device": "gpu",
+          "threads": "device",
+          "name": "gemm_n2048",
+          "seconds": 0.002275133333333333,
+          "value": 7551.148291968238,
+          "unit": "GFLOPS"
+        }
+      ]
+    },
+    {
+      "library": "torch",
+      "device": "gpu",
+      "threads": "device",
+      "status": "GPU tekeri yok, koşulmadı",
+      "rows": []
+    },
+    {
+      "library": "tensorflow",
+      "device": "gpu",
+      "threads": "device",
+      "status": "GPU tekeri yok, koşulmadı",
+      "rows": []
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+function(nexus_example name)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE nexus::nexus)
+    nexus_configure_target(${name})
+endfunction()
+
+nexus_example(01_owning_tensor)
+nexus_example(02_zero_copy_model)
+nexus_example(03_ndarray_and_batch)
+nexus_example(04_backward_into)
+nexus_example(05_share_lifetime)
+nexus_example(06_custom_activation)

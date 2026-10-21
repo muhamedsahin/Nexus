@@ -1,0 +1,228 @@
+{
+  "library": "torch",
+  "device": "cpu",
+  "runs": [
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "observed_threads": 8,
+      "mkldnn": true,
+      "allow_tf32": false,
+      "torch_cuda": false,
+      "note": "Ileri cagri varsayilan eager moddadir. mkldnn kapatilmadi. TF32 kapali.",
+      "rows": [
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "gemm_n256",
+          "seconds": 0.00021660000008220473,
+          "value": 154.91427510279462,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "gemm_n512",
+          "seconds": 0.0012365000050825377,
+          "value": 217.0929679713844,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "gemm_n1024",
+          "seconds": 0.007391866665178289,
+          "value": 290.5198030852473,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "gemm_n2048",
+          "seconds": 0.04968149999816281,
+          "value": 345.8001305241448,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "conv2d",
+          "seconds": 0.0019237000014982186,
+          "value": 3.679309660803446,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "depthwise",
+          "seconds": 0.00018979999731527641,
+          "value": 6.215216104774169,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "attention",
+          "seconds": 0.0004870999982813373,
+          "value": 2052.9665438890515,
+          "unit": "cagri/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "lstm",
+          "seconds": 0.0005712499987566844,
+          "value": 1750.547049761895,
+          "unit": "cagri/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "gru",
+          "seconds": 0.0024436500025331043,
+          "value": 409.2239064364345,
+          "unit": "cagri/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "mse",
+          "seconds": 0.0016901249982765876,
+          "value": 7.444959404085932,
+          "unit": "GB/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "8",
+          "name": "adam",
+          "seconds": 0.0036264250011299737,
+          "value": 4.626378870312308,
+          "unit": "GB/s"
+        }
+      ]
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "default",
+      "observed_threads": 8,
+      "mkldnn": true,
+      "allow_tf32": false,
+      "torch_cuda": false,
+      "note": "Ileri cagri varsayilan eager moddadir. mkldnn kapatilmadi. TF32 kapali.",
+      "rows": [
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "gemm_n256",
+          "seconds": 0.0004906999917390446,
+          "value": 68.38074702443511,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "gemm_n512",
+          "seconds": 0.002139999996870756,
+          "value": 125.43712915538475,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "gemm_n1024",
+          "seconds": 0.008513733327466374,
+          "value": 252.23759840726368,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "gemm_n2048",
+          "seconds": 0.056910366663942114,
+          "value": 301.87591806336064,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "conv2d",
+          "seconds": 0.00028139999631093815,
+          "value": 25.15240971140297,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "depthwise",
+          "seconds": 0.000229124998440966,
+          "value": 5.148491033395189,
+          "unit": "GFLOPS"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "attention",
+          "seconds": 0.0006964499989408068,
+          "value": 1435.8532579809691,
+          "unit": "cagri/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "lstm",
+          "seconds": 0.0014872749961796217,
+          "value": 672.3706124077323,
+          "unit": "cagri/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "gru",
+          "seconds": 0.006523024996567983,
+          "value": 153.30310715138128,
+          "unit": "cagri/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "mse",
+          "seconds": 0.0015437749971169978,
+          "value": 8.150742189437326,
+          "unit": "GB/s"
+        },
+        {
+          "library": "torch",
+          "device": "cpu",
+          "threads": "default",
+          "name": "adam",
+          "seconds": 0.004135625000344589,
+          "value": 4.0567546618956225,
+          "unit": "GB/s"
+        }
+      ]
+    }
+  ]
+}

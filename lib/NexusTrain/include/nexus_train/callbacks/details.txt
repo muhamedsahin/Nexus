@@ -1,0 +1,4 @@
+Kancalar eğitim thread'indedir. EarlyStopping should_stop kurar.
+ModelCheckpointCallback anlık kopyayı CheckpointManager'a bırakır.
+LRSchedulerCallback, NexusOptim scheduler'ını epoch, batch veya plateau anında step()'ler.
+ProgressLoggerCallback konsola loss ve ETA basar; hesap yapmaz.

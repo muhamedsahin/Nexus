@@ -1,0 +1,3 @@
+Kayıp gradyanı backward öncesinde scale ile çarpılır, adım öncesinde bölünür.
+Inf/NaN varsa step atlanır, ölçek backoff ile küçülür, temiz adımlarda büyür.
+NexusLoss skaler autograd taşımadığı için ölçek dL/dy vektörüne uygulanır.

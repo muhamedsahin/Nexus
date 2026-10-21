@@ -1,0 +1,15 @@
+[submodule "lib/MatrixFlash-Pro"]
+	path = lib/MatrixFlash-Pro
+	url = https://github.com/muhamedsahin/MatrixFlash_Pro.git
+[submodule "lib/NexusOptim"]
+	path = lib/NexusOptim
+	url = https://github.com/muhamedsahin/NexusOptim.git
+[submodule "lib/NexusModel"]
+	path = lib/NexusModel
+	url = https://github.com/muhamedsahin/NexusModel.git
+[submodule "lib/NexusLoss"]
+	path = lib/NexusLoss
+	url = https://github.com/muhamedsahin/NexusLoss.git
+[submodule "lib/NexusData"]
+	path = lib/NexusData
+	url = https://github.com/muhamedsahin/NexusData.git

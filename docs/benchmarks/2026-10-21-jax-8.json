@@ -1,0 +1,66 @@
+{
+  "library": "jax",
+  "device": "cpu",
+  "threads": "8",
+  "jax_version": "0.10.2",
+  "jax_devices": [
+    "cpu:0"
+  ],
+  "note": "GEMM, Conv2d ve Adam. Bias duzeltmesi t=1 sabit, momentler adimlar arasinda tasinir.",
+  "rows": [
+    {
+      "library": "jax",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n256",
+      "seconds": 0.0003946000069845468,
+      "value": 85.03403802857522,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "jax",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n512",
+      "seconds": 0.001013566671948259,
+      "value": 264.8424256926467,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "jax",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n1024",
+      "seconds": 0.006771533332842712,
+      "value": 317.1340289479871,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "jax",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n2048",
+      "seconds": 0.0588976333286458,
+      "value": 291.6903144161533,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "jax",
+      "device": "cpu",
+      "threads": "8",
+      "name": "conv2d",
+      "seconds": 0.000937924996833317,
+      "value": 7.5463262242682765,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "jax",
+      "device": "cpu",
+      "threads": "8",
+      "name": "adam",
+      "seconds": 0.0030438500034506433,
+      "value": 5.5118405903643755,
+      "unit": "GB/s"
+    }
+  ]
+}

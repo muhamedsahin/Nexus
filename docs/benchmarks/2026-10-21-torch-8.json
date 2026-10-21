@@ -1,0 +1,111 @@
+{
+  "library": "torch",
+  "device": "cpu",
+  "threads": "8",
+  "observed_threads": 8,
+  "mkldnn": true,
+  "allow_tf32": false,
+  "torch_cuda": false,
+  "note": "Ileri cagri varsayilan eager moddadir. mkldnn kapatilmadi. TF32 kapali.",
+  "rows": [
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n256",
+      "seconds": 0.00021483332966454327,
+      "value": 156.18820437403446,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n512",
+      "seconds": 0.0010684000056547422,
+      "value": 251.24995748712678,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n1024",
+      "seconds": 0.009734100002485016,
+      "value": 220.61450441764202,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n2048",
+      "seconds": 0.05118910000116254,
+      "value": 335.6157694432962,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "conv2d",
+      "seconds": 0.0002242499977000989,
+      "value": 31.562488618018293,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "depthwise",
+      "seconds": 0.00023932500334922224,
+      "value": 4.92906292067888,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "attention",
+      "seconds": 0.0008387749985558912,
+      "value": 1192.2148391662697,
+      "unit": "cagri/s"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "lstm",
+      "seconds": 0.0006492750035249628,
+      "value": 1540.1794225419503,
+      "unit": "cagri/s"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gru",
+      "seconds": 0.0018927249984699301,
+      "value": 528.3387712469562,
+      "unit": "cagri/s"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "mse",
+      "seconds": 0.001345149998087436,
+      "value": 9.354281691923326,
+      "unit": "GB/s"
+    },
+    {
+      "library": "torch",
+      "device": "cpu",
+      "threads": "8",
+      "name": "adam",
+      "seconds": 0.0035599250040831976,
+      "value": 4.712800404715465,
+      "unit": "GB/s"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "library": "nexus",
+  "device": "cpu",
+  "threads": "8",
+  "pool_workers": 16,
+  "kernel": "avx2-4x16",
+  "compiler": "MSVC 194434823",
+  "gpu_name": "NVIDIA GeForce RTX 3070 Laptop GPU",
+  "rows": [
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "gemm_n256", "seconds": 0.00022979999999999997, "value": 146.01580504786773, "unit": "GFLOPS"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "gemm_n512", "seconds": 0.0011424333333333334, "value": 234.96815802526771, "unit": "GFLOPS"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "gemm_n1024", "seconds": 0.0066017333333333325, "value": 325.2908803748511, "unit": "GFLOPS"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "gemm_n2048", "seconds": 0.050966299999999999, "value": 337.08291918385282, "unit": "GFLOPS"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "conv2d", "seconds": 0.0010773250000000001, "value": 6.5698726011185107, "unit": "GFLOPS"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "depthwise", "seconds": 0.00056154999999999996, "value": 2.1006998486332473, "unit": "GFLOPS"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "attention", "seconds": 9.5649999999999994e-05, "value": 10454.783063251438, "unit": "cagri/s"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "lstm", "seconds": 0.00021937500000000001, "value": 4558.404558404558, "unit": "cagri/s"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "gru", "seconds": 0.0001773, "value": 5640.1579244218838, "unit": "cagri/s"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "mse", "seconds": 0.00064260000000000001, "value": 19.581251167133519, "unit": "GB/s"},
+    {"library": "nexus", "device": "cpu", "threads": "8", "name": "adam", "seconds": 0.00070929999999999995, "value": 23.653201748202452, "unit": "GB/s"}
+  ]
+}

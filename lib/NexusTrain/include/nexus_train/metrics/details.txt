@@ -1,0 +1,3 @@
+Metrikler tahmin/hedef tensöründen birikir, epoch sonunda compute edilir.
+Argmax, Tensor API'sinde olmadığı için ardışık satır taramasıdır; formül türetilmez.
+MetricAggregator update/compute/reset'i tek yerden dağıtır.

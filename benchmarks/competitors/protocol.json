@@ -1,0 +1,68 @@
+{
+  "fp32": true,
+  "beta": 0,
+  "warmup": 1,
+  "gpu_repeats": 3,
+  "repeats": {
+    "gemm": 3,
+    "layer": 4
+  },
+  "threads": ["8", "default"],
+  "gemm": {
+    "n": [256, 512, 1024, 2048],
+    "flop": "2*N*N*N"
+  },
+  "conv2d": {
+    "n": 8,
+    "c": 3,
+    "h": 32,
+    "w": 32,
+    "k": 3,
+    "stride": 1,
+    "padding": 1,
+    "out_channels": 16,
+    "flop": "2*N*Cout*H*W*Cin*K*K"
+  },
+  "depthwise": {
+    "n": 8,
+    "c": 32,
+    "h": 16,
+    "w": 16,
+    "k": 3,
+    "padding": 1,
+    "flop": "2*N*C*H*W*K*K"
+  },
+  "attention": {
+    "batch": 4,
+    "time": 32,
+    "embed": 64,
+    "heads": 4,
+    "dropout": 0
+  },
+  "lstm": {
+    "batch": 4,
+    "time": 16,
+    "input": 32,
+    "hidden": 64,
+    "output": "sequence"
+  },
+  "gru": {
+    "batch": 4,
+    "time": 16,
+    "input": 32,
+    "hidden": 64,
+    "output": "sequence"
+  },
+  "mse": {
+    "elements": 1048576,
+    "reduction": "mean",
+    "gradient": true,
+    "bytes": "3*elements*4"
+  },
+  "adam": {
+    "parameters": 1048576,
+    "steps": 1,
+    "moments": true,
+    "bytes": "4*parameters*4"
+  }
+}

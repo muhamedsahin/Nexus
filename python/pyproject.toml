@@ -1,0 +1,20 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "nexus"
+version = "1.0.0"
+description = "Nexus C++ cercevesinin Python kabugu"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Muhammed Fatih Sahin"}]
+
+[tool.scikit-build]
+cmake.source-dir = ".."
+cmake.args = ["-DNEXUS_BUILD_PYTHON=ON", "-DNEXUS_BUILD_TESTS=OFF", "-DNEXUS_BUILD_BENCHMARKS=OFF"]
+wheel.packages = ["src/nexus"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

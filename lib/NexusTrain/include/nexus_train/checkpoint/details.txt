@@ -1,0 +1,4 @@
+Kayıt, model state_dict klonu + optimizer state_dict + trainer durumudur.
+Yazıcı tek thread'dir. Eğitim thread'i yalnızca kopyayı kuyruğa koyar.
+Dizin: model.nxm1, optimizer.nxo, trainer.nxs. last/ ve best/ ayrıdır.
+load öncesi flush şarttır; publish ile load eşzamanlı değildir.

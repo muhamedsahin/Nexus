@@ -1,0 +1,114 @@
+{
+  "library": "tensorflow",
+  "device": "cpu",
+  "threads": "8",
+  "intra_op": 8,
+  "tf_gpus": [],
+  "conv_format": [
+    "conv2d:channels_first",
+    "depthwise:channels_first"
+  ],
+  "tf32": false,
+  "trace_note": "tf.function izi isinma cagrisindadir, tekrar ortalamasina girmez. Nexus her cagrida iz cikarmaz. oneDNN varsayilan birakildi.",
+  "rows": [
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n256",
+      "seconds": 0.0008536333334632218,
+      "value": 39.30778085231095,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n512",
+      "seconds": 0.0020140333314581462,
+      "value": 133.28252904615763,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n1024",
+      "seconds": 0.006890233334464331,
+      "value": 311.67067118880846,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gemm_n2048",
+      "seconds": 0.04417736666315856,
+      "value": 388.8839575928605,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "conv2d",
+      "seconds": 0.000556924998818431,
+      "value": 12.70887105986696,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "depthwise",
+      "seconds": 0.0017147999969893135,
+      "value": 0.6879216247207349,
+      "unit": "GFLOPS"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "attention",
+      "seconds": 0.0009294749979744665,
+      "value": 1075.8761689977925,
+      "unit": "cagri/s"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "lstm",
+      "seconds": 0.001462425003410317,
+      "value": 683.795748614828,
+      "unit": "cagri/s"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "gru",
+      "seconds": 0.001648950004891958,
+      "value": 606.4465247783675,
+      "unit": "cagri/s"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "mse",
+      "seconds": 0.0021393749993876554,
+      "value": 5.881583174339027,
+      "unit": "GB/s"
+    },
+    {
+      "library": "tensorflow",
+      "device": "cpu",
+      "threads": "8",
+      "name": "adam",
+      "seconds": 0.005194149998715147,
+      "value": 3.230021467256452,
+      "unit": "GB/s"
+    }
+  ]
+}

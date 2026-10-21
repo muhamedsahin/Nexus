@@ -1,0 +1,4 @@
+Birden fazla logger aynı Trainer'da durabilir.
+CsvLogger uzun şema (kind,epoch,step,name,value) yazar.
+JsonLogger satır başına bir JSON nesnesi basar.
+Yazma soğuk yoldadır; tensör kopyalanmaz.

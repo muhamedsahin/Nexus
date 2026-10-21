@@ -1,0 +1,131 @@
+NEXUS BENCHMARK REPORT
+21 Ekim 2026
+Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
+1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
+olarak gelistirilmistir.
+
+Olcum programi : benchmarks/nexus_master_benchmark.cpp
+Derleme       : Release, Ninja, MSVC 2022 Preview, C++20
+Makine        : AMD Ryzen 7 5800H (8 cekirdek / 16 thread, taban 3.2 GHz)
+CUDA          : 13.4
+GPU           : NVIDIA GeForce RTX 3070 Laptop GPU (1 adet)
+Kaynak        : build-phase1/benchmarks/nexus_master_benchmark.exe
+Cikis kodu    : 0
+sink          : 0.1024 (sonlu)
+Kural         : isinma turu sureye girmez. Hibrit GEMM tek cagri olarak olculur
+                cunku her cagri kopya ve zamanlayici maliyeti tasir.
+
+Bu rapordaki her sayi bu calistirmadan gelir. PyTorch, Eigen, OpenBLAS,
+NVIDIA DALI ve Stable-Baselines3/RLlib bu makinede baglanmadi ve
+calistirilmadi. Onlar icin GFLOPS ya da adim/saniye yazilmaz.
+GPU GEMM sutunu ayri bir rakip degildir: MatrixFlash, ayni tampon uzerinde
+cuBLAS SGEMM kullanir ve matematik modu pedantic FP32'dir (TF32 kapali).
+
+
+1. MATRIXFLASH
+   N = 512, satir-major C = A * B, FLOP = 2*N^3 = 268 435 456.
+
+   +----------------------+------------+----------------+---------------------------+
+   | islem                | sure       | hiz            | not                       |
+   +----------------------+------------+----------------+---------------------------+
+   | CPU GEMM AVX2 4x16   | 1152.9 us  | 232.84 GFLOPS  | 3 tekrar ortalamasi       |
+   | GPU GEMM cuBLAS FP32 | 259.6 us   | 1033.90 GFLOPS | cihazda, H2D haric        |
+   | Hibrit CPU+GPU       | 1165.2 us  | 230.38 GFLOPS  | kopya dahil, tek cagri   |
+   | CPU elementwise add  |            | 69.69 GB/s     | 512^2, uc dizi            |
+   | All-reduce mean      | 9070.4 us  |                | 2 rank, 1 048 576 float   |
+   +----------------------+------------+----------------+---------------------------+
+
+   Cagri hizi: CPU 867 GEMM/s, GPU 3852 GEMM/s, hibrit 858 GEMM/s.
+   Saf GPU, CPU cekirdeginin 4.44 katidir. Hibrit bu boyutta CPU ile ayni
+   banda oturur (230'a karsi 233 GFLOPS) ve saf GPU'dan yavastir.
+   Kucuk N'de PCIe, A ve C kopyasini GPU karosundan pahali yapar.
+
+
+2. NEXUSOPTIM
+   Ayrinti: lib/NexusOptim/NEXUSOPTIM_BENCHMARK_REPORT.txt
+   1 048 576 float. Adam bant genisligi 4 dizi (param, grad, m, v) sayar:
+   16 MiB / sure.
+
+   +---------+-----------+-------------+------------------+
+   | cekirdek| sure      | adim/s      | GB/s             |
+   +---------+-----------+-------------+------------------+
+   | Adam    | 955.9 us  | 1046.1      | 17.55            |
+   | AdamW   | 1240.0 us | 806.5       | decay 0.01       |
+   | SGD     | 395.2 us  | 2530.4      | momentum 0       |
+   +---------+-----------+-------------+------------------+
+
+
+3. NEXUSMODEL
+   Linear 128 x 256 x 256, CPU cekirdek. FLOP = 2*128*256*256.
+
+   +---------------------------+----------+---------------+
+   | islem                     | sure     | hiz           |
+   +---------------------------+----------+---------------+
+   | linear_forward            | 222.0 us | 75.59 GFLOPS  |
+   +---------------------------+----------+---------------+
+
+   Adim hizi 4505 cagri/s. Bias toplami FLOP sayimina girmez.
+
+
+4. NEXUSLOSS
+   fused::mse, 1 048 576 eleman, mean indirgeme, AVX2.
+   Bayt sayimi pred + target + grad = 12 MiB.
+
+   +---------------------------+----------+------------+
+   | islem                     | sure     | hiz        |
+   +---------------------------+----------+------------+
+   | mse forward+grad          | 796.9 us | 15.79 GB/s |
+   +---------------------------+----------+------------+
+
+   Adim hizi 1255 cagri/s.
+
+
+5. NEXUSDATA
+   100 000 ornek, 32 float, batch 256, karistirma acik.
+   Bellek ici kopyadir. Disk, sikistirma ve nvJPEG bu turde yoktur.
+
+   +---------------------------+------------------+
+   | islem                     | hiz              |
+   +---------------------------+------------------+
+   | DataLoader                | 8.523e6 ornek/s  |
+   +---------------------------+------------------+
+
+
+6. NEXUSRL
+   64 LineWorld kopyasi, 100 adim, eylem sabit.
+   Kalici isciler kullanilir; her adim thread acmaz.
+
+   +---------------------------+------------------+
+   | islem                     | hiz              |
+   +---------------------------+------------------+
+   | VectorEnv                 | 602 807 adim/s   |
+   +---------------------------+------------------+
+
+   Adim basina 1.66 us.
+
+
+7. RAKIP EKSENI (BU MAKINEDE CALISTIRILMAYANLAR)
+
+   +----------------------+-----------------------------------------------+
+   | kitaplik             | bu raporda durumu                             |
+   +----------------------+-----------------------------------------------+
+   | cuBLAS               | GPU sutunu budur. 1033.90 GFLOPS olculdu.     |
+   | PyTorch / LibTorch   | Python ortamina torch kurulmamistir.          |
+   | Eigen                | Baglanmadi.                                   |
+   | OpenBLAS             | Baglanmadi.                                   |
+   | NVIDIA DALI          | Kurulmamistir. Veri hatti bellek icidir.     |
+   | Stable-Baselines3    | Kurulmamistir. RL sayisi saf C++ VectorEnv.  |
+   | RLlib                | Kurulmamistir.                                |
+   +----------------------+-----------------------------------------------+
+
+   Adil kiyas, ayni N, ayni dtype, ayni isinma ve ayni makine ister.
+   O kosu bu teslimde yapilmadi. Uydurma hiz yazilmaz.
+
+
+8. DOGRULAMA
+   Olcum programi cikis kodu 0. sink sonlu (0.1024).
+   Kok ctest, ayni agacta 15/15 gecti. Ayrinti README bolumundedir.
+
+Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
+1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
+olarak gelistirilmistir.
