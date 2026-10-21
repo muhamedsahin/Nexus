@@ -18,7 +18,7 @@ Eğitim döngüsü soldan sağa akar. Hesap, alttaki kütüphanelerde durur. `in
 ```mermaid
 flowchart TB
   subgraph facade ["include/nexus"]
-    nn[nn Sequential ve katmanlar]
+    nn[nn Sequential Graph ve katmanlar]
     train[TrainerBuilder]
     py[Python kabugu]
   end
@@ -129,6 +129,14 @@ model.save_nxs("ag.nxs");
 
 `mixed_precision(true)` kayıp ölçeği uygular. Matmul FP32 kalır. Sonlu olmayan gradyanda adım atlanır.
 
+## Graf ve dil modeli
+
+`Sequential` tek tensörlük bir hattır. Bir katman hem 4. hem 2. katmanın tensörünü okuyacaksa `Graph` kurulur. İki giriş `Add` ile toplanır veya `Concat` ile son eksende yan yana gelir. `Residual` yalnızca kendi bloğunun girişini çıkışına ekler. Grafın yerine geçmez.
+
+Dil modeli iskeleti `CausalTransformerBlock` ve `LanguageTrainer` ile kurulur. Blok tek tensör alır. Dikkat nedenseldir. `TransformerEncoderLayer` nedensel değildir ve öyle kalır. Kayıp, logitlerin `[:, :-1]` dilimi ile tokenların `[:, 1:]` dilimi arasındaki çapraz entropidir. `Trainer` düz satır sınıflandırması olarak durur.
+
+RoPE, uzman karışımı ve KV önbelleği bu turda yoktur. Sinüs konum kodu vardır. Ayrıntı [docs/architecture/graph-and-lm.md](docs/architecture/graph-and-lm.md).
+
 `ExecutionPolicy::hybrid_cpu_multi_gpu()` yalnız açıkça istenirse Linear çarpımını MatrixFlash zamanlayıcısına verir. `ExecutionPolicy::cuda` bugün matmul'u CPU çekirdeğinde bırakır. Aygıt evrişimi ayrı çağrıdır: Python'da `nexus.nn.conv2d_device`.
 
 ## Model dosyası
@@ -165,7 +173,7 @@ CUDA conv kapısı Nexus'un kendi CPU conv'una karşıdır. Şekil `8×3×32×32
 | --- | --- |
 | `web/` | Kurulum, C++, Python, API, benchmark |
 | `docs/benchmarks/` | 21 Ekim protokolü ve JSON |
-| `docs/architecture/` | Faz notları |
+| `docs/architecture/` | Faz notları, graf ve dil modeli |
 | `python/README.md` | Kabuk derlemesi ve `.nxs` |
 
 ## Lisans

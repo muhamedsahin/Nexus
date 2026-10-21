@@ -31,6 +31,12 @@ export default function CppPage() {
         ölçeği uygular, matmul FP32 kalır. <code>execution_policy_hybrid</code> yalnız istenirse Linear çarpımını
         zamanlayıcıya verir. <code>ExecutionPolicy::cuda</code> matmul&apos;u CPU çekirdeğinde bırakır.
       </p>
+      <p>
+        Düz hat <code>Sequential</code> olarak kalır. Bir katman hem 4. hem 2. katmanı okuyacaksa <code>Graph</code>{" "}
+        kurulur. Dil modeli <code>CausalTransformerBlock</code> ve kaydırılmış token kaybıdır.{" "}
+        <code>LanguageTrainer</code> logitlerin <code>[:, :-1]</code> dilimini tokenların <code>[:, 1:]</code> dilimine
+        bağlar. RoPE, uzman karışımı ve KV önbelleği bu turda yoktur.
+      </p>
       <CopyBlock code={train} />
       <h2>.nxs</h2>
       <p>

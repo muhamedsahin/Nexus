@@ -17,6 +17,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -373,6 +374,36 @@ RlRecord read_rl(std::istream& in) {
 
 std::shared_ptr<nn::Module> make_one(const LayerSpec& spec);
 
+std::string require_string(const LayerSpec& spec, const std::string& key) {
+    const Attr* attr = find_attr(spec, key);
+    if (attr == nullptr || attr->kind != AttrKind::String) {
+        fail("nxs attribute missing: " + key);
+    }
+    return attr->s;
+}
+
+std::vector<std::string> split_names(const std::string& joined) {
+    std::vector<std::string> names;
+    if (joined.empty()) {
+        return names;
+    }
+    std::stringstream stream(joined);
+    std::string item;
+    while (std::getline(stream, item, ',')) {
+        names.push_back(item);
+    }
+    return names;
+}
+
+std::shared_ptr<nn::Graph> make_graph(const LayerSpec& spec) {
+    auto graph = std::make_shared<nn::Graph>();
+    for (const LayerSpec& child : spec.children) {
+        graph->restore(require_string(child, "graph_name"), make_one(child), split_names(require_string(child, "graph_inputs")),
+                       require_i32(child, "graph_merge"));
+    }
+    return graph;
+}
+
 std::shared_ptr<nn::Sequential> make_sequential(const LayerSpec& spec) {
     auto model = std::make_shared<nn::Sequential>();
     for (const LayerSpec& child : spec.children) {
@@ -473,6 +504,13 @@ std::shared_ptr<nn::Module> make_one(const LayerSpec& spec) {
                                                            require_i32(spec, "feedforward"));
         case LayerKind::Sequential:
             return make_sequential(spec);
+        case LayerKind::Graph:
+            return make_graph(spec);
+        case LayerKind::Concat:
+            fail("Concat is a graph merge, not a standalone layer");
+        case LayerKind::CausalBlock:
+            return std::make_shared<nn::CausalTransformerBlock>(require_i32(spec, "embed"), require_i32(spec, "heads"),
+                                                               require_i32(spec, "feedforward"));
         default:
             fail("nxs layer type is unknown");
     }

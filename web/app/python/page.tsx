@@ -33,6 +33,11 @@ export default function PythonPage() {
         <code>Sequential</code>, <code>TrainerBuilder</code> ve <code>PPOAgent</code> C++ adlarıdır. Swish C++ formülüdür.
         Başka bir adın gövdesi .nxs içine yazılır. Kapalı hücre yalnız float, int veya bool olabilir.
       </p>
+      <p>
+        Çok giriş <code>nn.Graph</code> ile kurulur. <code>concat</code> son eksende birleştirir. Dil modeli{" "}
+        <code>CausalTransformerBlock</code> artı <code>train.LanguageTrainer.fit</code> ile kaydırılmış kayıp kullanır.
+        RoPE, uzman karışımı ve KV önbelleği bu turda yoktur.
+      </p>
       <CopyBlock code={fit} />
       <h2>Aygıt evrişimi</h2>
       <p>

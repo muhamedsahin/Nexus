@@ -28,6 +28,7 @@
 #include "nexus/rl/dqn.hpp"
 #include "nexus/rl/envs.hpp"
 #include "nexus/rl/league.hpp"
+#include "nexus/train/language.hpp"
 #include "nexus/rl/multi_agent_trainer.hpp"
 #include "nexus/rl/ppo.hpp"
 #include "nexus/rl/prioritized_replay.hpp"
@@ -383,6 +384,7 @@ PYBIND11_MODULE(_core, m) {
     NEXUS_LAYER(InstanceNorm, int);
     NEXUS_LAYER(RNN, int, int);
     NEXUS_LAYER(PositionalEncoding, int, int, bool);
+    NEXUS_LAYER(CausalTransformerBlock, int, int, int);
 #undef NEXUS_LAYER
 
     py::class_<nexus::nn::TransformerDecoder, nexus::nn::Module, std::shared_ptr<nexus::nn::TransformerDecoder>>(nn, "TransformerDecoder")
@@ -484,6 +486,33 @@ PYBIND11_MODULE(_core, m) {
             return nexus::nn::Sequential::load_nxs(path);
         })
         .def("size", &nexus::nn::Sequential::size);
+
+    py::class_<nexus::nn::Graph, nexus::nn::Module, std::shared_ptr<nexus::nn::Graph>>(nn, "Graph")
+        .def(py::init<>())
+        .def("add", [](nexus::nn::Graph& self, const std::string& name, std::shared_ptr<nexus::nn::Module> layer) -> nexus::nn::Graph& {
+            self.add(name, std::move(layer));
+            return self;
+        }, py::return_value_policy::reference, py::arg("name"), py::arg("layer"))
+        .def("add", [](nexus::nn::Graph& self, const std::string& name, std::shared_ptr<nexus::nn::Module> layer,
+                       const std::vector<std::string>& inputs, const std::string& merge) -> nexus::nn::Graph& {
+            if (merge != "add" && merge != "concat") {
+                throw std::invalid_argument("graph merge is add or concat");
+            }
+            self.add(name, std::move(layer), inputs, merge == "concat");
+            return self;
+        }, py::return_value_policy::reference, py::arg("name"), py::arg("layer"), py::arg("inputs"), py::arg("merge"))
+        .def("concat", [](nexus::nn::Graph& self, const std::string& name, std::shared_ptr<nexus::nn::Module> layer,
+                          const std::vector<std::string>& inputs) -> nexus::nn::Graph& {
+            self.concat(name, std::move(layer), inputs);
+            return self;
+        }, py::return_value_policy::reference, py::arg("name"), py::arg("layer"), py::arg("inputs"))
+        .def("forward", &nexus::nn::Graph::forward)
+        .def("backward", &nexus::nn::Graph::backward)
+        .def("train", &nexus::nn::Graph::train)
+        .def("eval", &nexus::nn::Graph::eval)
+        .def("size", &nexus::nn::Graph::size)
+        .def("save_nxs", [](const nexus::nn::Graph& self, const std::string& path) { self.save_nxs(path); })
+        .def_static("load_nxs", [](const std::string& path) { return nexus::nn::Graph::load_nxs(path); });
 
     auto loss = m.def_submodule("loss");
     py::class_<nexus::loss::CrossEntropy>(loss, "CrossEntropy")
@@ -677,6 +706,28 @@ PYBIND11_MODULE(_core, m) {
             out["f1"] = state.f1;
             return out;
         });
+    py::class_<nexus::LanguageTrainer>(train, "LanguageTrainer")
+        .def(py::init([](nexus::nn::Module& model, float learning_rate) {
+            return std::make_unique<nexus::LanguageTrainer>(model, learning_rate);
+        }), py::keep_alive<1, 2>(), py::arg("model"), py::arg("learning_rate"))
+        .def("fit", [](nexus::LanguageTrainer& self, const std::vector<std::vector<int>>& tokens, int epochs) {
+            if (tokens.empty() || tokens.front().size() < 2) {
+                throw std::invalid_argument("language tokens must be [batch, time]");
+            }
+            nexus::TokenRows rows;
+            rows.batch = static_cast<int>(tokens.size());
+            rows.time = static_cast<int>(tokens.front().size());
+            rows.values.reserve(static_cast<std::size_t>(rows.batch * rows.time));
+            for (const std::vector<int>& row : tokens) {
+                if (static_cast<int>(row.size()) != rows.time) {
+                    throw std::invalid_argument("language token rows must share one length");
+                }
+                rows.values.insert(rows.values.end(), row.begin(), row.end());
+            }
+            py::gil_scoped_release release;
+            return self.fit(rows, epochs);
+        }, py::arg("tokens"), py::arg("epochs"));
+
     py::class_<nexus::TrainerBuilder>(train, "TrainerBuilder")
         .def(py::init<nexus::nn::Sequential>())
         .def("adamw", [](nexus::TrainerBuilder& self, nexus::nn::Sequential& model, float lr, float weight_decay) -> nexus::TrainerBuilder& {

@@ -27,4 +27,12 @@ C:\ProgramData\anaconda3\python.exe -m pytest python\tests
 
 `Swish` adi C++ formuludur. Baska bir adla kurulan aktivasyonun govdesi ayni dosyaya yazilir ve `nexus.load` onu geri kurar. Kapali hucre yalniz float, int veya bool ise yazilir. `data.save_image` PNG, JPEG ve BMP yazar. `data.load_image` kanal ve hedef boy alir.
 
+## Graf ve dil modeli
+
+`nn.Graph` adli dugum tutar. `add(name, layer)` onceki dugumu okur. `concat(name, layer, inputs)` son eksende birlestirir. `add(name, layer, inputs, "add")` eleman sayilari esitse toplar. Besinci katman `["katman4", "katman2"]` alabilir.
+
+`nn.CausalTransformerBlock(embed, heads, feedforward)` tek tensor alir. Dikkat nedenseldir. `train.LanguageTrainer(model, learning_rate).fit(tokens, epochs)` kaydirilmis capraz entropi uygular. `tokens` sekli `[batch, time]` olan tamsayi satirlardir. `TrainerBuilder` duz satir siniflandirmasi olarak kalir.
+
+RoPE, uzman karisimi ve KV onbellegi bu turda yoktur.
+
 `nn.Conv2d` CPU'da kalir. `nn.conv2d_device` aygit cekirdegidir. Bu makinede protokol sekli (8, 3, 32, 32) -> 16 filtre, 3x3, pad 1: CPU 6.39 GFLOPS, aygitta kalan cekirdek 48.7 GFLOPS, host gidis-donus 19.0 GFLOPS. cuDNN bu kurulumda yok, kapali kalir. `execution_policy_hybrid` acikca istenir; varsayilan CPU'dur.

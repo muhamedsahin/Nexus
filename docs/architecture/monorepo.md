@@ -16,3 +16,11 @@ Kok `nexus` statik kutuphanesi yalnizca bellek kapisini derler (`src/core/memory
 `matrix_pro` her kok derlemeye girer. CUDA toolkit ve `NEXUS_ENABLE_CUDA` varsa cihaz cekirdekleri de derlenir; yoksa ayni hedef CPU GEMM, elementwise ve is parcacigi havuzuyla kalir. Tuketici her iki durumda `NEXUS_HAS_MATRIX_PRO=1` gorur. Kopru, CUDA acikken `matrix_pro::Tensor` gorunumlerini de acar.
 
 Alt projelerin kendi testleri kok derlemede kapali tutulur. Boylece ayni test adi iki kez tanimlanmaz ve FetchContent ile doktrin indirilmez. Bir alt kutuphaneyi tek basina derlemek isteyen, o kutuphanenin dizininde kendi `CMakeLists.txt` seceneklerini kullanir.
+
+## Graf ve kaydirilmis kayip
+
+Duz hat `Sequential` olarak kalir. Cok giris `Graph` ile kurulur. Dil modeli `CausalTransformerBlock` ve `LanguageTrainer` ile egitilir. Kayip, logitlerin `[:, :-1]` dilimi ile tokenlarin `[:, 1:]` dilimi arasindaki capraz entropidir. NXS2 kimlikleri `Graph = 31`, `Concat = 32`, `CausalBlock = 33` olur. Onceki tur numaralari degismez.
+
+RoPE, uzman karisimi ve KV onbellegi bu turda yoktur. Ayrinti `docs/architecture/graph-and-lm.md` dosyasindadir.
+
+Bu proje Muhammed Fatih Sahin tarafindan gelistirilmistir.

@@ -20,9 +20,12 @@
 #include "nexus_model/core/kernels.hpp"
 #include "nexus/model/nxs_format.hpp"
 
+#include <algorithm>
 #include <functional>
+#include <map>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -715,6 +718,8 @@ class Sequential : public Module {
  private:
     std::shared_ptr<std::vector<std::shared_ptr<Module>>> layers_ = std::make_shared<std::vector<std::shared_ptr<Module>>>();
 };
+
+#include "nexus/nn/graph.inl"
 
 }  // namespace nn
 }  // namespace nexus

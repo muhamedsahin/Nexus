@@ -54,6 +54,9 @@ enum class LayerKind : std::uint16_t {
     Sequential = 28,
     NamedActivation = 29,
     PythonModule = 30,
+    Graph = 31,
+    Concat = 32,
+    CausalBlock = 33,
 };
 
 enum class AttrKind : std::uint8_t { I32 = 1, F32 = 2, Bool = 3, String = 4 };
