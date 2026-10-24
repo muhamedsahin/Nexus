@@ -1,0 +1,36 @@
+{
+  "model": {
+    "n_layer": 12,
+    "d_model": 768,
+    "n_head": 12,
+    "n_kv_head": 12,
+    "d_ff": 3072,
+    "vocab": 50257,
+    "seq_len": 1024,
+    "micro_batch": 1,
+    "learned_pos": 1024,
+    "gradient_accum": 1,
+    "tie_head": true,
+    "ffn_swiglu": false,
+    "bias": true,
+    "rmsnorm": false
+  },
+  "dtype": {
+    "param_bytes": 2,
+    "grad_bytes": 2,
+    "optim_bytes": 8,
+    "master_bytes": 2,
+    "activation_elem_bytes": 2
+  },
+  "plan": {
+    "dp": 1,
+    "tp": 1,
+    "pp": 1,
+    "zero_stage": 1,
+    "full_recompute": false
+  },
+  "device": {
+    "peak_tflops": 312,
+    "mem_gbps": 2039
+  }
+}

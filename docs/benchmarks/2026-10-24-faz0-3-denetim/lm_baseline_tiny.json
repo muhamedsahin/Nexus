@@ -1,0 +1,12 @@
+{
+  "app": "lm_baseline",
+  "phase": 0,
+  "config": {"model":{"vocab":8192,"dim":384,"heads":6,"ff":1536,"layers":6},"data":{"batch":2,"time":256,"seed":20261024},"train":{"lr":0.00060000002849847078,"weight_decay":0.10000000149011612,"steps":20}},
+  "params": {"counted": 16946432, "estimated": 16939008, "note": "counted gercek sayim; estimated formule gore (decoder bias farki olabilir)"},
+  "loss_curve": [10.015165328979492, 9.2971420288085938, 8.7723150253295898, 8.3475351333618164, 8.004180908203125, 7.7331094741821289, 7.4708781242370605, 7.2423081398010254, 7.0327897071838379, 6.8424296379089355, 6.6916837692260742, 6.5729660987854004, 6.3864502906799316, 6.2763309478759766, 6.1817483901977539, 6.083376407623291, 5.9858183860778809, 5.8953776359558105, 5.8132491111755371, 5.7475900650024414],
+  "timing": {"steps": 20, "mean_step_ns": 865791300, "min_step_ns": 818479600, "max_step_ns": 944693200, "tokens_per_sec": 591.36653371314765},
+  "flops": {"estimated_per_step": 45996834816, "note": "Kaplan/Chinchilla 6N + PaLM dikkat terimi; tahmindir"},
+  "mfu": null,
+  "memory": {"process_peak_working_set_bytes": 822095872, "ledger_peak_bytes": 0, "ledger_current_bytes": 0, "note": "defter yalnizca nexus kapi ayrimlarini sayar; birlesik sayim FAZ 1"},
+  "fragmentation": {"ratio": "n/a", "note": "FAZ 1 k64 havuzu reserved/current ile olcecek"}
+}

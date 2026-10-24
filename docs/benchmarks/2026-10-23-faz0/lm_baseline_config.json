@@ -1,0 +1,19 @@
+{
+  "model": {
+    "vocab": 64,
+    "dim": 32,
+    "heads": 4,
+    "ff": 64,
+    "layers": 1
+  },
+  "data": {
+    "batch": 4,
+    "time": 16,
+    "seed": 20261023
+  },
+  "train": {
+    "lr": 0.003,
+    "weight_decay": 0.0,
+    "steps": 200
+  }
+}
