@@ -106,3 +106,15 @@ Release derlemede MSVC `/O2`, diğer derleyiciler `-O3 -march=native` kullanır.
 Lisans Apache-2.0'dır. Metin üst ağaçtaki [LICENSE](../../LICENSE) dosyasında ve kardeş kütüphanelerde durur: [NexusData](../NexusData/LICENSE), [NexusLoss](../NexusLoss/LICENSE), [NexusModel](../NexusModel/LICENSE), [NexusOptim](../NexusOptim/LICENSE), [MatrixFlash-Pro](../MatrixFlash-Pro/LICENSE).
 
 Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf öğrencisi Muhammed Fatih Şahin tarafından yapay zeka destekli olarak geliştirilmiştir.
+
+---
+
+<div align="center">
+
+**🎓 Bu proje BTÜ (Bursa Teknik Üniversitesi) Bilgisayar Mühendisliği 1. sınıf öğrencisi tarafından yapay zeka destekli olarak yapıldı.**
+
+<sub>Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf öğrencisi Muhammed Fatih Şahin tarafından yapay zeka destekli olarak geliştirilmiştir.</sub>
+
+<sub>⚡ [Nexus](https://github.com/muhamedsahin/Nexus) ekosisteminin bir parçasıdır.</sub>
+
+</div>
