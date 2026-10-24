@@ -1,3 +1,6 @@
+# Nexus/benchmarks/runner: FAZ 0 kosucusu.
+add_subdirectory(runner)
+
 nexus_add_test(bench_phase1_bridge TIMEOUT 300)
 nexus_add_test(bench_phase2_heterogeneous TIMEOUT 300)
 nexus_add_test(bench_phase3_optim_model TIMEOUT 300)
@@ -13,4 +16,7 @@ nexus_add_test(bench_phase24_close TIMEOUT 180)
 nexus_add_test(bench_phase30_close TIMEOUT 180)
 nexus_add_test(nexus_master_benchmark TIMEOUT 300)
 nexus_add_test(bench_competitor_protocol TIMEOUT 300)
-nexus_add_test(conv_gate TIMEOUT 120)
+# conv_gate matrix_pro::Tensor (CUDA yolu) kullanir; CPU derlemesinde bu sembol yoktur.
+if(NEXUS_ENABLE_CUDA)
+    nexus_add_test(conv_gate TIMEOUT 120)
+endif()

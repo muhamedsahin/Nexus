@@ -12,3 +12,5 @@ nexus_app(dl_vision_classifier)
 nexus_app(custom_ops_showcase)
 nexus_app(multi_agent_rl_arena)
 nexus_app(hybrid_cluster_benchmark)
+
+add_subdirectory(lm_baseline)

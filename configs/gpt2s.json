@@ -1,0 +1,21 @@
+{
+  "name": "gpt2s",
+  "note": "GPT-2 124M sekli; CPU'da yalniz birkac adim",
+  "model": {
+    "vocab": 50304,
+    "dim": 768,
+    "heads": 12,
+    "ff": 3072,
+    "layers": 12
+  },
+  "data": {
+    "batch": 1,
+    "time": 1024,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.0006,
+    "weight_decay": 0.1,
+    "steps": 2
+  }
+}

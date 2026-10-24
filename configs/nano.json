@@ -1,0 +1,21 @@
+{
+  "name": "nano",
+  "note": "bugunku regresyon testi boyutu",
+  "model": {
+    "vocab": 256,
+    "dim": 64,
+    "heads": 4,
+    "ff": 256,
+    "layers": 2
+  },
+  "data": {
+    "batch": 4,
+    "time": 64,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.003,
+    "weight_decay": 0.0,
+    "steps": 200
+  }
+}

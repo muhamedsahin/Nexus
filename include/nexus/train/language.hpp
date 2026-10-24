@@ -5,18 +5,21 @@
  * @brief Kaydirilmis token kaybi. Duz satir siniflandirmasi trainer.hpp icinde kalir.
  *
  * Girdi [batch, time] tamsayi tokendir. Kayip, logitlerin [:, :-1] dilimi ile
- * tokenlarin [:, 1:] dilimi arasindaki capraz entropidir.
+ * tokenlarin [:, 1:] dilimi arasindaki capraz entropidir. FAZ 3.E: dilimler kopyalanmaz;
+ * `fused::cross_entropy_shifted` indeks ofsetiyle okur ve gradyani tek tampona yazar.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
  * olarak gelistirilmistir.
  */
 
+#include "nexus/fused/training.hpp"
 #include "nexus/loss/losses.hpp"
 #include "nexus/nn/modules.hpp"
 #include "nexus/optim/optimizers.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -67,33 +70,17 @@ class LanguageTrainer {
             throw std::invalid_argument("language logits must be [batch, time, vocab]");
         }
         const int vocab = static_cast<int>(logits.size(2));
-        const int steps = rows.time - 1;
-        const int count = rows.batch * steps;
-        std::vector<float> flat(static_cast<std::size_t>(count) * static_cast<std::size_t>(vocab));
-        std::vector<int> target(static_cast<std::size_t>(count));
-        for (int batch = 0; batch < rows.batch; ++batch) {
-            for (int time = 0; time < steps; ++time) {
-                const float* source =
-                    logits.data() + (static_cast<std::size_t>(batch * rows.time + time) * static_cast<std::size_t>(vocab));
-                float* destination = flat.data() + (static_cast<std::size_t>(batch * steps + time) * static_cast<std::size_t>(vocab));
-                std::copy(source, source + vocab, destination);
-                target[static_cast<std::size_t>(batch * steps + time)] =
-                    rows.values[static_cast<std::size_t>(batch * rows.time + time + 1)];
-            }
-        }
-        std::vector<float> grad(flat.size(), 0.0f);
-        const float loss = loss_.forward_backward(flat.data(), target.data(), count, vocab, grad.data());
+        // FAZ 3.E: kaydirma kopya ile degil indeks ofsetiyle. Fuzyonlu CE dlogits'i dogrudan
+        // [batch, time, vocab] gradyan tamponuna yazar (son konum 0); eski iki ara kopya
+        // (duzlestirilmis logit + duzlestirilmis gradyan) yoktur.
+        static_assert(sizeof(int) == sizeof(std::int32_t), "token tamponu int32 olarak okunur");
         nexus_model::Tensor full = nexus_model::Tensor::zeros({static_cast<std::size_t>(rows.batch),
                                                                static_cast<std::size_t>(rows.time),
                                                                static_cast<std::size_t>(vocab)});
-        for (int batch = 0; batch < rows.batch; ++batch) {
-            for (int time = 0; time < steps; ++time) {
-                const float* source = grad.data() + (static_cast<std::size_t>(batch * steps + time) * static_cast<std::size_t>(vocab));
-                float* destination =
-                    full.data() + (static_cast<std::size_t>(batch * rows.time + time) * static_cast<std::size_t>(vocab));
-                std::copy(source, source + vocab, destination);
-            }
-        }
+        const fused::CrossEntropyResult result =
+            fused::cross_entropy_shifted(logits.data(), reinterpret_cast<const std::int32_t*>(rows.values.data()),
+                                         rows.batch, rows.time, vocab, ce_options_, full.data());
+        const float loss = result.loss;
         model_->backward(full);
         optimizer_->step();
         return loss;
@@ -101,7 +88,7 @@ class LanguageTrainer {
 
     nn::Module* model_ = nullptr;
     std::unique_ptr<optim::AdamW> optimizer_;
-    loss::CrossEntropy loss_{};
+    fused::CrossEntropyOptions ce_options_{};
     float last_ = 0.0f;
 };
 

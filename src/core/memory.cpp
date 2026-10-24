@@ -14,8 +14,10 @@
 
 #include "nexus/core/memory.hpp"
 
+#include "nexus/core/allocator.hpp"
 #include "nexus/core/error.hpp"
 #include "nexus/core/shape.hpp"
+#include "nexus/prof/memory_ledger.hpp"
 
 #include <atomic>
 #include <cstring>
@@ -55,6 +57,9 @@ struct Record {
   DeviceRef device{};
   std::size_t bytes = 0;
   std::size_t reserved = 0;
+  // FAZ 0: ayirmanin amac etiketi. track() cagiranin is parcacigi etiketini yakalar;
+  // release_owned() ayni etiketle muhasebe defterinden dusurur.
+  prof::MemoryLabel label = prof::MemoryLabel::Temporary;
 };
 
 struct RegistryNode {
@@ -66,6 +71,7 @@ struct RegistryNode {
 std::atomic_flag registry_flag = ATOMIC_FLAG_INIT;
 RegistryNode* registry_head = nullptr;
 std::atomic<std::uint64_t> g_allocations{0};
+std::atomic<std::uint64_t> g_live_allocations{0};
 
 struct RegistrySpin {
   RegistrySpin() {
@@ -84,16 +90,32 @@ RegistryNode* find_node(void* pointer) {
   return nullptr;
 }
 
+// AllocKind -> muhasebe defteri adres uzayi eslemesi (birebir).
+prof::LedgerSpace ledger_space(AllocKind kind) noexcept {
+  switch (kind) {
+    case AllocKind::AlignedHost:
+      return prof::LedgerSpace::AlignedHost;
+    case AllocKind::PinnedHost:
+      return prof::LedgerSpace::PinnedHost;
+    case AllocKind::Device:
+    default:
+      return prof::LedgerSpace::Device;
+  }
+}
+
 void track(void* pointer, Record record) {
   if (pointer == nullptr) {
     throw TensorError("Nexus: bos isaretci bellek kaydina yazilamaz");
   }
+  record.label = prof::current_allocation_label();
   RegistrySpin guard;
   if (find_node(pointer) != nullptr) {
     throw TensorError("Nexus: ayni adres ikinci kez kaydedildi");
   }
   registry_head = new RegistryNode{pointer, record, registry_head};
   g_allocations.fetch_add(1, std::memory_order_relaxed);
+  g_live_allocations.fetch_add(1, std::memory_order_relaxed);
+  prof::ledger().record_alloc(record.label, ledger_space(record.kind), record.bytes);
 }
 
 std::optional<Record> untrack(void* pointer) {
@@ -105,6 +127,7 @@ std::optional<Record> untrack(void* pointer) {
       Record record = node->value;
       *link = node->next;
       delete node;
+      g_live_allocations.fetch_sub(1, std::memory_order_relaxed);
       return record;
     }
     link = &(*link)->next;
@@ -254,13 +277,7 @@ void* allocate_aligned(std::size_t bytes) {
   if (bytes == 0) {
     return nullptr;
   }
-  const std::size_t reserved = round_up(bytes, kAlignment);
-  void* pointer = nullptr;
-#if defined(_WIN32)
-  pointer = _aligned_malloc(reserved, kAlignment);
-#else
-  pointer = std::aligned_alloc(kAlignment, reserved);
-#endif
+  void* pointer = host_allocator().allocate(bytes);
   if (pointer == nullptr) {
     throw TensorError("Nexus: 64 bayt hizali bellek ayrilamadi");
   }
@@ -269,7 +286,7 @@ void* allocate_aligned(std::size_t bytes) {
   record.kind = AllocKind::AlignedHost;
   record.device = DeviceRef::cpu();
   record.bytes = bytes;
-  record.reserved = reserved;
+  record.reserved = CachingAllocator::round_size(bytes);
   track(pointer, record);
   return pointer;
 }
@@ -350,8 +367,15 @@ void release_owned(void* ptr) noexcept {
   if (!record.has_value()) {
     return;
   }
-  free_block(ptr, *record);
+  prof::ledger().record_free(record->label, ledger_space(record->kind), record->bytes);
+  if (record->backend == Backend::CrtAligned) {
+    host_allocator().deallocate(ptr, record->bytes);
+  } else {
+    free_block(ptr, *record);
+  }
 }
+
+double memory_fragmentation_ratio() { return host_allocator().fragmentation_ratio(); }
 
 bool owns_allocation(const void* ptr) noexcept {
   if (ptr == nullptr) {
@@ -381,6 +405,7 @@ AllocInfo allocation_info(const void* ptr) {
 }
 
 std::uint64_t allocation_count() noexcept { return g_allocations.load(std::memory_order_relaxed); }
+std::uint64_t live_allocation_count() noexcept { return g_live_allocations.load(std::memory_order_relaxed); }
 
 void copy_bytes(void* dst, MemorySpace dst_space, DeviceRef dst_device, const void* src, MemorySpace src_space,
                 DeviceRef src_device, std::size_t bytes) {

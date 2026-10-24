@@ -1,0 +1,21 @@
+{
+  "name": "gpt2m",
+  "note": "GPT-2 350M sekli",
+  "model": {
+    "vocab": 50304,
+    "dim": 1024,
+    "heads": 16,
+    "ff": 4096,
+    "layers": 24
+  },
+  "data": {
+    "batch": 1,
+    "time": 1024,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.0003,
+    "weight_decay": 0.1,
+    "steps": 1
+  }
+}

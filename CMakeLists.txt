@@ -39,8 +39,14 @@ if(NOT TARGET nexus_train)
 endif()
 
 add_library(nexus STATIC
+    src/core/allocator.cpp
     src/core/memory.cpp
     src/core/mirrored_tensor.cpp
+    src/autograd/engine.cpp
+    src/autograd/ops.cpp
+    src/fused/fused.cpp
+    src/fused/training.cpp
+    src/prof/prof.cpp
     src/model/nxs.cpp)
 add_library(nexus::nexus ALIAS nexus)
 
@@ -93,6 +99,8 @@ nexus_configure_target(nexus)
 
 include(CTest)
 enable_testing()
+
+add_subdirectory(tools)
 
 if(NEXUS_BUILD_TESTS)
     add_subdirectory(tests)

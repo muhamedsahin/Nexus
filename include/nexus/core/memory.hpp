@@ -9,7 +9,7 @@
  * baska bir kutuphanenin tamponunu goruntuler, serbest birakmaz.
  *
  * Ayirma sayaci `allocation_count()` yalnizca bu kapidan gecen ayirmalari
- * sayar. Sifir kopyali gorunum bu sayaci artirmaz. Testler bunu dogrular.
+ * sayar (monoton toplam); canli sayi icin `live_allocation_count()`. Sifir kopyali gorunum bu sayaci artirmaz. Testler bunu dogrular.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -49,6 +49,13 @@ void release_owned(void* ptr) noexcept;
 [[nodiscard]] bool owns_allocation(const void* ptr) noexcept;
 [[nodiscard]] AllocInfo allocation_info(const void* ptr);
 [[nodiscard]] std::uint64_t allocation_count() noexcept;
+/// Su an canli (serbest birakilmamis) kapi ayirmasi sayisi; sizinti testleri icin.
+/// `allocation_count()` ise toplam (monoton) sayactir ve serbest birakmada azalmaz.
+[[nodiscard]] std::uint64_t live_allocation_count() noexcept;
+
+/// k64 havuzunun reserved/current parcalanma orani (>=1.0). Canli ayirma yoksa
+/// reserved>0 icin -1.0, ikisi de 0 icin 1.0 doner. FAZ 1 metriği.
+[[nodiscard]] double memory_fragmentation_ratio();
 
 /// Host, pinned ve cihaz arasinda bayt kopyasi. Bos uzunluk no-op'tur.
 /// Cihaz kopyasi CUDA toolkit bagli degilse TensorError firlatir.

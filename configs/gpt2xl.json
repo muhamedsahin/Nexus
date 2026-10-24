@@ -1,0 +1,21 @@
+{
+  "name": "gpt2xl",
+  "note": "GPT-2 1.5B sekli; tahmin araci icin (8 GB'a FP32 sigmaz)",
+  "model": {
+    "vocab": 50304,
+    "dim": 1600,
+    "heads": 25,
+    "ff": 6400,
+    "layers": 48
+  },
+  "data": {
+    "batch": 1,
+    "time": 1024,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.0002,
+    "weight_decay": 0.1,
+    "steps": 1
+  }
+}

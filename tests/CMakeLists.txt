@@ -3,6 +3,8 @@ target_include_directories(nexus_test_support PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 target_compile_features(nexus_test_support PUBLIC cxx_std_20)
 nexus_configure_target(nexus_test_support)
 
+add_subdirectory(parity)
+
 nexus_add_test(test_phase1_bridge SUPPORT)
 nexus_add_test(test_phase1_loss_families SUPPORT)
 nexus_add_test(test_phase1_mirrored_tensor SUPPORT)

@@ -1,0 +1,21 @@
+{
+  "name": "tiny",
+  "note": "FAZ 0 temel cizgi",
+  "model": {
+    "vocab": 8192,
+    "dim": 384,
+    "heads": 6,
+    "ff": 1536,
+    "layers": 6
+  },
+  "data": {
+    "batch": 2,
+    "time": 256,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.0006,
+    "weight_decay": 0.1,
+    "steps": 20
+  }
+}

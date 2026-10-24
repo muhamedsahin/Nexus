@@ -1,0 +1,23 @@
+{
+  "name": "llama1b",
+  "note": "LLaMA sekli; RMSNorm+SwiGLU+RoPE gerektirir, FAZ 6'dan sonra calisir",
+  "model": {
+    "vocab": 32000,
+    "dim": 2048,
+    "heads": 32,
+    "kv_heads": 8,
+    "ff": 5632,
+    "layers": 22,
+    "arch": "llama"
+  },
+  "data": {
+    "batch": 1,
+    "time": 2048,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.0003,
+    "weight_decay": 0.1,
+    "steps": 1
+  }
+}

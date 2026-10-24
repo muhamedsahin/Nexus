@@ -1,0 +1,23 @@
+{
+  "name": "llama7b",
+  "note": "LLaMA-7B sekli; FAZ 6'dan sonra, kume gerektirir",
+  "model": {
+    "vocab": 32000,
+    "dim": 4096,
+    "heads": 32,
+    "kv_heads": 32,
+    "ff": 11008,
+    "layers": 32,
+    "arch": "llama"
+  },
+  "data": {
+    "batch": 1,
+    "time": 4096,
+    "seed": 20261024
+  },
+  "train": {
+    "lr": 0.0003,
+    "weight_decay": 0.1,
+    "steps": 1
+  }
+}
