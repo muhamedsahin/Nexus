@@ -1,0 +1,17 @@
+compute-sanitizer 2026-10-24, CUDA 13.4, RTX 3070 Laptop, build-phase1 Release
+memcheck test_cuda_allocator.exe rc=9 | ========= ERROR SUMMARY: 4 errors | faz1-cuda-ayirici: 30 gecti, 0 basarisiz
+memcheck test_cuda_kernels.exe rc=0 | ========= ERROR SUMMARY: 0 errors | faz3-cuda-cekirdekleri: 122 gecti, 0 basarisiz
+memcheck test_cuda_gpt.exe rc=0 | ========= ERROR SUMMARY: 0 errors |   PASS  Nexus GPU GPT-2 vs PyTorch FP32 (small, 3 adim)
+racecheck test_cuda_allocator.exe rc=0 | ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings) | faz1-cuda-ayirici: 30 gecti, 0 basarisiz
+racecheck test_cuda_kernels.exe rc=0 | ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings) | faz3-cuda-cekirdekleri: 122 gecti, 0 basarisiz
+racecheck test_cuda_gpt.exe rc=0 | ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings) |   PASS  Nexus GPU GPT-2 vs PyTorch FP32 (small, 3 adim)
+initcheck test_cuda_allocator.exe rc=0 | ========= ERROR SUMMARY: 0 errors | faz1-cuda-ayirici: 30 gecti, 0 basarisiz
+initcheck test_cuda_kernels.exe rc=0 | ========= ERROR SUMMARY: 0 errors | faz3-cuda-cekirdekleri: 122 gecti, 0 basarisiz
+initcheck test_cuda_gpt.exe rc=0 | ========= ERROR SUMMARY: 0 errors |   PASS  Nexus GPU GPT-2 vs PyTorch FP32 (small, 3 adim)
+synccheck test_cuda_allocator.exe rc=0 | ========= ERROR SUMMARY: 0 errors | faz1-cuda-ayirici: 30 gecti, 0 basarisiz
+synccheck test_cuda_kernels.exe rc=0 | ========= ERROR SUMMARY: 0 errors | faz3-cuda-cekirdekleri: 122 gecti, 0 basarisiz
+synccheck test_cuda_gpt.exe rc=0 | ========= ERROR SUMMARY: 0 errors |   PASS  Nexus GPU GPT-2 vs PyTorch FP32 (small, 3 adim)
+
+[exited with code 0]
+memcheck(--report-api-errors no) test_cuda_allocator.exe rc=0 | ========= ERROR SUMMARY: 0 errors | faz1-cuda-ayirici: 30 gecti, 0 basarisiz
+Not: ilk memcheck satirindaki 4 kayit, OOM testinde kasitli tetiklenen cudaMalloc yetersiz bellek API donusleridir.

@@ -15,8 +15,10 @@
 
 ![Testler](https://img.shields.io/badge/ctest_CPU-26%2F26_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
+![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--3_CPU_tamam-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--3_CPU%2BGPU-orange?style=flat-square)
+![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
 [Kütüphaneler](#-kütüphaneler) •
@@ -229,7 +231,8 @@ tokenların `[:, 1:]` dilimi arasındaki çapraz entropidir; dilimler kopyalanma
 ofsetiyle okur. `TransformerEncoderLayer` nedensel değildir ve öyle kalır. Ayrıntı:
 [docs/architecture/graph-and-lm.md](docs/architecture/graph-and-lm.md).
 
-> ℹ️ `ExecutionPolicy::cuda` bugün matmul'u CPU çekirdeğinde bırakır. Tam GPU eğitim yolu FAZ 3'ün açık işidir.
+> ℹ️ Tam GPU eğitim yolu `nexus::cuda::GptModel` / `GptTrainer`'dır (GPT-2 mimarisi; parametre, gradyan, AdamW durumu,
+> aktivasyon ve logit kartta). Genel `nn::Sequential` için `ExecutionPolicy::cuda` hâlâ matmul'u CPU çekirdeğinde bırakır.
 > `mixed_precision(true)` yalnız kayıp ölçeği uygular; matmul FP32 kalır (BF16/FP16 autocast FAZ 4).
 
 ---
@@ -251,6 +254,16 @@ AMD Ryzen 7 5800H (AVX2+FMA, AVX-512 yok), RTX 3070 Laptop, Windows, MSVC 19.44.
 
 Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 
+**24 Ekim 2026 — FAZ 1/3 GPU yolu, RTX 3070 Laptop** ([rapor](docs/benchmarks/2026-10-24-faz1-3-gpu/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| GPT-2 124M eğitimi, T=1024 | FP32 B=2: **6.6k token/s**, TF32 B=2: **10.2k token/s**, tepe 5.1 GB |
+| GPT-2 124M, 10 adım, FP64 referansa uzaklık | Nexus GPU **7.9e-6** · PyTorch CPU FP32 1.25e-3 |
+| Linear fwd+bwd 8192×4096×4096 | 8.8 TFLOPS FP32 / 16.2 TFLOPS TF32, doğrudan cuBLAS'a göre ek yük **≤ %1.5** |
+| Önbellekli ayırıcı, isabet | **458 ns**, cudaMalloc+cudaFree'den 916× hızlı |
+| CE B·T=8192, V=50304 | 17.7 ms, yerinde, **0 bayt** ek tepe bellek |
+
 **24 Ekim 2026 — FAZ 0–3 denetimi** ([rapor](docs/benchmarks/2026-10-24-faz0-3-denetim/README.md))
 
 | Ölçüm | Sonuç |
@@ -269,10 +282,10 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 
 | Faz | Konu | Durum |
 | --- | --- | --- |
-| 0 | Ölçüm altyapısı, temel çizgi, parity, bellek defteri | ✅ CPU · 🟡 gpt2s/PyTorch-CUDA temel çizgisi açık |
-| 1 | DType, half/bf16, k64 önbellekli ayırıcı | ✅ host · 🟡 birleşik Tensor/stride/stream/CUDA ayırıcı açık |
+| 0 | Ölçüm altyapısı, temel çizgi, parity, bellek defteri | ✅ CPU · 🟡 PyTorch-CUDA karşılaştırması açık (kurulu değil) |
+| 1 | DType, half/bf16, önbellekli host + CUDA ayırıcı, stream/event | ✅ · 🟡 birleşik Tensor/stride/view, VMM segment açık |
 | 2 | Genel tensör autograd motoru | ✅ CPU · 🟡 çok akış, çift backward, Python Function açık |
-| 3 | Eğitim yolu çekirdekleri | ✅ CPU · 🔴 GPU yolu (cuBLASLt, CUDA çekirdekleri) açık |
+| 3 | Eğitim yolu: cuBLASLt + CUDA çekirdekleri, GPT-2 124M tek kartta | ✅ CPU + GPU · 🟡 genel `nn::` katmanları GPU'da değil |
 | 4 | Karışık hassasiyet (BF16/FP16 autocast, FP32 ana kopya) | ⏭ sıradaki |
 | 5–22 | FlashAttention, modern LLM bloğu, bellek mühendisliği, veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
