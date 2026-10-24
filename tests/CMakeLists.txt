@@ -4,6 +4,9 @@ target_compile_features(nexus_test_support PUBLIC cxx_std_20)
 nexus_configure_target(nexus_test_support)
 
 add_subdirectory(parity)
+if(TARGET nexus_cuda)
+    add_subdirectory(cuda)
+endif()
 
 nexus_add_test(test_phase1_bridge SUPPORT)
 nexus_add_test(test_phase1_loss_families SUPPORT)

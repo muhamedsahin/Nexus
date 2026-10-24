@@ -44,6 +44,8 @@
 
 #if defined(NEXUS_ENABLE_CUDA)
 #include <cuda_runtime.h>
+
+#include "nexus/cuda/caching_allocator.hpp"
 #endif
 
 namespace nexus {
@@ -172,14 +174,11 @@ void free_block(void* pointer, const Record& record) noexcept {
     case Backend::CudaDevice:
 #if defined(NEXUS_ENABLE_CUDA)
     {
-      int previous = 0;
-      const cudaError_t remembered = cudaGetDevice(&previous);
-      if (record.device.index >= 0) {
-        cudaSetDevice(record.device.index);
-      }
-      cudaFree(pointer);
-      if (remembered == cudaSuccess) {
-        cudaSetDevice(previous);
+      // FAZ 1.4: blok OS'a degil onbellekli aygit ayiricisina doner.
+      try {
+        cuda::device_allocator().deallocate(pointer);
+      } catch (...) {
+        // release_owned noexcept; ayirici hatasi (cift serbest) burada yutulur.
       }
     }
 #endif
@@ -343,17 +342,17 @@ void* allocate_device(DeviceRef device, std::size_t bytes) {
     throw TensorError("Nexus: CUDA cihaz indeksi sistemdeki aygit sayisinin disinda");
   }
   CudaDeviceGuard guard(device.index);
-  void* pointer = nullptr;
-  check_cuda(cudaMalloc(&pointer, bytes), "cudaMalloc");
+  // FAZ 1.4: onbellekli, akis farkindalikli ayirici (gecerli akis).
+  void* pointer = cuda::device_allocator().allocate(bytes, cuda::current_stream(device.index));
   if (pointer == nullptr) {
-    throw TensorError("Nexus: cudaMalloc bos isaretci dondurdu");
+    throw TensorError("Nexus: aygit ayiricisi bos isaretci dondurdu");
   }
   Record record;
   record.backend = Backend::CudaDevice;
   record.kind = AllocKind::Device;
   record.device = device;
   record.bytes = bytes;
-  record.reserved = bytes;
+  record.reserved = cuda::CachingDeviceAllocator::round_size(bytes);
   track(pointer, record);
   return pointer;
 #endif

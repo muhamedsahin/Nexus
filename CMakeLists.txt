@@ -89,6 +89,8 @@ if(TARGET matrix_pro)
         find_package(CUDAToolkit REQUIRED)
         target_link_libraries(nexus PUBLIC CUDA::cudart)
         target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_CUDA=1)
+        # FAZ 1.3/1.4: akis/olay ve onbellekli aygit + pinned ayiricisi.
+        target_sources(nexus PRIVATE src/cuda/runtime.cpp src/cuda/caching_allocator.cpp)
     endif()
     message(STATUS "Nexus: nexus::nexus MatrixFlash-Pro ile baglandi (CUDA=${NEXUS_ENABLE_CUDA})")
 else()
@@ -96,6 +98,34 @@ else()
 endif()
 
 nexus_configure_target(nexus)
+
+# FAZ 3 GPU yolu: cuBLASLt GEMM + CUDA egitim cekirdekleri + GPU GPT egitmeni.
+if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
+    enable_language(CUDA)
+    add_library(nexus_cuda STATIC
+        src/cuda/gemm_lt.cpp
+        src/cuda/kernels_norm.cu
+        src/cuda/kernels_elementwise.cu
+        src/cuda/kernels_train.cu
+        src/cuda/gpt.cpp)
+    add_library(nexus::cuda ALIAS nexus_cuda)
+    # nexus'un kullanim gereksinimleri (or. NexusLoss'un INTERFACE /W4) nvcc'ye gecmesin:
+    # yalniz baglama icin nexus, basliklar ve tanimlar acikca verilir.
+    target_link_libraries(nexus_cuda PUBLIC $<LINK_ONLY:nexus> CUDA::cudart CUDA::cublasLt)
+    target_include_directories(nexus_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_compile_definitions(nexus_cuda PUBLIC NEXUS_ENABLE_CUDA=1)
+    set_target_properties(nexus_cuda PROPERTIES
+        CUDA_STANDARD 20
+        CUDA_STANDARD_REQUIRED ON
+        CUDA_SEPARABLE_COMPILATION OFF)
+    target_compile_definitions(nexus_cuda PUBLIC NEXUS_HAS_CUDA_KERNELS=1)
+    if(MSVC)
+        target_compile_options(nexus_cuda PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:/W4 /permissive- /EHsc /utf-8>
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8,/EHsc,/Zc:preprocessor -Xcudafe=--diag_suppress=20012>)
+        target_compile_definitions(nexus_cuda PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+endif()
 
 include(CTest)
 enable_testing()

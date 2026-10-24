@@ -46,3 +46,15 @@ target_compile_definitions(bench_phase3_training PRIVATE
 nexus_configure_target(bench_phase3_training)
 add_test(NAME bench_phase3_training COMMAND bench_phase3_training)
 set_tests_properties(bench_phase3_training PROPERTIES TIMEOUT 600)
+
+# FAZ 1 + FAZ 3 GPU (ayirici, eleman eleman, cuBLASLt Linear, norm, CE, AdamW, GPT-2 124M).
+if(TARGET nexus_cuda)
+    add_executable(bench_cuda_phase3 bench_cuda_phase3.cpp)
+    target_link_libraries(bench_cuda_phase3 PRIVATE nexus::nexus nexus::cuda CUDA::cublas)
+    target_compile_definitions(bench_cuda_phase3 PRIVATE
+        NEXUS_FAZ3_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs/benchmarks/2026-10-24-faz1-3-gpu"
+        NEXUS_GIT_COMMIT="${NEXUS_GIT_COMMIT}")
+    nexus_configure_target(bench_cuda_phase3)
+    add_test(NAME bench_cuda_phase3 COMMAND bench_cuda_phase3)
+    set_tests_properties(bench_cuda_phase3 PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
+endif()
