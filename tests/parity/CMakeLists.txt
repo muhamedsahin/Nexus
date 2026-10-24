@@ -62,7 +62,10 @@ set_tests_properties(test_autocast_policy test_phase4_host_fp8 test_phase4_loss_
 # FAZ 0.E parity: Nexus vs PyTorch (FP32). PyTorch yoksa test SKIPPED (77) olur.
 set(NEXUS_PARITY_PYTHON "" CACHE FILEPATH "PyTorch kurulu python (bos: .bench-venv denenir)")
 if(NOT NEXUS_PARITY_PYTHON)
-    if(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv/Scripts/python.exe")
+    # .bench-venv-py314 once: eski .bench-venv'in tabani (Anaconda 3.11) 2026-10-25'te kaldirildi.
+    if(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv-py314/Scripts/python.exe")
+        set(_nexus_parity_python "${CMAKE_SOURCE_DIR}/.bench-venv-py314/Scripts/python.exe")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv/Scripts/python.exe")
         set(_nexus_parity_python "${CMAKE_SOURCE_DIR}/.bench-venv/Scripts/python.exe")
     elseif(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv/bin/python")
         set(_nexus_parity_python "${CMAKE_SOURCE_DIR}/.bench-venv/bin/python")

@@ -94,17 +94,30 @@ AdamW + BF16 dönüşüm). Adımın %85'i bu.
 
 ## Ortam notları (önemli)
 
-- **Anaconda bu oturum sırasında makineden kaldırıldı.** `C:\ProgramData\anaconda3` artık yok.
-  `.bench-venv`'in tabanı oydu (`pyvenv.cfg`), bu yüzden PyTorch'a karşı tüm parity testleri
-  şu an `No module named 'encodings'` ile düşüyor: `test_parity_nano/tiny`,
-  `test_rope_vs_reference`, `test_decoder_block_parity`, `test_cuda_gpt_small`,
-  `test_gpt2s_parity_fp32`. Bunlar FAZ 6 commit'inde geçiyordu. Bu fazın değişiklikleri
-  varsayılan yolu değiştirmiyor; varsayılan GPT yolu `test_master_weight_modes`
-  (A==B bit-bit), `test_gpt_flash_vs_math`, `test_bf16_training_converges` ile geçiyor.
-  Ortam onarılınca yeniden koşulmalı. Bunun dışında CUDA ağacında 57/59, CPU ağacında 35/39
-  (eksikler hep aynı parity testleri).
-- `build-phase1` yapılandırması Anaconda 3.11 isteyen Python kabuğu (`NEXUS_BUILD_PYTHON`)
-  nedeniyle düştü; yalnız bu derleme ağacında OFF yapıldı.
+- **Anaconda bu oturum sırasında makineden kaldırıldı** (`C:\ProgramData\anaconda3` artık yok).
+  `.bench-venv`'in tabanı oydu, bu yüzden PyTorch parity testleri bir süre
+  `No module named 'encodings'` ile düştü.
+- **Onarım (2026-10-25):** Python 3.14.8 (`pythoncore-3.14-64`) üzerinde yeni venv
+  `.bench-venv-py314` kuruldu; içinde torch 2.14.1+cpu (önceki ile aynı sürüm, PyTorch'un resmi
+  CPU indeksinden) ve numpy 2.5.4 var. İki derleme ağacında `NEXUS_PARITY_PYTHON` buna
+  yönlendirildi; CMake yedek araması da önce bu venv'e bakıyor. Eski `.bench-venv`
+  silinmedi (2.7 GB, içinde başka projelere ait tensorflow/jax paketleri de var). Klasör,
+  hâlâ çalışan eski python süreçlerince kilitli olduğu için yeniden adlandırılamadı;
+  `pyvenv.cfg`'si eski haline getirildi.
+- **Parity yeniden koşuldu, 6/6 geçti:**
+
+| Test | Sonuç |
+|---|---|
+| `test_parity_nano` | kayıp max_rel 7.1e-10, gradyan en kötü 7.3e-7 |
+| `test_parity_tiny` | kayıp 1.0e-7, gradyan 4.9e-6 |
+| `test_rope_vs_reference` | 29/29 (HF formüllerine ≤ 5.3e-8) |
+| `test_decoder_block_parity` | 5 yapılandırma, kayıp birebir, gradyan ≤ 1.3e-6 |
+| `test_cuda_gpt_small` | ilk adım gradyan 9.4e-7 |
+| `test_gpt2s_parity_fp32` | ilk adım gradyan 4.4e-6 |
+
+  FAZ 7 değişiklikleri sonrası GPU GPT yolu PyTorch'a karşı da doğrulanmış oldu.
+- `build-phase1` yapılandırması, Anaconda 3.11 isteyen Python kabuğu (`NEXUS_BUILD_PYTHON`)
+  nedeniyle düşmüştü; yalnız bu derleme ağacında OFF yapıldı. Kabuk Anaconda'ya bağlı kalıyor.
 
 ## Açık kalanlar
 
@@ -115,7 +128,7 @@ AdamW + BF16 dönüşüm). Adımın %85'i bu.
 - Planlayıcının canlı bir adıma bağlanması: GPU `GptModel` tamponları zaten statik; kayıt tabanlı
   arena FAZ 13 IR'si ile.
 - llama1b: GPU'da LLaMA modeli yok (FAZ 6 açık işi). PyTorch / bitsandbytes / DeepSpeed
-  karşılaştırması yok (PyTorch yalnız CPU, şimdi o da bozuk).
+  karşılaştırması yok (kurulu PyTorch yalnız CPU).
 - 1.5B'nin taşmasız koşusu (~0.3 GB daha az bellek, ör. wte gradyanını parçalı güncellemek).
 
 Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf öğrencisi

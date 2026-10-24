@@ -40,6 +40,8 @@ set_tests_properties(test_master_weight_modes test_bf16_training_converges test_
 
 if(NEXUS_PARITY_PYTHON)
     set(_nexus_gpt_python "${NEXUS_PARITY_PYTHON}")
+elseif(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv-py314/Scripts/python.exe")
+    set(_nexus_gpt_python "${CMAKE_SOURCE_DIR}/.bench-venv-py314/Scripts/python.exe")
 elseif(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv/Scripts/python.exe")
     set(_nexus_gpt_python "${CMAKE_SOURCE_DIR}/.bench-venv/Scripts/python.exe")
 elseif(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv/bin/python")

@@ -5,6 +5,7 @@ out/
 .vs/
 .idea/
 .bench-venv/
+.bench-venv-py314/
 __pycache__/
 *.pyc
 *.pyd
