@@ -42,6 +42,11 @@ bir kayıp mı olduğunu ayırmak için PyTorch BF16 autocast ile aynı kurulumd
 düzeneği yazıldı (`tests/cuda/reference_amp_torch.py`, `test_phase4_cuda_training dump`),
 ama koşu oturum kesilince tamamlanmadı. **Açık iş.**
 
+> **Güncelleme (FAZ 5):** Aynı kurulumda yalnız TF32'yi açmak FP32 eğrisini 600. adımda %5,
+> 2000. adımda %3.8 oynatıyor; tek tohumlu %1 ölçütü bu görevin gürültü tabanının altında.
+> Yukarıdaki %0.56 / %2.7 değerleri bu gürültünün içindedir. Test artık gürültüyü aynı koşuda
+> ölçüyor: [FAZ 5 raporu](../2026-10-24-faz5/README.md#eğitim-eğrisi-hakkında-önemli).
+
 ## Benchmark (BÖLÜM G: 2 ısınma + 7 tekrar, CUDA olayları, medyan)
 
 Ham veri: `bench_cuda_phase4.json`. GPT-2 124M, T=1024, B=1.

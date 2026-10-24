@@ -32,8 +32,9 @@ nexus_configure_target(test_phase4_cuda_training)
 add_test(NAME test_fp16_loss_scale COMMAND test_phase4_cuda_training loss)
 add_test(NAME test_master_weight_modes COMMAND test_phase4_cuda_training master)
 add_test(NAME test_bf16_training_converges COMMAND test_phase4_cuda_training converge)
+add_test(NAME test_gpt_flash_vs_math COMMAND test_phase4_cuda_training flash)
 set_tests_properties(test_fp16_loss_scale PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
-set_tests_properties(test_master_weight_modes test_bf16_training_converges
+set_tests_properties(test_master_weight_modes test_bf16_training_converges test_gpt_flash_vs_math
     PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
 
 
@@ -59,4 +60,25 @@ set_tests_properties(test_gpt2s_parity_fp32 PROPERTIES TIMEOUT 3600 SKIP_RETURN_
 
 # Agir GPU egitim testleri paralel kosuda (WDDM) birbirini dakikalarca yavaslatir: tek basina kos.
 set_tests_properties(test_master_weight_modes test_bf16_training_converges test_cuda_gpt_small
-    test_gpt2s_parity_fp32 PROPERTIES RUN_SERIAL TRUE)
+    test_gpt2s_parity_fp32 test_gpt_flash_vs_math PROPERTIES RUN_SERIAL TRUE)
+
+# FAZ 5: FlashAttention-2 (CUDA) ve CPU flash, FP64 math kahinine karsi.
+add_executable(test_flash_attention test_flash_attention.cpp)
+target_link_libraries(test_flash_attention PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_flash_attention)
+foreach(_mode grid decode varlen dropout determinism future)
+    set(_name test_flash_${_mode})
+    if(_mode STREQUAL "grid")
+        set(_name test_flash_vs_math)
+    elseif(_mode STREQUAL "decode")
+        set(_name test_flash_tq1_decode)
+    elseif(_mode STREQUAL "varlen")
+        set(_name test_flash_varlen_equals_separate)
+    elseif(_mode STREQUAL "dropout")
+        set(_name test_flash_dropout_stats)
+    elseif(_mode STREQUAL "future")
+        set(_name test_causal_future_invariance)
+    endif()
+    add_test(NAME ${_name} COMMAND test_flash_attention ${_mode})
+    set_tests_properties(${_name} PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
+endforeach()

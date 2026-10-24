@@ -17,7 +17,7 @@
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--4_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--5_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,16 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**24 Ekim 2026 — FAZ 5 FlashAttention-2** ([rapor](docs/benchmarks/2026-10-24-faz5/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| GPT-2 124M BF16, T=4096, B=1 | flash **13 409 token/s, 4.8 GB** · math 171 token/s, 10.1 GB (8 GB'ı aşıyor) |
+| GPT-2 124M BF16, T=2048 | flash 16 002 token/s (math 13 250), tepe 3485 MiB (math 4881) |
+| Çekirdek BF16 ileri+geri, d=64 | **12.5 TFLOPS** (tepenin %29'u; PyTorch-CUDA karşılaştırması yok) |
+| CPU flash vs PyTorch CPU SDPA, T=4096 causal | ileri 96 / 65 ms, ileri+geri 380 / 385 ms |
+| FP64 kâhine hata | BF16 O ≤ 2.9e-3, grad ≤ 6.6e-3; CPU ≤ 1.5e-6; compute-sanitizer temiz |
+
 **24 Ekim 2026 — FAZ 4 karışık hassasiyet** ([rapor](docs/benchmarks/2026-10-24-faz4/README.md))
 
 | Ölçüm | Sonuç |
@@ -296,8 +306,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 2 | Genel tensör autograd motoru | ✅ CPU · 🟡 çok akış, çift backward, Python Function açık |
 | 3 | Eğitim yolu: cuBLASLt + CUDA çekirdekleri, GPT-2 124M tek kartta | ✅ CPU + GPU · 🟡 genel `nn::` katmanları GPU'da değil |
 | 4 | Karışık hassasiyet: BF16/FP16 autocast, ana kopya A/B/C, dinamik ölçek, FP8 emülasyonu | ✅ GPU (GPT-2 BF16 14k token/s) · 🟡 BF16 500. adım %1 ölçütü, PyTorch-CUDA karşılaştırması, sm_89+ FP8 açık |
-| 5 | FlashAttention-2 (CUDA + CPU), varlen, Tq≠Tk, GQA | ⏭ sıradaki |
-| 6–22 | Modern LLM bloğu, bellek mühendisliği, veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 5 | FlashAttention-2 (CUDA + CPU), varlen, Tq≠Tk, GQA | ✅ GPU + CPU (GPT-2 T=4096 BF16 13.4k token/s, skor belleği 0) · 🟡 çekirdek verimi tepenin %19–29'u, PyTorch-CUDA karşılaştırması, KV önbellek imzası, tek SDPA girişi açık |
+| 6 | Modern LLM bloğu | ⏭ sıradaki |
+| 7–22 | Bellek mühendisliği, veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

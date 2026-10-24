@@ -1,0 +1,24 @@
+san5_initcheck_decode.log: ========= ERROR SUMMARY: 0 errors
+san5_initcheck_determinism.log: ========= ERROR SUMMARY: 0 errors
+san5_initcheck_dropout.log: ========= ERROR SUMMARY: 0 errors
+san5_initcheck_future.log: ========= ERROR SUMMARY: 0 errors
+san5_initcheck_grid.log: ========= ERROR SUMMARY: 0 errors
+san5_initcheck_varlen.log: ========= ERROR SUMMARY: 0 errors
+san5_memcheck_decode.log: ========= ERROR SUMMARY: 0 errors
+san5_memcheck_determinism.log: ========= ERROR SUMMARY: 0 errors
+san5_memcheck_dropout.log: ========= ERROR SUMMARY: 0 errors
+san5_memcheck_future.log: ========= ERROR SUMMARY: 0 errors
+san5_memcheck_grid.log: ========= ERROR SUMMARY: 0 errors
+san5_memcheck_varlen.log: ========= ERROR SUMMARY: 0 errors
+san5_racecheck_decode.log: ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+san5_racecheck_determinism.log: ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+san5_racecheck_dropout.log: ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+san5_racecheck_future.log: ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+san5_racecheck_grid.log: ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+san5_racecheck_varlen.log: ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+san5_synccheck_decode.log: ========= ERROR SUMMARY: 0 errors
+san5_synccheck_determinism.log: ========= ERROR SUMMARY: 0 errors
+san5_synccheck_dropout.log: ========= ERROR SUMMARY: 0 errors
+san5_synccheck_future.log: ========= ERROR SUMMARY: 0 errors
+san5_synccheck_grid.log: ========= ERROR SUMMARY: 0 errors
+san5_synccheck_varlen.log: ========= ERROR SUMMARY: 0 errors

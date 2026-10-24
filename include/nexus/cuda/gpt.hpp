@@ -56,6 +56,10 @@ enum class MasterWeights : std::uint8_t { CastPerForward = 0, Fp32Master = 1, No
 
 [[nodiscard]] const char* to_string(MasterWeights mode) noexcept;
 
+enum class AttentionBackend { Auto, Math, Flash };
+
+[[nodiscard]] const char* to_string(AttentionBackend backend) noexcept;
+
 struct GptConfig {
   int vocab = 50257;
   int max_seq = 1024;
@@ -69,6 +73,12 @@ struct GptConfig {
   MasterWeights master = MasterWeights::Fp32Master;  // yalniz dar compute_dtype'ta anlamli
   bool dynamic_loss_scale = false;                  // F16'da zorunlu olarak acilir
   nexus_train::LossScalePolicy loss_scale{};
+  // ---- FAZ 5 ----
+  // Auto: dar compute_dtype + flash_supported ise FlashAttention-2, yoksa math (bmm+softmax,
+  // [L,B,H,T,T] olasilik tamponu). Secim attention_backend() ile okunur; NEXUS_SDPA_DEBUG=1
+  // math'e dusme nedenini stderr'e yazar. Flash istenip desteklenmezse kurucu hata atar.
+  AttentionBackend attention = AttentionBackend::Auto;
+  bool deterministic_attention = false;  // flash geri: atomiksiz dQ (T/64 kat dQ tamponu)
 };
 
 struct GptParamInfo {
@@ -113,6 +123,8 @@ class GptModel {
   /// Kayip olcegi durumu (dinamik olcek kapaliysa olcek 1, sayaclar 0). Senkron okuma.
   [[nodiscard]] DeviceLossScaleState read_loss_scale() const;
   [[nodiscard]] bool uses_loss_scale() const noexcept { return use_loss_scale_; }
+  /// Gercekte kullanilan dikkat yolu (Flash ya da Math; Auto asla).
+  [[nodiscard]] AttentionBackend attention_backend() const noexcept { return flash_ ? AttentionBackend::Flash : AttentionBackend::Math; }
   [[nodiscard]] std::int64_t step_count() const noexcept { return step_; }
   /// Modelin tum islerini kuyruga koydugu hesap akisi.
   [[nodiscard]] const Stream& stream() const noexcept { return stream_; }
@@ -145,6 +157,7 @@ class GptModel {
   std::size_t small_begin_ = 0;   // kucuk (bias/LN) parametrelerin basladigi ofset
   std::size_t master_begin_ = 0;  // ana kopyanin kapsadigi ilk ofset (C modunda small_begin_)
   bool use_loss_scale_ = false;
+  bool flash_ = false;
   std::int64_t step_ = 0;
   DeviceBuffer params_, shadow_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_, loss_scale_state_;
   std::unique_ptr<Buffers> buffers_;

@@ -47,6 +47,15 @@ nexus_configure_target(bench_phase3_training)
 add_test(NAME bench_phase3_training COMMAND bench_phase3_training)
 set_tests_properties(bench_phase3_training PROPERTIES TIMEOUT 600)
 
+# FAZ 5.G: CPU FlashAttention (FP32); PyTorch CPU SDPA karsiligi bench_sdpa_torch_cpu.py.
+add_executable(bench_attention_cpu bench_attention_cpu.cpp)
+target_link_libraries(bench_attention_cpu PRIVATE nexus::nexus)
+target_compile_definitions(bench_attention_cpu PRIVATE
+    NEXUS_FAZ5_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs/benchmarks/2026-10-24-faz5")
+nexus_configure_target(bench_attention_cpu)
+add_test(NAME bench_attention_cpu COMMAND bench_attention_cpu)
+set_tests_properties(bench_attention_cpu PROPERTIES TIMEOUT 600)
+
 # FAZ 1 + FAZ 3 GPU (ayirici, eleman eleman, cuBLASLt Linear, norm, CE, AdamW, GPT-2 124M).
 if(TARGET nexus_cuda)
     add_executable(bench_cuda_phase3 bench_cuda_phase3.cpp)
@@ -65,5 +74,13 @@ if(TARGET nexus_cuda)
     nexus_configure_target(bench_cuda_phase4)
     add_test(NAME bench_cuda_phase4 COMMAND bench_cuda_phase4)
     set_tests_properties(bench_cuda_phase4 PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
+
+    add_executable(bench_cuda_phase5 bench_cuda_phase5.cpp)
+    target_link_libraries(bench_cuda_phase5 PRIVATE nexus::nexus nexus::cuda)
+    target_compile_definitions(bench_cuda_phase5 PRIVATE
+        NEXUS_FAZ5_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs/benchmarks/2026-10-24-faz5")
+    nexus_configure_target(bench_cuda_phase5)
+    add_test(NAME bench_cuda_phase5 COMMAND bench_cuda_phase5)
+    set_tests_properties(bench_cuda_phase5 PROPERTIES TIMEOUT 3600 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 
 endif()

@@ -21,11 +21,14 @@
 #include "nexus/cuda/gpt.hpp"
 
 #include "nexus/amp/autocast.hpp"
+#include "nexus/cuda/attention.hpp"
 #include "nexus/core/error.hpp"
 #include "nexus/cuda/gemm.hpp"
 #include "nexus/prof/memory_ledger.hpp"
 
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <random>
 
@@ -121,7 +124,54 @@ void* at(const DeviceBuffer& buffer, std::size_t elements, DType t) {
   return static_cast<char*>(buffer.data()) + elements * size_of(t);
 }
 
+bool sdpa_debug() {
+#ifdef _MSC_VER
+  char* value = nullptr;
+  std::size_t length = 0;
+  const bool on = _dupenv_s(&value, &length, "NEXUS_SDPA_DEBUG") == 0 && value != nullptr && value[0] == '1';
+  std::free(value);
+  return on;
+#else
+  const char* value = std::getenv("NEXUS_SDPA_DEBUG");
+  return value != nullptr && value[0] == '1';
+#endif
+}
+
+// GPT'nin [B,T,3,H,D] qkv tamponunu kopyasiz okuyan causal oz-dikkat parametreleri.
+AttentionParams gpt_attention_params(int B, int T, int H, int D, DType t, bool deterministic) {
+  AttentionParams p;
+  p.batch = B;
+  p.heads = H;
+  p.kv_heads = H;
+  p.tq = T;
+  p.tk = T;
+  p.head_dim = D;
+  p.dtype = t;
+  p.causal = true;
+  p.deterministic = deterministic;
+  const long long C = static_cast<long long>(H) * D;
+  p.q_row_stride = p.k_row_stride = 3 * C;
+  p.q_head_stride = p.k_head_stride = D;
+  p.q_batch_stride = p.k_batch_stride = static_cast<long long>(T) * 3 * C;
+  p.o_row_stride = C;
+  p.o_head_stride = D;
+  p.o_batch_stride = static_cast<long long>(T) * C;
+  return p;
+}
+
 }  // namespace
+
+const char* to_string(AttentionBackend backend) noexcept {
+  switch (backend) {
+    case AttentionBackend::Auto:
+      return "auto";
+    case AttentionBackend::Math:
+      return "math";
+    case AttentionBackend::Flash:
+      return "flash";
+  }
+  return "unknown";
+}
 
 const char* to_string(MasterWeights mode) noexcept {
   switch (mode) {
@@ -140,9 +190,10 @@ struct GptModel::Buffers {
   DeviceBuffer res;                      // (f) [L+1, BT, C]
   DeviceBuffer ln1, ln1_mean, ln1_rstd;  // (t) [L, BT, C], (f) [L, BT]
   DeviceBuffer qkv;                      // (t) [L, BT, 3C]
-  DeviceBuffer q, k, v;                  // (t) [L, B, H, T, D]
-  DeviceBuffer probs;                    // (t) [L, B, H, T, T]  (hesap FP32, depolama dar)
-  DeviceBuffer atty;                     // (t) [L, B, H, T, D]
+  DeviceBuffer q, k, v;                  // (t) [L, B, H, T, D]       yalniz math
+  DeviceBuffer probs;                    // (t) [L, B, H, T, T]       yalniz math (hesap FP32)
+  DeviceBuffer atty;                     // (t) [L, B, H, T, D]       yalniz math
+  DeviceBuffer lse;                      // (f) [L, B, H, T]          yalniz flash
   DeviceBuffer att;                      // (t) [L, BT, C]
   DeviceBuffer xmid;                     // (f) [L, BT, C]
   DeviceBuffer ln2, ln2_mean, ln2_rstd;  // (t) / (f)
@@ -150,7 +201,8 @@ struct GptModel::Buffers {
   DeviceBuffer lnf, lnf_mean, lnf_rstd;  // (t) / (f)
   DeviceBuffer logits;                   // (f) [BT, V]  (geri geciste yerinde dlogits)
   // Gecici
-  DeviceBuffer scores;  // (t) [B, H, T, T]
+  DeviceBuffer scores;         // (t) [B, H, T, T]  yalniz math
+  DeviceBuffer flash_scratch;  // yalniz flash: D vektoru + dQ FP32 biriktirici
   DeviceBuffer proj;    // (f) [BT, C]
   // Geri gecis gecicileri
   DeviceBuffer dres, dln;                                      // (f)
@@ -193,6 +245,26 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
   // F16'nin dar us araligi gradyani sifira dusurur: dinamik kayip olcegi zorunlu.
   use_loss_scale_ = config_.dynamic_loss_scale || ct == DType::F16;
   build_layout();
+  {
+    const int D = config_.dim / config_.heads;
+    std::string why = "compute_dtype F32 (flash yalniz BF16/F16)";
+    const bool can_flash =
+        narrow() && flash_supported(gpt_attention_params(batch, time, config_.heads, D, ct, false), &why);
+    if (config_.attention == AttentionBackend::Flash && !can_flash) {
+      throw TensorError("Nexus GPT: attention=Flash istendi ama desteklenmiyor: " + why);
+    }
+    if (config_.attention == AttentionBackend::Math) {
+      why = "attention=Math istendi";
+    }
+    flash_ = config_.attention != AttentionBackend::Math && can_flash;
+    if (sdpa_debug()) {
+      if (flash_) {
+        std::fprintf(stderr, "[nexus sdpa] GPT dikkat yolu: flash\n");
+      } else {
+        std::fprintf(stderr, "[nexus sdpa] GPT dikkat yolu: math (neden: %s)\n", why.c_str());
+      }
+    }
+  }
   const bool no_master = narrow() && config_.master == MasterWeights::NoMaster;
   master_begin_ = no_master ? small_begin_ : 0;
   const std::size_t master_count = num_params_ - master_begin_;
@@ -266,11 +338,15 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
   alloc(b.ln1_mean, L * BT, 4);
   alloc(b.ln1_rstd, L * BT, 4);
   alloc(b.qkv, L * BT * 3 * C, et);
-  alloc(b.q, L * BT * C, et);
-  alloc(b.k, L * BT * C, et);
-  alloc(b.v, L * BT * C, et);
-  alloc(b.probs, L * BHTT, et);
-  alloc(b.atty, L * BT * C, et);
+  if (flash_) {
+    alloc(b.lse, L * BT * H, 4);
+  } else {
+    alloc(b.q, L * BT * C, et);
+    alloc(b.k, L * BT * C, et);
+    alloc(b.v, L * BT * C, et);
+    alloc(b.probs, L * BHTT, et);
+    alloc(b.atty, L * BT * C, et);
+  }
   alloc(b.att, L * BT * C, et);
   alloc(b.xmid, L * BT * C, 4);
   alloc(b.ln2, L * BT * C, et);
@@ -282,7 +358,13 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
   alloc(b.lnf_mean, BT, 4);
   alloc(b.lnf_rstd, BT, 4);
   alloc(b.logits, BT * V, 4);
-  alloc(b.scores, BHTT, et);
+  if (flash_) {
+    const AttentionParams ap = gpt_attention_params(batch, time, config_.heads, static_cast<int>(C / H), ct,
+                                                    config_.deterministic_attention);
+    alloc(b.flash_scratch, flash_attention_backward_scratch_bytes(ap), 1);
+  } else {
+    alloc(b.scores, BHTT, et);
+  }
   alloc(b.proj, BT * C, 4);
   alloc(b.dres, BT * C, 4);
   alloc(b.dln, BT * C, 4);
@@ -291,10 +373,12 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
     alloc(b.dlogits_t, BT * V, et);
   }
   alloc(b.dqkv, BT * 3 * C, et);
-  alloc(b.dq, BT * C, et);
-  alloc(b.dk, BT * C, et);
-  alloc(b.dv, BT * C, et);
-  alloc(b.datty, BT * C, et);
+  if (!flash_) {
+    alloc(b.dq, BT * C, et);
+    alloc(b.dk, BT * C, et);
+    alloc(b.dv, BT * C, et);
+    alloc(b.datty, BT * C, et);
+  }
   alloc(b.datt, BT * C, et);
   alloc(b.dfc, BT * 4 * C, et);
   b.norm_scratch = DeviceBuffer(layernorm_backward_scratch_bytes(static_cast<int>(BT), static_cast<int>(C)), stream_);
@@ -404,11 +488,6 @@ void GptModel::run_forward(const std::int32_t* d_tokens, bool for_backward) {
     float* x_out = res + static_cast<std::size_t>(l + 1) * btc;
     void* ln1 = act(b.ln1, lt);
     void* qkv = act(b.qkv, 3 * lt);
-    void* q = act(b.q, lt);
-    void* k = act(b.k, lt);
-    void* v = act(b.v, lt);
-    void* probs = act(b.probs, static_cast<std::size_t>(l) * bhtt);
-    void* atty = act(b.atty, lt);
     void* att = act(b.att, lt);
     float* xmid = b.xmid.as<float>() + lt;
     void* ln2 = act(b.ln2, lt);
@@ -418,13 +497,25 @@ void GptModel::run_forward(const std::int32_t* d_tokens, bool for_backward) {
     // QKV = ln1 W + b  (dar cikti, dar bias golgesi)
     mm(s, false, false, BT, 3 * C, C, Mat{ln1, mt}, w(kQkvW, lc * 3 * C), OutBuf{qkv, mt}, Epilogue::Bias,
        weight(off(kQkvB) + lc * 3));
-    split_qkv_heads(q, k, v, qkv, mt, B, T, H, D, s);
-    bmm(s, mt, false, true, B * H, T, T, D, q, static_cast<long long>(T) * D, k, static_cast<long long>(T) * D,
-        b.scores.data(), static_cast<long long>(T) * T);
-    softmax_causal_forward(probs, b.scores.data(), mt, B * H, T, scale, s);
-    bmm(s, mt, false, false, B * H, T, D, T, probs, static_cast<long long>(T) * T, v, static_cast<long long>(T) * D,
-        atty, static_cast<long long>(T) * D);
-    merge_heads(att, atty, mt, B, T, H, D, s);
+    if (flash_) {
+      // FlashAttention-2: Q/K/V qkv'den adimla okunur, O dogrudan att'a ([B,T,C]) yazilir.
+      const AttentionParams ap = gpt_attention_params(B, T, H, D, mt, config_.deterministic_attention);
+      flash_attention_forward(att, b.lse.as<float>() + static_cast<std::size_t>(l) * BT * H, qkv,
+                              at(b.qkv, 3 * lt + C, mt), at(b.qkv, 3 * lt + 2 * C, mt), ap, s);
+    } else {
+      void* q = act(b.q, lt);
+      void* k = act(b.k, lt);
+      void* v = act(b.v, lt);
+      void* probs = act(b.probs, static_cast<std::size_t>(l) * bhtt);
+      void* atty = act(b.atty, lt);
+      split_qkv_heads(q, k, v, qkv, mt, B, T, H, D, s);
+      bmm(s, mt, false, true, B * H, T, T, D, q, static_cast<long long>(T) * D, k, static_cast<long long>(T) * D,
+          b.scores.data(), static_cast<long long>(T) * T);
+      softmax_causal_forward(probs, b.scores.data(), mt, B * H, T, scale, s);
+      bmm(s, mt, false, false, B * H, T, D, T, probs, static_cast<long long>(T) * T, v, static_cast<long long>(T) * D,
+          atty, static_cast<long long>(T) * D);
+      merge_heads(att, atty, mt, B, T, H, D, s);
+    }
     // proj (FP32 cikti, FP32 bias) + residual, ardindan LN2 (add&norm)
     mm(s, false, false, BT, C, C, Mat{att, mt}, w(kAttProjW, lc * C), OutBuf{b.proj.data(), DType::F32},
        Epilogue::Bias, f32(kAttProjB, lc));
@@ -506,10 +597,6 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
     const std::size_t lt = static_cast<std::size_t>(l) * btc;
     float* x_in = res + lt;
     void* ln1 = act(b.ln1, lt);
-    void* q = act(b.q, lt);
-    void* k = act(b.k, lt);
-    void* v = act(b.v, lt);
-    void* probs = act(b.probs, static_cast<std::size_t>(l) * bhtt);
     void* att = act(b.att, lt);
     float* xmid = b.xmid.as<float>() + lt;
     void* ln2 = act(b.ln2, lt);
@@ -533,18 +620,30 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
     mm(s, false, true, BT, C, C, dres_in, w(kAttProjW, lc * C), OutBuf{b.datt.data(), mt});
     mm(s, true, false, C, C, BT, Mat{att, mt}, dres_in, gout(kAttProjW, lc * C), Epilogue::BGradB, nullptr, nullptr,
        grad(kAttProjB, lc));
-    split_heads(b.datty.data(), b.datt.data(), mt, B, T, H, D, s);
-    void* dscores = b.scores.data();
-    bmm(s, mt, false, true, B * H, T, T, D, b.datty.data(), static_cast<long long>(T) * D, v,
-        static_cast<long long>(T) * D, dscores, static_cast<long long>(T) * T);
-    bmm(s, mt, true, false, B * H, T, D, T, probs, static_cast<long long>(T) * T, b.datty.data(),
-        static_cast<long long>(T) * D, b.dv.data(), static_cast<long long>(T) * D);
-    softmax_causal_backward(dscores, dscores, probs, mt, B * H, T, scale, s);  // yerinde, FP32 hesap
-    bmm(s, mt, false, false, B * H, T, D, T, dscores, static_cast<long long>(T) * T, k, static_cast<long long>(T) * D,
-        b.dq.data(), static_cast<long long>(T) * D);
-    bmm(s, mt, true, false, B * H, T, D, T, dscores, static_cast<long long>(T) * T, q, static_cast<long long>(T) * D,
-        b.dk.data(), static_cast<long long>(T) * D);
-    merge_qkv_heads(b.dqkv.data(), b.dq.data(), b.dk.data(), b.dv.data(), mt, B, T, H, D, s);
+    if (flash_) {
+      // dO = datt ([B,T,C]); dQ/dK/dV dogrudan dqkv'nin [B,T,3,H,D] dilimlerine yazilir.
+      const AttentionParams ap = gpt_attention_params(B, T, H, D, mt, config_.deterministic_attention);
+      flash_attention_backward(b.dqkv.data(), at(b.dqkv, C, mt), at(b.dqkv, 2 * C, mt), b.datt.data(),
+                               act(b.qkv, 3 * lt), at(b.qkv, 3 * lt + C, mt), at(b.qkv, 3 * lt + 2 * C, mt), att,
+                               b.lse.as<float>() + static_cast<std::size_t>(l) * BT * H, ap, b.flash_scratch.data(), s);
+    } else {
+      void* q = act(b.q, lt);
+      void* k = act(b.k, lt);
+      void* v = act(b.v, lt);
+      void* probs = act(b.probs, static_cast<std::size_t>(l) * bhtt);
+      split_heads(b.datty.data(), b.datt.data(), mt, B, T, H, D, s);
+      void* dscores = b.scores.data();
+      bmm(s, mt, false, true, B * H, T, T, D, b.datty.data(), static_cast<long long>(T) * D, v,
+          static_cast<long long>(T) * D, dscores, static_cast<long long>(T) * T);
+      bmm(s, mt, true, false, B * H, T, D, T, probs, static_cast<long long>(T) * T, b.datty.data(),
+          static_cast<long long>(T) * D, b.dv.data(), static_cast<long long>(T) * D);
+      softmax_causal_backward(dscores, dscores, probs, mt, B * H, T, scale, s);  // yerinde, FP32 hesap
+      bmm(s, mt, false, false, B * H, T, D, T, dscores, static_cast<long long>(T) * T, k,
+          static_cast<long long>(T) * D, b.dq.data(), static_cast<long long>(T) * D);
+      bmm(s, mt, true, false, B * H, T, D, T, dscores, static_cast<long long>(T) * T, q,
+          static_cast<long long>(T) * D, b.dk.data(), static_cast<long long>(T) * D);
+      merge_qkv_heads(b.dqkv.data(), b.dq.data(), b.dk.data(), b.dv.data(), mt, B, T, H, D, s);
+    }
     mm(s, false, true, BT, C, 3 * C, Mat{b.dqkv.data(), mt}, w(kQkvW, lc * 3 * C), OutBuf{dln, DType::F32});
     mm(s, true, false, C, 3 * C, BT, Mat{ln1, mt}, Mat{b.dqkv.data(), mt}, gout(kQkvW, lc * 3 * C), Epilogue::BGradB,
        nullptr, nullptr, grad(kQkvB, static_cast<std::size_t>(l) * 3 * C));

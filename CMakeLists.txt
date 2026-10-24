@@ -46,6 +46,7 @@ add_library(nexus STATIC
     src/autograd/ops.cpp
     src/fused/fused.cpp
     src/fused/training.cpp
+    src/attention/cpu.cpp
     src/prof/prof.cpp
     src/model/nxs.cpp)
 add_library(nexus::nexus ALIAS nexus)
@@ -68,6 +69,12 @@ target_compile_definitions(nexus PUBLIC NEXUS_FRAMEWORK_VERSION_MAJOR=${PROJECT_
 
 if(NEXUS_ENABLE_AVX2)
     target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_AVX2=1)
+    # FAZ 5.8: CPU FlashAttention doseme donguleri AVX2/FMA ile vektorlesir.
+    if(MSVC)
+        set_source_files_properties(src/attention/cpu.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+    else()
+        set_source_files_properties(src/attention/cpu.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma")
+    endif()
 endif()
 if(NEXUS_ENABLE_AVX512)
     target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_AVX512=1)
@@ -108,6 +115,7 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/kernels_elementwise.cu
         src/cuda/kernels_train.cu
         src/cuda/kernels_fp8.cu
+        src/cuda/flash_attention.cu
         src/cuda/fp8_native.cpp
         src/cuda/cast_cache.cpp
         src/cuda/gpt.cpp)
