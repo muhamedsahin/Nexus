@@ -15,7 +15,28 @@ endfunction()
 nexus_add_cuda_test(test_cuda_allocator)
 nexus_add_cuda_test(test_cuda_kernels TIMEOUT 600)
 
+add_executable(test_phase4_cuda_kernels test_phase4_cuda_kernels.cpp)
+target_link_libraries(test_phase4_cuda_kernels PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase4_cuda_kernels)
+add_test(NAME test_phase4_narrow_gemm COMMAND test_phase4_cuda_kernels gemm)
+add_test(NAME test_phase4_cast_cache COMMAND test_phase4_cuda_kernels cache)
+add_test(NAME test_fp8_emulation COMMAND test_phase4_cuda_kernels fp8)
+set_tests_properties(test_phase4_narrow_gemm test_phase4_cast_cache test_fp8_emulation
+    PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
+
+
 # FAZ 3.I: GPU GPT-2 vs PyTorch (FP32). PyTorch'lu python: NEXUS_PARITY_PYTHON veya .bench-venv.
+add_executable(test_phase4_cuda_training test_phase4_cuda_training.cpp)
+target_link_libraries(test_phase4_cuda_training PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase4_cuda_training)
+add_test(NAME test_fp16_loss_scale COMMAND test_phase4_cuda_training loss)
+add_test(NAME test_master_weight_modes COMMAND test_phase4_cuda_training master)
+add_test(NAME test_bf16_training_converges COMMAND test_phase4_cuda_training converge)
+set_tests_properties(test_fp16_loss_scale PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
+set_tests_properties(test_master_weight_modes test_bf16_training_converges
+    PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
+
+
 if(NEXUS_PARITY_PYTHON)
     set(_nexus_gpt_python "${NEXUS_PARITY_PYTHON}")
 elseif(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv/Scripts/python.exe")
@@ -35,3 +56,7 @@ add_test(NAME test_cuda_gpt_small COMMAND test_cuda_gpt small 10)
 set_tests_properties(test_cuda_gpt_small PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
 add_test(NAME test_gpt2s_parity_fp32 COMMAND test_cuda_gpt gpt2s 10)
 set_tests_properties(test_gpt2s_parity_fp32 PROPERTIES TIMEOUT 3600 SKIP_RETURN_CODE 77)
+
+# Agir GPU egitim testleri paralel kosuda (WDDM) birbirini dakikalarca yavaslatir: tek basina kos.
+set_tests_properties(test_master_weight_modes test_bf16_training_converges test_cuda_gpt_small
+    test_gpt2s_parity_fp32 PROPERTIES RUN_SERIAL TRUE)

@@ -15,6 +15,7 @@
 #include <cub/device/device_radix_sort.cuh>
 
 #include <cmath>
+#include <type_traits>
 #include <vector>
 
 namespace nexus {
@@ -29,14 +30,17 @@ std::size_t align_up(std::size_t bytes) { return (bytes + 255u) & ~static_cast<s
 
 // ================================ Gomme ==========================================
 
+template <typename W>
 __global__ void embedding_pos_forward_kernel(float* __restrict__ out, const std::int32_t* __restrict__ tokens,
-                                             const float* __restrict__ wte, const float* __restrict__ wpe, int time,
-                                             int dim, std::size_t total) {
+                                             const W* __restrict__ wte, const W* __restrict__ wpe, int time, int dim,
+                                             std::size_t total) {
+  using N = detail::Num<W>;
   NEXUS_GRID_STRIDE(i, total) {
     const std::size_t row = i / dim;
     const int c = static_cast<int>(i % dim);
     const int t = static_cast<int>(row % time);
-    out[i] = wte[static_cast<std::size_t>(tokens[row]) * dim + c] + wpe[static_cast<std::size_t>(t) * dim + c];
+    out[i] = N::load(wte[static_cast<std::size_t>(tokens[row]) * dim + c]) +
+             N::load(wpe[static_cast<std::size_t>(t) * dim + c]);
   }
 }
 
@@ -128,7 +132,7 @@ __global__ void ce_count_kernel(std::int32_t* __restrict__ valid, float* __restr
 __global__ void ce_row_kernel(float* __restrict__ dlogits, float* __restrict__ row_loss, const float* logits,
                               const std::int32_t* __restrict__ tokens, int time, int vocab,
                               std::int32_t ignore_index, float smoothing, float z_coef, float grad_scale,
-                              const float* __restrict__ inv_valid) {
+                              const float* __restrict__ inv_valid, const float* __restrict__ device_scale) {
   __shared__ float shared[32];
   const std::size_t row = blockIdx.x;
   const int t = static_cast<int>(row % time);
@@ -171,7 +175,7 @@ __global__ void ce_row_kernel(float* __restrict__ dlogits, float* __restrict__ r
     row_loss[row] = loss + z_coef * lse * lse;
   }
   if (d != nullptr) {
-    const float scale = *inv_valid * grad_scale;
+    const float scale = *inv_valid * grad_scale * (device_scale != nullptr ? *device_scale : 1.0f);
     const float uniform = smoothing / static_cast<float>(vocab);
     const float z_grad = 2.0f * z_coef * lse;
     for (int j = threadIdx.x; j < vocab; j += blockDim.x) {
@@ -268,8 +272,11 @@ __global__ void grad_norm_partial_kernel(double* __restrict__ partial, const Dev
   }
 }
 
+// Olcekli gradyanlarin kare toplamindan: unscale edilmis norm, kirpma, inf/NaN bayragi.
+// Cikti katsayisi = kirpma * 1/olcek (guncelleme cekirdegi gradyani bununla carpar).
 __global__ void grad_norm_final_kernel(float* __restrict__ clip_out, float* __restrict__ norm_out,
-                                       const double* __restrict__ partial, int count, double max_norm) {
+                                       const double* __restrict__ partial, int count, double max_norm,
+                                       const float* __restrict__ loss_scale, int* __restrict__ found_inf) {
   __shared__ double shared[32];
   double acc = 0.0;
   for (int i = threadIdx.x; i < count; i += blockDim.x) {
@@ -277,27 +284,69 @@ __global__ void grad_norm_final_kernel(float* __restrict__ clip_out, float* __re
   }
   acc = detail::block_sum(acc, shared);
   if (threadIdx.x == 0) {
-    const double norm = sqrt(acc);
+    const double inv_scale = loss_scale != nullptr ? 1.0 / static_cast<double>(*loss_scale) : 1.0;
+    const bool bad = !isfinite(acc);
+    const double norm = sqrt(acc) * inv_scale;
     if (norm_out != nullptr) {
       *norm_out = static_cast<float>(norm);
     }
-    *clip_out = max_norm > 0.0 ? static_cast<float>(fmin(1.0, max_norm / (norm + 1.0e-6))) : 1.0f;
+    if (found_inf != nullptr) {
+      *found_inf = bad ? 1 : 0;
+    }
+    const float clip = max_norm > 0.0 && !bad ? static_cast<float>(fmin(1.0, max_norm / (norm + 1.0e-6))) : 1.0f;
+    *clip_out = loss_scale != nullptr ? clip * static_cast<float>(inv_scale) : clip;
   }
+}
+
+// f32 -> bf16 stokastik yuvarlama: alt 16 bite duzgun gurultu eklenip kesilir (beklenen deger
+// korunur). NaN/Inf degismeden RN ile gecer.
+__device__ __forceinline__ __nv_bfloat16 bf16_stochastic(float x, unsigned int noise) {
+  if (!isfinite(x)) {
+    return __float2bfloat16_rn(x);
+  }
+  const unsigned int bits = __float_as_uint(x) + (noise & 0xFFFFu);
+  return __ushort_as_bfloat16(static_cast<unsigned short>(bits >> 16));
+}
+
+__device__ __forceinline__ unsigned int hash32(unsigned long long v) {
+  v ^= v >> 33;
+  v *= 0xff51afd7ed558ccdULL;
+  v ^= v >> 33;
+  v *= 0xc4ceb9fe1a85ec53ULL;
+  v ^= v >> 33;
+  return static_cast<unsigned int>(v);
 }
 
 struct AdamCoeffs {
   float b1, ob1, b2, ob2, inv1, inv2, lr, lr_wd, eps;
+  double beta1, beta2;  // olcekli yolda kabul edilen adim icin aygitta bias correction
 };
 
 // Islem sirasi CPU fused::adamw_multi_tensor ile ayni; __f*_rn FMA birlestirmesini engeller.
+template <typename S>
 __global__ void adamw_update_kernel(const DeviceParamSlot* __restrict__ slots, const Chunk* __restrict__ chunks,
-                                    const float* __restrict__ clip_ptr, AdamCoeffs c) {
+                                    const float* __restrict__ clip_ptr, AdamCoeffs c, const int* __restrict__ found_inf,
+                                    const long long* __restrict__ skipped_steps, long long attempt_step,
+                                     bool stochastic, unsigned long long sr_seed) {
+  if (found_inf != nullptr && *found_inf != 0) {
+    return;  // inf/NaN: adim atlanir (parametre ve momentler degismez)
+  }
+  float inv1 = c.inv1;
+  float inv2 = c.inv2;
+  if (skipped_steps != nullptr) {
+    // Denemelerden onceki reddedilenleri cikar: bias correction yalniz kabul edilen
+    // Adam guncellemelerini sayar. Host'a senkron okuma gerekmez.
+    const long long accepted_step = attempt_step - *skipped_steps;
+    inv1 = static_cast<float>(1.0 / (1.0 - pow(c.beta1, static_cast<double>(accepted_step))));
+    inv2 = static_cast<float>(1.0 / (1.0 - pow(c.beta2, static_cast<double>(accepted_step))));
+  }
   const Chunk chunk = chunks[blockIdx.x];
   const DeviceParamSlot slot = slots[chunk.slot];
   const float clip = *clip_ptr;
+  S* shadow = static_cast<S*>(slot.shadow);
   for (std::uint64_t k = threadIdx.x; k < chunk.length; k += blockDim.x) {
     const std::uint64_t i = chunk.start + k;
-    float p = slot.param[i];
+    float p = slot.param != nullptr ? slot.param[i] : detail::Num<S>::load(shadow[i]);
     const float g = __fmul_rn(slot.grad[i], clip);
     const float lr_wd = __fmul_rn(c.lr_wd, slot.weight_decay_scale);
     if (lr_wd != 0.0f) {
@@ -307,10 +356,45 @@ __global__ void adamw_update_kernel(const DeviceParamSlot* __restrict__ slots, c
     const float vt = __fadd_rn(__fmul_rn(c.b2, slot.exp_avg_sq[i]), __fmul_rn(__fmul_rn(c.ob2, g), g));
     slot.exp_avg[i] = mt;
     slot.exp_avg_sq[i] = vt;
-    const float denom = __fadd_rn(__fsqrt_rn(__fmul_rn(vt, c.inv2)), c.eps);
-    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(c.lr, __fmul_rn(mt, c.inv1)), denom));
-    slot.param[i] = p;
+    const float denom = __fadd_rn(__fsqrt_rn(__fmul_rn(vt, inv2)), c.eps);
+    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(c.lr, __fmul_rn(mt, inv1)), denom));
+    if (slot.param != nullptr) {
+      slot.param[i] = p;  // FP32 ana kopya
+    }
+    if (shadow != nullptr) {
+      if constexpr (std::is_same_v<S, __nv_bfloat16>) {
+        // Ana kopyasiz mod (param == nullptr): stokastik yuvarlama; aksi halde RN dar kopya.
+        shadow[i] = (stochastic && slot.param == nullptr)
+                        ? bf16_stochastic(p, hash32(sr_seed ^ (static_cast<unsigned long long>(chunk.slot) << 40) ^ i))
+                        : __float2bfloat16_rn(p);
+      } else {
+        shadow[i] = detail::Num<S>::store(p);
+      }
+    }
   }
+}
+
+__global__ void loss_scale_update_kernel(DeviceLossScaleState* __restrict__ state, double growth_factor,
+                                         double backoff_factor, int growth_interval, double min_scale,
+                                         double max_scale) {
+  // nexus_train::LossScaleState::update ile ayni kurallar (tek politika).
+  DeviceLossScaleState st = *state;
+  st.steps += 1;
+  if (st.found_inf != 0) {
+    const double s = static_cast<double>(st.scale) * backoff_factor;
+    st.scale = static_cast<float>(s < min_scale ? min_scale : s);
+    st.growth_tracker = 0;
+    st.skipped_steps += 1;
+  } else {
+    st.growth_tracker += 1;
+    if (st.growth_tracker >= growth_interval) {
+      const double g = static_cast<double>(st.scale) * growth_factor;
+      st.scale = static_cast<float>(g > max_scale ? max_scale : g);
+      st.growth_tracker = 0;
+    }
+  }
+  st.scale_history[(st.steps - 1) % kLossScaleHistorySize] = st.scale;
+  *state = st;
 }
 
 std::vector<Chunk> make_chunks(const DeviceParamSlot* slots, int num_slots) {
@@ -334,8 +418,19 @@ std::uint64_t max_chunks(int num_slots, std::uint64_t total) {
 void embedding_pos_forward(float* out, const std::int32_t* tokens, const float* wte, const float* wpe, int batch,
                            int time, int dim, cudaStream_t stream) {
   const std::size_t total = static_cast<std::size_t>(batch) * time * dim;
-  embedding_pos_forward_kernel<<<detail::blocks_for(total, 256), 256, 0, stream>>>(out, tokens, wte, wpe, time, dim,
-                                                                                   total);
+  embedding_pos_forward_kernel<float><<<detail::blocks_for(total, 256), 256, 0, stream>>>(out, tokens, wte, wpe, time,
+                                                                                          dim, total);
+  detail::check_launch("embedding_pos_forward_kernel");
+}
+
+void embedding_pos_forward(float* out, const std::int32_t* tokens, const void* wte, const void* wpe, DType weight_type,
+                           int batch, int time, int dim, cudaStream_t stream) {
+  const std::size_t total = static_cast<std::size_t>(batch) * time * dim;
+  detail::dispatch_storage(weight_type, "embedding_pos_forward", [&](auto tag) {
+    using W = decltype(tag);
+    embedding_pos_forward_kernel<W><<<detail::blocks_for(total, 256), 256, 0, stream>>>(
+        out, tokens, static_cast<const W*>(wte), static_cast<const W*>(wpe), time, dim, total);
+  });
   detail::check_launch("embedding_pos_forward_kernel");
 }
 
@@ -397,6 +492,14 @@ void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_
                            const std::int32_t* tokens, int batch, int time, int vocab,
                            const CrossEntropyDeviceOptions& options, float grad_scale, void* scratch,
                            cudaStream_t stream) {
+  cross_entropy_shifted(dlogits, loss_out, valid_out, logits, tokens, batch, time, vocab, options, grad_scale, nullptr,
+                        scratch, stream);
+}
+
+void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_out, const float* logits,
+                           const std::int32_t* tokens, int batch, int time, int vocab,
+                           const CrossEntropyDeviceOptions& options, float grad_scale, const float* device_grad_scale,
+                           void* scratch, cudaStream_t stream) {
   if (batch < 1 || time < 2 || vocab < 2) {
     throw TensorError("Nexus CUDA CE: batch>=1, time>=2, vocab>=2 olmali");
   }
@@ -418,7 +521,7 @@ void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_
   detail::check_launch("ce_count_kernel");
   ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
       dlogits, row_loss, logits, tokens, time, vocab, options.ignore_index, options.label_smoothing, options.z_loss,
-      grad_scale, inv_valid);
+      grad_scale, inv_valid, device_grad_scale);
   detail::check_launch("ce_row_kernel");
   ce_reduce_kernel<<<1, 1024, 0, stream>>>(loss_out, row_loss, rows, inv_valid, bad);
   detail::check_launch("ce_reduce_kernel");
@@ -489,11 +592,13 @@ void adamw_multi_tensor(const DeviceParamSlot* slots, int num_slots, const Devic
   check(cudaMemcpyAsync(d_chunks, chunks.data(), sizeof(Chunk) * chunks.size(), cudaMemcpyHostToDevice, stream),
         "cudaMemcpyAsync(chunks)");
   const auto count = static_cast<unsigned int>(chunks.size());
-  if (config.max_grad_norm > 0.0 || grad_norm_out != nullptr) {
+  // Norm gecisi ayni zamanda unscale + isfinite denetimidir (tek cok-tensorlu indirgeme, tek bayrak).
+  if (config.max_grad_norm > 0.0 || grad_norm_out != nullptr || config.loss_scale != nullptr ||
+      config.found_inf != nullptr) {
     grad_norm_partial_kernel<<<count, kAdamThreads, 0, stream>>>(partial, d_slots, d_chunks);
     detail::check_launch("grad_norm_partial_kernel");
     grad_norm_final_kernel<<<1, 1024, 0, stream>>>(clip, grad_norm_out, partial, static_cast<int>(count),
-                                                   config.max_grad_norm);
+                                                   config.max_grad_norm, config.loss_scale, config.found_inf);
     detail::check_launch("grad_norm_final_kernel");
   } else {
     fill(clip, 1.0f, 1, stream);
@@ -510,8 +615,34 @@ void adamw_multi_tensor(const DeviceParamSlot* slots, int num_slots, const Devic
   c.lr = static_cast<float>(config.lr);
   c.lr_wd = c.lr * static_cast<float>(config.weight_decay);
   c.eps = static_cast<float>(config.eps);
-  adamw_update_kernel<<<count, kAdamThreads, 0, stream>>>(d_slots, d_chunks, clip, c);
+  c.beta1 = config.beta1;
+  c.beta2 = config.beta2;
+  if (config.stochastic_rounding && config.shadow_type != DType::BF16) {
+    throw TensorError("Nexus CUDA AdamW: stokastik yuvarlama yalniz BF16 golge kopyada desteklenir");
+  }
+  detail::dispatch_storage(config.shadow_type, "adamw_multi_tensor", [&](auto tag) {
+    using S = decltype(tag);
+    adamw_update_kernel<S><<<count, kAdamThreads, 0, stream>>>(d_slots, d_chunks, clip, c, config.found_inf,
+                                                               config.skipped_steps, step, config.stochastic_rounding,
+                                                               static_cast<unsigned long long>(config.sr_seed) ^
+                                                                   static_cast<unsigned long long>(step) * 0x9E3779B97F4A7C15ULL);
+  });
   detail::check_launch("adamw_update_kernel");
+}
+
+void loss_scale_update(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream) {
+  policy.validate();
+  loss_scale_update_kernel<<<1, 1, 0, stream>>>(state, policy.growth_factor, policy.backoff_factor,
+                                                policy.growth_interval, policy.min_scale, policy.max_scale);
+  detail::check_launch("loss_scale_update_kernel");
+}
+
+void loss_scale_init(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream) {
+  policy.validate();
+  DeviceLossScaleState host{};
+  host.scale = static_cast<float>(policy.init_scale);
+  // Pinned olmayan kaynak: cudaMemcpyAsync kaynagi kopyalayip doner (host degiskeni guvenle biter).
+  check(cudaMemcpyAsync(state, &host, sizeof(host), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync(loss_scale)");
 }
 
 }  // namespace cuda

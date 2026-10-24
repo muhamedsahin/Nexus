@@ -76,7 +76,8 @@ __device__ __forceinline__ void row_moments(const float* row, int cols, float& m
   var = w.m2 / static_cast<float>(cols);
 }
 
-__global__ void layernorm_forward_kernel(float* __restrict__ out, float* __restrict__ mean_out,
+template <typename OutT>
+__global__ void layernorm_forward_kernel(OutT* __restrict__ out, float* __restrict__ mean_out,
                                          float* __restrict__ rstd_out, const float* __restrict__ x,
                                          const float* __restrict__ weight, const float* __restrict__ bias, int rows,
                                          int cols, float eps) {
@@ -89,9 +90,9 @@ __global__ void layernorm_forward_kernel(float* __restrict__ out, float* __restr
   float var = 0.0f;
   row_moments(xr, cols, mean, var);
   const float rstd = 1.0f / sqrtf(var + eps);
-  float* orow = out + static_cast<std::size_t>(row) * cols;
+  OutT* orow = out + static_cast<std::size_t>(row) * cols;
   for (int j = threadIdx.x % kWarp; j < cols; j += kWarp) {
-    orow[j] = (xr[j] - mean) * rstd * weight[j] + bias[j];
+    orow[j] = detail::Num<OutT>::store((xr[j] - mean) * rstd * weight[j] + bias[j]);
   }
   if (threadIdx.x % kWarp == 0) {
     if (mean_out != nullptr) {
@@ -101,7 +102,8 @@ __global__ void layernorm_forward_kernel(float* __restrict__ out, float* __restr
   }
 }
 
-__global__ void residual_layernorm_forward_kernel(float* __restrict__ sum, float* __restrict__ out,
+template <typename OutT>
+__global__ void residual_layernorm_forward_kernel(float* __restrict__ sum, OutT* __restrict__ out,
                                                   float* __restrict__ mean_out, float* __restrict__ rstd_out,
                                                   const float* __restrict__ a, const float* __restrict__ b,
                                                   const float* __restrict__ weight, const float* __restrict__ bias,
@@ -120,7 +122,7 @@ __global__ void residual_layernorm_forward_kernel(float* __restrict__ sum, float
   row_moments(sum + base, cols, mean, var);
   const float rstd = 1.0f / sqrtf(var + eps);
   for (int j = threadIdx.x % kWarp; j < cols; j += kWarp) {
-    out[base + j] = (sum[base + j] - mean) * rstd * weight[j] + bias[j];
+    out[base + j] = detail::Num<OutT>::store((sum[base + j] - mean) * rstd * weight[j] + bias[j]);
   }
   if (threadIdx.x % kWarp == 0) {
     mean_out[row] = mean;
@@ -408,7 +410,7 @@ void layernorm_forward(float* out, float* mean, float* rstd, const float* x, con
                        int rows, int cols, float eps, cudaStream_t stream) {
   validate_norm(rows, cols);
   const unsigned int blocks = static_cast<unsigned int>((rows + kRowsPerBlock - 1) / kRowsPerBlock);
-  layernorm_forward_kernel<<<blocks, kNormThreads, 0, stream>>>(out, mean, rstd, x, weight, bias, rows, cols, eps);
+  layernorm_forward_kernel<float><<<blocks, kNormThreads, 0, stream>>>(out, mean, rstd, x, weight, bias, rows, cols, eps);
   detail::check_launch("layernorm_forward_kernel");
 }
 
@@ -444,8 +446,33 @@ void residual_layernorm_forward(float* sum, float* out, float* mean, float* rstd
                                 cudaStream_t stream) {
   validate_norm(rows, cols);
   const unsigned int blocks = static_cast<unsigned int>((rows + kRowsPerBlock - 1) / kRowsPerBlock);
-  residual_layernorm_forward_kernel<<<blocks, kNormThreads, 0, stream>>>(sum, out, mean, rstd, a, b, weight, bias,
-                                                                         rows, cols, eps);
+  residual_layernorm_forward_kernel<float><<<blocks, kNormThreads, 0, stream>>>(sum, out, mean, rstd, a, b, weight,
+                                                                                bias, rows, cols, eps);
+  detail::check_launch("residual_layernorm_forward_kernel");
+}
+
+void layernorm_forward(void* out, DType out_type, float* mean, float* rstd, const float* x, const float* weight,
+                       const float* bias, int rows, int cols, float eps, cudaStream_t stream) {
+  validate_norm(rows, cols);
+  const unsigned int blocks = static_cast<unsigned int>((rows + kRowsPerBlock - 1) / kRowsPerBlock);
+  detail::dispatch_storage(out_type, "layernorm_forward", [&](auto tag) {
+    using T = decltype(tag);
+    layernorm_forward_kernel<T><<<blocks, kNormThreads, 0, stream>>>(static_cast<T*>(out), mean, rstd, x, weight, bias,
+                                                                     rows, cols, eps);
+  });
+  detail::check_launch("layernorm_forward_kernel");
+}
+
+void residual_layernorm_forward(float* sum, void* out, DType out_type, float* mean, float* rstd, const float* a,
+                                const float* b, const float* weight, const float* bias, int rows, int cols, float eps,
+                                cudaStream_t stream) {
+  validate_norm(rows, cols);
+  const unsigned int blocks = static_cast<unsigned int>((rows + kRowsPerBlock - 1) / kRowsPerBlock);
+  detail::dispatch_storage(out_type, "residual_layernorm_forward", [&](auto tag) {
+    using T = decltype(tag);
+    residual_layernorm_forward_kernel<T><<<blocks, kNormThreads, 0, stream>>>(sum, static_cast<T*>(out), mean, rstd, a,
+                                                                              b, weight, bias, rows, cols, eps);
+  });
   detail::check_launch("residual_layernorm_forward_kernel");
 }
 

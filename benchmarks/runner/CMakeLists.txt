@@ -57,4 +57,13 @@ if(TARGET nexus_cuda)
     nexus_configure_target(bench_cuda_phase3)
     add_test(NAME bench_cuda_phase3 COMMAND bench_cuda_phase3)
     set_tests_properties(bench_cuda_phase3 PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
+    add_executable(bench_cuda_phase4 bench_cuda_phase4.cpp)
+    target_link_libraries(bench_cuda_phase4 PRIVATE nexus::nexus nexus::cuda)
+    target_compile_definitions(bench_cuda_phase4 PRIVATE
+        NEXUS_FAZ4_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs/benchmarks/2026-10-24-faz4"
+        NEXUS_GIT_COMMIT="${NEXUS_GIT_COMMIT}")
+    nexus_configure_target(bench_cuda_phase4)
+    add_test(NAME bench_cuda_phase4 COMMAND bench_cuda_phase4)
+    set_tests_properties(bench_cuda_phase4 PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
+
 endif()

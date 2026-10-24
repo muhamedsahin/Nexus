@@ -50,6 +50,15 @@ nexus_configure_target(test_phase3_training)
 add_test(NAME test_phase3_training COMMAND test_phase3_training)
 set_tests_properties(test_phase3_training PROPERTIES TIMEOUT 300)
 
+add_executable(test_phase4_mixed_precision test_phase4_mixed_precision.cpp)
+target_link_libraries(test_phase4_mixed_precision PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase4_mixed_precision)
+add_test(NAME test_autocast_policy COMMAND test_phase4_mixed_precision autocast)
+add_test(NAME test_phase4_host_fp8 COMMAND test_phase4_mixed_precision fp8)
+add_test(NAME test_phase4_loss_scale_policy COMMAND test_phase4_mixed_precision loss)
+set_tests_properties(test_autocast_policy test_phase4_host_fp8 test_phase4_loss_scale_policy PROPERTIES TIMEOUT 180)
+
+
 # FAZ 0.E parity: Nexus vs PyTorch (FP32). PyTorch yoksa test SKIPPED (77) olur.
 set(NEXUS_PARITY_PYTHON "" CACHE FILEPATH "PyTorch kurulu python (bos: .bench-venv denenir)")
 if(NOT NEXUS_PARITY_PYTHON)

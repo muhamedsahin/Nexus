@@ -8,6 +8,7 @@
  * Hibrit politika Linear carpimini MatrixFlash zamanlayicisina baglar.
  */
 
+#include "nexus_train/mixed_precision/loss_scale_policy.hpp"
 #include "matrix_pro/hardware.hpp"
 #include "nexus/core/config.hpp"
 #include "nexus/data/datasets.hpp"
@@ -74,37 +75,46 @@ struct MetricModel final : MetricBox {
 
 class LossScaler {
  public:
+    // FAZ 4.3: olcek kurallari tek politikadan (nexus_train/mixed_precision/loss_scale_policy.hpp).
     explicit LossScaler(bool enabled) : enabled_(enabled) {}
     void scale(float* grad, int n) const {
         if (!enabled_) {
             return;
         }
+        const auto factor = static_cast<float>(state_.scale());
         for (int i = 0; i < n; ++i) {
-            grad[i] *= scale_;
+            grad[i] *= factor;
         }
     }
     bool unscale(const std::vector<nexus_model::Parameter*>& parameters) {
         if (!enabled_) {
             return true;
         }
-        const float inv = 1.0f / scale_;
+        bool finite = true;
+        for (nexus_model::Parameter* parameter : parameters) {
+            const float* grad = parameter->grad.data();
+            for (std::size_t i = 0; i < parameter->grad.numel() && finite; ++i) {
+                finite = std::isfinite(grad[i]);
+            }
+        }
+        const float inv = static_cast<float>(1.0 / state_.scale());
+        if (state_.update(!finite)) {
+            return false;  // adim atlanir, olcek geri cekildi
+        }
         for (nexus_model::Parameter* parameter : parameters) {
             float* grad = parameter->grad.data();
             for (std::size_t i = 0; i < parameter->grad.numel(); ++i) {
-                if (!std::isfinite(grad[i])) {
-                    scale_ = std::max(1.0f, scale_ * 0.5f);
-                    return false;
-                }
                 grad[i] *= inv;
             }
         }
         return true;
     }
-    [[nodiscard]] float scale() const noexcept { return scale_; }
+    [[nodiscard]] float scale() const noexcept { return static_cast<float>(state_.scale()); }
+    [[nodiscard]] std::int64_t skipped_steps() const noexcept { return state_.skipped_steps(); }
 
  private:
     bool enabled_ = false;
-    float scale_ = 128.0f;
+    nexus_train::LossScaleState state_{};
 };
 
 }  // namespace detail

@@ -107,12 +107,16 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/kernels_norm.cu
         src/cuda/kernels_elementwise.cu
         src/cuda/kernels_train.cu
+        src/cuda/kernels_fp8.cu
+        src/cuda/fp8_native.cpp
+        src/cuda/cast_cache.cpp
         src/cuda/gpt.cpp)
     add_library(nexus::cuda ALIAS nexus_cuda)
     # nexus'un kullanim gereksinimleri (or. NexusLoss'un INTERFACE /W4) nvcc'ye gecmesin:
     # yalniz baglama icin nexus, basliklar ve tanimlar acikca verilir.
     target_link_libraries(nexus_cuda PUBLIC $<LINK_ONLY:nexus> CUDA::cudart CUDA::cublasLt)
-    target_include_directories(nexus_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_include_directories(nexus_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib/NexusTrain/include)
     target_compile_definitions(nexus_cuda PUBLIC NEXUS_ENABLE_CUDA=1)
     set_target_properties(nexus_cuda PROPERTIES
         CUDA_STANDARD 20

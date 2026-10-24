@@ -13,11 +13,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest_CPU-26%2F26_ge%C3%A7ti-2EA44F?style=flat-square)
+![Testler](https://img.shields.io/badge/ctest_se%C3%A7ili-39%2F39_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--3_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--4_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,15 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**24 Ekim 2026 — FAZ 4 karışık hassasiyet** ([rapor](docs/benchmarks/2026-10-24-faz4/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| GPT-2 124M B=1, T=1024 | BF16 FP32 master **2330 token/s**, TF32 1412, FP32 796 |
+| BF16 tepe bellek | **3209 MiB** (FP32 3526); deneysel no-master C 2734 MiB |
+| BF16/FP32 tiny kayıp bağıl farkı | 500. adım **%0,097**, 2000. adım **%0,300** |
+| Linear BF16 fwd+bwd | **12.82 TFLOPS** |
+
 ---
 
 ## 🗺 Yol haritası
@@ -286,8 +295,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 1 | DType, half/bf16, önbellekli host + CUDA ayırıcı, stream/event | ✅ · 🟡 birleşik Tensor/stride/view, VMM segment açık |
 | 2 | Genel tensör autograd motoru | ✅ CPU · 🟡 çok akış, çift backward, Python Function açık |
 | 3 | Eğitim yolu: cuBLASLt + CUDA çekirdekleri, GPT-2 124M tek kartta | ✅ CPU + GPU · 🟡 genel `nn::` katmanları GPU'da değil |
-| 4 | Karışık hassasiyet (BF16/FP16 autocast, FP32 ana kopya) | ⏭ sıradaki |
-| 5–22 | FlashAttention, modern LLM bloğu, bellek mühendisliği, veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 4 | Karışık hassasiyet: BF16/FP16 autocast, ana kopya A/B/C, dinamik ölçek, FP8 emülasyonu | ✅ GPU (GPT-2 BF16 14k token/s) · 🟡 BF16 500. adım %1 ölçütü, PyTorch-CUDA karşılaştırması, sm_89+ FP8 açık |
+| 5 | FlashAttention-2 (CUDA + CPU), varlen, Tq≠Tk, GQA | ⏭ sıradaki |
+| 6–22 | Modern LLM bloğu, bellek mühendisliği, veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

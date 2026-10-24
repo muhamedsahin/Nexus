@@ -28,36 +28,40 @@ constexpr float kGeluA = 0.044715f;
        i += static_cast<std::size_t>(gridDim.x) * blockDim.x)
 
 // Satir basina bir warp. Satir r'nin sorgu konumu i = r % t; j > i maskelenir.
-__global__ void softmax_causal_forward_kernel(float* __restrict__ probs, const float* __restrict__ scores, int rows,
-                                              int t, float scale) {
+template <typename T>
+__global__ void softmax_causal_forward_kernel(T* __restrict__ probs, const T* __restrict__ scores, int rows, int t,
+                                              float scale) {
+  using N = detail::Num<T>;
   const int row = blockIdx.x * kRowsPerBlock + threadIdx.x / kWarp;
   if (row >= rows) {
     return;
   }
   const int lane = threadIdx.x % kWarp;
   const int i = row % t;
-  const float* s = scores + static_cast<std::size_t>(row) * t;
-  float* p = probs + static_cast<std::size_t>(row) * t;
+  const T* s = scores + static_cast<std::size_t>(row) * t;
+  T* p = probs + static_cast<std::size_t>(row) * t;
   float maxv = -INFINITY;
   for (int j = lane; j <= i; j += kWarp) {
-    maxv = fmaxf(maxv, s[j] * scale);
+    maxv = fmaxf(maxv, N::load(s[j]) * scale);
   }
   maxv = detail::warp_max(maxv);
   float total = 0.0f;
   for (int j = lane; j <= i; j += kWarp) {
-    total += expf(s[j] * scale - maxv);
+    total += expf(N::load(s[j]) * scale - maxv);
   }
   total = detail::warp_sum(total);
   const float inv = 1.0f / total;
   for (int j = lane; j < t; j += kWarp) {
-    p[j] = j <= i ? expf(s[j] * scale - maxv) * inv : 0.0f;
+    p[j] = N::store(j <= i ? expf(N::load(s[j]) * scale - maxv) * inv : 0.0f);
   }
 }
 
 // dscores ve dprobs ayni tampon olabilir (yerinde): bu yuzden __restrict__ yok. Her satiri tek
 // warp isler; nokta carpimi tum okumalar bittikten sonra (warp_sum) yazmaya gecilir.
-__global__ void softmax_causal_backward_kernel(float* dscores, const float* dprobs, const float* __restrict__ probs,
-                                               int rows, int t, float scale) {
+template <typename T>
+__global__ void softmax_causal_backward_kernel(T* dscores, const T* dprobs, const T* __restrict__ probs, int rows, int t,
+                                               float scale) {
+  using N = detail::Num<T>;
   const int row = blockIdx.x * kRowsPerBlock + threadIdx.x / kWarp;
   if (row >= rows) {
     return;
@@ -67,11 +71,12 @@ __global__ void softmax_causal_backward_kernel(float* dscores, const float* dpro
   const std::size_t base = static_cast<std::size_t>(row) * t;
   float dot = 0.0f;
   for (int j = lane; j <= i; j += kWarp) {
-    dot += probs[base + j] * dprobs[base + j];
+    dot += N::load(probs[base + j]) * N::load(dprobs[base + j]);
   }
   dot = detail::warp_sum(dot);
   for (int j = lane; j < t; j += kWarp) {
-    dscores[base + j] = j <= i ? scale * probs[base + j] * (dprobs[base + j] - dot) : 0.0f;
+    dscores[base + j] =
+        N::store(j <= i ? scale * N::load(probs[base + j]) * (N::load(dprobs[base + j]) - dot) : 0.0f);
   }
 }
 
@@ -120,8 +125,9 @@ __global__ void fill_kernel(float* __restrict__ out, float value, std::size_t n)
 }
 
 // qkv [B,T,3,H,D] -> q/k/v [B,H,T,D]
-__global__ void split_qkv_kernel(float* __restrict__ q, float* __restrict__ k, float* __restrict__ v,
-                                 const float* __restrict__ qkv, int batch, int time, int heads, int dim) {
+template <typename T>
+__global__ void split_qkv_kernel(T* __restrict__ q, T* __restrict__ k, T* __restrict__ v, const T* __restrict__ qkv,
+                                 int batch, int time, int heads, int dim) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * dim;
   NEXUS_GRID_STRIDE(idx, total) {
     const int d = static_cast<int>(idx % dim);
@@ -138,8 +144,9 @@ __global__ void split_qkv_kernel(float* __restrict__ q, float* __restrict__ k, f
   }
 }
 
-__global__ void merge_qkv_kernel(float* __restrict__ dqkv, const float* __restrict__ dq, const float* __restrict__ dk,
-                                 const float* __restrict__ dv, int batch, int time, int heads, int dim) {
+template <typename T>
+__global__ void merge_qkv_kernel(T* __restrict__ dqkv, const T* __restrict__ dq, const T* __restrict__ dk,
+                                 const T* __restrict__ dv, int batch, int time, int heads, int dim) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * dim;
   NEXUS_GRID_STRIDE(idx, total) {
     const int d = static_cast<int>(idx % dim);
@@ -157,9 +164,8 @@ __global__ void merge_qkv_kernel(float* __restrict__ dqkv, const float* __restri
 }
 
 // y [B,H,T,D] <-> out [B,T,H*D]
-template <bool kMerge>
-__global__ void heads_kernel(float* __restrict__ dst, const float* __restrict__ src, int batch, int time, int heads,
-                             int dim) {
+template <bool kMerge, typename T>
+__global__ void heads_kernel(T* __restrict__ dst, const T* __restrict__ src, int batch, int time, int heads, int dim) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * dim;
   NEXUS_GRID_STRIDE(idx, total) {
     const int d = static_cast<int>(idx % dim);
@@ -176,6 +182,11 @@ __global__ void heads_kernel(float* __restrict__ dst, const float* __restrict__ 
       dst[idx] = src[flat];
     }
   }
+}
+
+template <typename D, typename S>
+__global__ void cast_kernel(D* __restrict__ dst, const S* __restrict__ src, std::size_t n) {
+  NEXUS_GRID_STRIDE(i, n) { dst[i] = detail::Num<D>::store(detail::Num<S>::load(src[i])); }
 }
 
 constexpr int kSumThreads = 256;
@@ -226,7 +237,7 @@ void softmax_causal_forward(float* probs, const float* scores, int bh, int t, fl
     throw TensorError("Nexus CUDA softmax: bh ve t pozitif olmali");
   }
   const int rows = bh * t;
-  softmax_causal_forward_kernel<<<(rows + kRowsPerBlock - 1) / kRowsPerBlock, kRowThreads, 0, stream>>>(
+  softmax_causal_forward_kernel<float><<<(rows + kRowsPerBlock - 1) / kRowsPerBlock, kRowThreads, 0, stream>>>(
       probs, scores, rows, t, scale);
   detail::check_launch("softmax_causal_forward_kernel");
 }
@@ -237,7 +248,7 @@ void softmax_causal_backward(float* dscores, const float* dprobs, const float* p
     throw TensorError("Nexus CUDA softmax geri: bh ve t pozitif olmali");
   }
   const int rows = bh * t;
-  softmax_causal_backward_kernel<<<(rows + kRowsPerBlock - 1) / kRowsPerBlock, kRowThreads, 0, stream>>>(
+  softmax_causal_backward_kernel<float><<<(rows + kRowsPerBlock - 1) / kRowsPerBlock, kRowThreads, 0, stream>>>(
       dscores, dprobs, probs, rows, t, scale);
   detail::check_launch("softmax_causal_backward_kernel");
 }
@@ -275,27 +286,118 @@ void fill(float* out, float value, std::size_t n, cudaStream_t stream) {
 void split_qkv_heads(float* q, float* k, float* v, const float* qkv, int batch, int time, int heads, int head_dim,
                      cudaStream_t stream) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
-  split_qkv_kernel<<<detail::blocks_for(total, 256), 256, 0, stream>>>(q, k, v, qkv, batch, time, heads, head_dim);
+  split_qkv_kernel<float><<<detail::blocks_for(total, 256), 256, 0, stream>>>(q, k, v, qkv, batch, time, heads, head_dim);
   detail::check_launch("split_qkv_kernel");
 }
 
 void merge_qkv_heads(float* dqkv, const float* dq, const float* dk, const float* dv, int batch, int time, int heads,
                      int head_dim, cudaStream_t stream) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
-  merge_qkv_kernel<<<detail::blocks_for(total, 256), 256, 0, stream>>>(dqkv, dq, dk, dv, batch, time, heads, head_dim);
+  merge_qkv_kernel<float><<<detail::blocks_for(total, 256), 256, 0, stream>>>(dqkv, dq, dk, dv, batch, time, heads, head_dim);
   detail::check_launch("merge_qkv_kernel");
 }
 
 void merge_heads(float* out, const float* y, int batch, int time, int heads, int head_dim, cudaStream_t stream) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
-  heads_kernel<true><<<detail::blocks_for(total, 256), 256, 0, stream>>>(out, y, batch, time, heads, head_dim);
+  heads_kernel<true, float><<<detail::blocks_for(total, 256), 256, 0, stream>>>(out, y, batch, time, heads, head_dim);
   detail::check_launch("merge_heads_kernel");
 }
 
 void split_heads(float* y, const float* in, int batch, int time, int heads, int head_dim, cudaStream_t stream) {
   const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
-  heads_kernel<false><<<detail::blocks_for(total, 256), 256, 0, stream>>>(y, in, batch, time, heads, head_dim);
+  heads_kernel<false, float><<<detail::blocks_for(total, 256), 256, 0, stream>>>(y, in, batch, time, heads, head_dim);
   detail::check_launch("split_heads_kernel");
+}
+
+// ---- Tip parametreli surumler (FAZ 4) ------------------------------------------------------
+
+void softmax_causal_forward(void* probs, const void* scores, DType type, int bh, int t, float scale,
+                            cudaStream_t stream) {
+  if (bh <= 0 || t <= 0) {
+    throw TensorError("Nexus CUDA softmax: bh ve t pozitif olmali");
+  }
+  const int rows = bh * t;
+  detail::dispatch_storage(type, "softmax_causal_forward", [&](auto tag) {
+    using T = decltype(tag);
+    softmax_causal_forward_kernel<T><<<(rows + kRowsPerBlock - 1) / kRowsPerBlock, kRowThreads, 0, stream>>>(
+        static_cast<T*>(probs), static_cast<const T*>(scores), rows, t, scale);
+  });
+  detail::check_launch("softmax_causal_forward_kernel");
+}
+
+void softmax_causal_backward(void* dscores, const void* dprobs, const void* probs, DType type, int bh, int t,
+                             float scale, cudaStream_t stream) {
+  if (bh <= 0 || t <= 0) {
+    throw TensorError("Nexus CUDA softmax geri: bh ve t pozitif olmali");
+  }
+  const int rows = bh * t;
+  detail::dispatch_storage(type, "softmax_causal_backward", [&](auto tag) {
+    using T = decltype(tag);
+    softmax_causal_backward_kernel<T><<<(rows + kRowsPerBlock - 1) / kRowsPerBlock, kRowThreads, 0, stream>>>(
+        static_cast<T*>(dscores), static_cast<const T*>(dprobs), static_cast<const T*>(probs), rows, t, scale);
+  });
+  detail::check_launch("softmax_causal_backward_kernel");
+}
+
+void split_qkv_heads(void* q, void* k, void* v, const void* qkv, DType type, int batch, int time, int heads,
+                     int head_dim, cudaStream_t stream) {
+  const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
+  detail::dispatch_storage(type, "split_qkv_heads", [&](auto tag) {
+    using T = decltype(tag);
+    split_qkv_kernel<T><<<detail::blocks_for(total, 256), 256, 0, stream>>>(
+        static_cast<T*>(q), static_cast<T*>(k), static_cast<T*>(v), static_cast<const T*>(qkv), batch, time, heads,
+        head_dim);
+  });
+  detail::check_launch("split_qkv_kernel");
+}
+
+void merge_qkv_heads(void* dqkv, const void* dq, const void* dk, const void* dv, DType type, int batch, int time,
+                     int heads, int head_dim, cudaStream_t stream) {
+  const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
+  detail::dispatch_storage(type, "merge_qkv_heads", [&](auto tag) {
+    using T = decltype(tag);
+    merge_qkv_kernel<T><<<detail::blocks_for(total, 256), 256, 0, stream>>>(
+        static_cast<T*>(dqkv), static_cast<const T*>(dq), static_cast<const T*>(dk), static_cast<const T*>(dv), batch,
+        time, heads, head_dim);
+  });
+  detail::check_launch("merge_qkv_kernel");
+}
+
+void merge_heads(void* out, const void* y, DType type, int batch, int time, int heads, int head_dim,
+                 cudaStream_t stream) {
+  const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
+  detail::dispatch_storage(type, "merge_heads", [&](auto tag) {
+    using T = decltype(tag);
+    heads_kernel<true, T><<<detail::blocks_for(total, 256), 256, 0, stream>>>(
+        static_cast<T*>(out), static_cast<const T*>(y), batch, time, heads, head_dim);
+  });
+  detail::check_launch("merge_heads_kernel");
+}
+
+void split_heads(void* y, const void* in, DType type, int batch, int time, int heads, int head_dim,
+                 cudaStream_t stream) {
+  const std::size_t total = static_cast<std::size_t>(batch) * heads * time * head_dim;
+  detail::dispatch_storage(type, "split_heads", [&](auto tag) {
+    using T = decltype(tag);
+    heads_kernel<false, T><<<detail::blocks_for(total, 256), 256, 0, stream>>>(
+        static_cast<T*>(y), static_cast<const T*>(in), batch, time, heads, head_dim);
+  });
+  detail::check_launch("split_heads_kernel");
+}
+
+void cast(void* dst, DType dst_type, const void* src, DType src_type, std::size_t n, cudaStream_t stream) {
+  if (n == 0) {
+    return;
+  }
+  detail::dispatch_storage(dst_type, "cast", [&](auto dtag) {
+    using D = decltype(dtag);
+    detail::dispatch_storage(src_type, "cast", [&](auto stag) {
+      using S = decltype(stag);
+      cast_kernel<D, S><<<detail::blocks_for(n, 256), 256, 0, stream>>>(static_cast<D*>(dst),
+                                                                       static_cast<const S*>(src), n);
+    });
+  });
+  detail::check_launch("cast_kernel");
 }
 
 std::size_t sum_scratch_bytes(std::size_t) { return sizeof(double) * kSumBlocks; }

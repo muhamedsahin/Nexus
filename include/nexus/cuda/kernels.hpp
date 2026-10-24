@@ -16,6 +16,9 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/core/dtype.hpp"
+#include "nexus_train/mixed_precision/loss_scale_policy.hpp"
+
 #include <cuda_runtime.h>
 
 #include <cstddef>
@@ -43,9 +46,17 @@ void rmsnorm_forward(float* out, float* rstd, const float* x, const float* weigh
 void rmsnorm_backward(float* dx, float* dweight, const float* dout, const float* x, const float* weight,
                       const float* rstd, int rows, int cols, bool accumulate_dx, float* scratch, cudaStream_t stream);
 
+/// FAZ 4: cikti dar tipte (F32/BF16/F16), istatistik FP32. Giris daima FP32 residual.
+void layernorm_forward(void* out, DType out_type, float* mean, float* rstd, const float* x, const float* weight,
+                       const float* bias, int rows, int cols, float eps, cudaStream_t stream);
+
 /// add & norm: sum = a + b (sonraki residual icin yazilir), out = layernorm(sum).
 void residual_layernorm_forward(float* sum, float* out, float* mean, float* rstd, const float* a, const float* b,
                                 const float* weight, const float* bias, int rows, int cols, float eps,
+                                cudaStream_t stream);
+/// FAZ 4: sum FP32, out dar tip.
+void residual_layernorm_forward(float* sum, void* out, DType out_type, float* mean, float* rstd, const float* a,
+                                const float* b, const float* weight, const float* bias, int rows, int cols, float eps,
                                 cudaStream_t stream);
 
 // ---- Softmax / nedensel maske (3.3) ------------------------------------------------------
@@ -55,11 +66,19 @@ void softmax_causal_forward(float* probs, const float* scores, int bh, int t, fl
 /// dscores = scale * probs * (dprobs - sum_j probs*dprobs).
 void softmax_causal_backward(float* dscores, const float* dprobs, const float* probs, int bh, int t, float scale,
                              cudaStream_t stream);
+/// FAZ 4: depolama tipi F32/BF16/F16, hesap ve satir indirgemesi FP32.
+void softmax_causal_forward(void* probs, const void* scores, DType type, int bh, int t, float scale,
+                            cudaStream_t stream);
+void softmax_causal_backward(void* dscores, const void* dprobs, const void* probs, DType type, int bh, int t,
+                             float scale, cudaStream_t stream);
 
 // ---- Gomme (3.4) -------------------------------------------------------------------------
 /// out[b*T+t] = wte[tokens] + wpe[t].
 void embedding_pos_forward(float* out, const std::int32_t* tokens, const float* wte, const float* wpe, int batch,
                            int time, int dim, cudaStream_t stream);
+/// FAZ 4: agirliklar dar tipte (ana kopyasiz mod), cikti FP32 residual.
+void embedding_pos_forward(float* out, const std::int32_t* tokens, const void* wte, const void* wpe, DType weight_type,
+                           int batch, int time, int dim, cudaStream_t stream);
 /// atomicAdd yolu (hizli, belirlenimci degil). dwte/dwpe'ye EKLER.
 void embedding_backward_atomic(float* dwte, float* dwpe, const float* dout, const std::int32_t* tokens, int batch,
                                int time, int dim, cudaStream_t stream);
@@ -85,6 +104,11 @@ void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_
                            const std::int32_t* tokens, int batch, int time, int vocab,
                            const CrossEntropyDeviceOptions& options, float grad_scale, void* scratch,
                            cudaStream_t stream);
+/// FAZ 4.3: dlogits ek olarak *device_grad_scale ile carpilir (FP16 kayip olcegi, host senkronu yok).
+void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_out, const float* logits,
+                           const std::int32_t* tokens, int batch, int time, int vocab,
+                           const CrossEntropyDeviceOptions& options, float grad_scale, const float* device_grad_scale,
+                           void* scratch, cudaStream_t stream);
 
 // ---- Philox dropout (3.7) --------------------------------------------------------------
 /// CPU `fused::philox_uniform` ile bit-bit ayni maske. out = x * mask * 1/(1-p).
@@ -102,6 +126,9 @@ struct DeviceParamSlot {
   std::uint64_t numel = 0;
   /// Agirlik sonumu carpani: 1 = tam, 0 = yok (GPT-2: bias ve LayerNorm'da sonum yok).
   float weight_decay_scale = 1.0f;
+  /// FAZ 4.2: dar (BF16/F16) golge kopya. param != nullptr ise FP32 ana kopya guncellenir ve
+  /// golgeye RN ile yazilir; param == nullptr ise parametre yalniz golgede yasar (ana kopyasiz mod).
+  void* shadow = nullptr;
 };
 
 struct DeviceAdamWConfig {
@@ -111,7 +138,33 @@ struct DeviceAdamWConfig {
   double eps = 1.0e-8;
   double weight_decay = 0.0;
   double max_grad_norm = 0.0;  // <= 0: kirpma yok
+  // ---- FAZ 4 ----
+  DType shadow_type = DType::F32;      // golge kopya tipi (F32 = golge yok)
+  const float* loss_scale = nullptr;   // aygit: gradyanlar bu olcekle bolunur (unscale)
+  int* found_inf = nullptr;            // aygit: inf/NaN bayragi (yazilir); 1 ise adim atlanir
+  // Onceki atlanan adimlarin aygit sayaci. Bias correction deneme yerine kabul edilen
+  // guncelleme sayisini kullanir; host senkronu gerekmez.
+  const long long* skipped_steps = nullptr;
+  bool stochastic_rounding = false;    // ana kopyasiz BF16 golgede stokastik yuvarlama
+  std::uint64_t sr_seed = 0;
 };
+
+/// Aygittaki dinamik kayip olcegi durumu (FAZ 4.3). Son 64 olcek, host senkronu
+/// olmadan aygitta halka tamponda tutulur; read_loss_scale() ile metrik olarak okunur.
+inline constexpr int kLossScaleHistorySize = 64;
+struct DeviceLossScaleState {
+  float scale = 65536.0f;
+  int growth_tracker = 0;
+  int found_inf = 0;
+  int pad = 0;
+  long long skipped_steps = 0;
+  long long steps = 0;
+  float scale_history[kLossScaleHistorySize] = {};
+};
+
+void loss_scale_init(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream);
+/// state->found_inf'e gore olcegi gunceller; nexus_train::LossScaleState::update ile ayni kurallar.
+void loss_scale_update(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream);
 
 [[nodiscard]] std::size_t adamw_scratch_bytes(int num_slots, std::uint64_t total_numel);
 /// Tum parametreler tek cagrida. Global norm aygitta hesaplanir, kirpma katsayisi
@@ -139,6 +192,17 @@ void merge_qkv_heads(float* dqkv, const float* dq, const float* dk, const float*
 /// y [B, H, T, D] -> out [B, T, H*D] (ve tersi: unpermute_backward).
 void merge_heads(float* out, const float* y, int batch, int time, int heads, int head_dim, cudaStream_t stream);
 void split_heads(float* y, const float* in, int batch, int time, int heads, int head_dim, cudaStream_t stream);
+// ---- FAZ 4 tip parametreli yardimcilar -------------------------------------------------
+void cast(void* dst, DType dst_type, const void* src, DType src_type, std::size_t n, cudaStream_t stream);
+void split_qkv_heads(void* q, void* k, void* v, const void* qkv, DType type, int batch, int time, int heads,
+                     int head_dim, cudaStream_t stream);
+void merge_qkv_heads(void* dqkv, const void* dq, const void* dk, const void* dv, DType type, int batch, int time,
+                     int heads, int head_dim, cudaStream_t stream);
+void merge_heads(void* out, const void* y, DType type, int batch, int time, int heads, int head_dim,
+                 cudaStream_t stream);
+void split_heads(void* y, const void* in, DType type, int batch, int time, int heads, int head_dim,
+                 cudaStream_t stream);
+
 /// Belirlenimci tam toplam (tek blok son asama): out[0] = sum(x).
 [[nodiscard]] std::size_t sum_scratch_bytes(std::size_t n);
 void sum(float* out, const float* x, std::size_t n, void* scratch, cudaStream_t stream);

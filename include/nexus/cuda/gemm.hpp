@@ -17,6 +17,10 @@
  * - Strided batched GEMM (dikkat icin).
  * - TF32 politikasi: "highest" (tam FP32), "high"/"medium" (TF32 Tensor Core).
  *
+ * Veri tipleri (FAZ 4): A/B F32, BF16 veya F16; C/D F32 ya da A ile ayni dar tip. Dar
+ * girislerde hesap FP32 biriktiricilidir (CUBLAS_COMPUTE_32F, Tensor Core). Bias ve aux
+ * tipi varsayilan olarak D tipidir; `bias_type` ile FP32 bias + dar D secilebilir.
+ *
  * Desteklenmeyen epilog/sekil bileşimi icin cuBLASLt algoritma bulamazsa acik
  * TensorError atilir; sessiz yedek yol yoktur.
  *
@@ -24,6 +28,8 @@
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
  * olarak gelistirilmistir.
  */
+
+#include "nexus/core/dtype.hpp"
 
 #include <cuda_runtime.h>
 
@@ -53,18 +59,22 @@ struct GemmArgs {
   int m = 0;
   int n = 0;
   int k = 0;
-  const float* a = nullptr;
+  const void* a = nullptr;
   int lda = 0;  // A'nin bellekteki satir adimi (satir-ana)
-  const float* b = nullptr;
+  const void* b = nullptr;
   int ldb = 0;
-  float* c = nullptr;
+  void* c = nullptr;
   int ldc = 0;
   float alpha = 1.0f;
   float beta = 0.0f;
   Epilogue epilogue = Epilogue::None;
-  const float* bias = nullptr;  // Bias* epiloglari
-  float* bias_grad = nullptr;   // BGrad* epiloglari
-  float* aux = nullptr;         // Gelu aux cikti / DGelu aux girdi ([m,n], ldc ile ayni adim)
+  const void* bias = nullptr;   // Bias* epiloglari (tip: bias_type)
+  void* bias_grad = nullptr;    // BGrad* epiloglari (tip: bias_type)
+  void* aux = nullptr;          // Gelu aux cikti / DGelu aux girdi ([m,n], ldc adimi, tip: c_type)
+  DType a_type = DType::F32;
+  DType b_type = DType::F32;
+  DType c_type = DType::F32;
+  DType bias_type = DType::F32;  // c_type dar ise ve bu F32 ise FP32 bias kullanilir
   int batch = 1;
   long long stride_a = 0;
   long long stride_b = 0;

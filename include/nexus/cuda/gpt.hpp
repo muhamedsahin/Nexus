@@ -18,7 +18,19 @@
  * nedensel maske, belirlenimci gomme geri, yerinde fuzyonlu CE, foreach AdamW +
  * aygitta global norm kirpma.
  *
- * Kapsam disi (sonraki fazlar): BF16/FP16 (FAZ 4), FlashAttention (FAZ 5; burada
+ * Karisik hassasiyet (FAZ 4): `compute_dtype` BF16/F16 iken matmul ve dikkat dar tipte
+ * Tensor Core'da calisir (autocast tablosu, nexus/amp/autocast.hpp); softmax, CE ve
+ * norm istatistikleri FP32 biriktirir; residual akisi, logit ve gradyanlar FP32'dir.
+ * Ana kopya modlari (4.2):
+ *   A CastPerForward: FP32 parametre, her ileri geciste dar kopyaya cevrilir (PyTorch AMP).
+ *   B Fp32Master (varsayilan): dar model agirligi + optimizer'da FP32 ana kopya; AdamW
+ *     guncellemeyi FP32'de yapip dar kopyayi ayni cekirdekte yazar (Megatron/DeepSpeed).
+ *   C NoMaster (deneysel): matris agirliklari yalniz BF16, stokastik yuvarlamali guncelleme;
+ *     kucuk parametreler (LN, bias) FP32 kalir.
+ * F16'da dinamik kayip olcegi aygitta tutulur; unscale + isfinite AdamW'in norm gecisinde
+ * tek bayrakla yapilir, inf/NaN adimi atlanir (host senkronu yok).
+ *
+ * Kapsam disi (sonraki fazlar): FlashAttention (FAZ 5; burada
  * dikkat skoru [B,H,T,T] yazilir), aktivasyon yeniden hesaplama (FAZ 7), gradyan
  * biriktirme (FAZ 9).
  *
@@ -27,6 +39,7 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/core/dtype.hpp"
 #include "nexus/cuda/caching_allocator.hpp"
 #include "nexus/cuda/kernels.hpp"
 #include "nexus/cuda/runtime.hpp"
@@ -39,6 +52,10 @@
 namespace nexus {
 namespace cuda {
 
+enum class MasterWeights : std::uint8_t { CastPerForward = 0, Fp32Master = 1, NoMaster = 2 };
+
+[[nodiscard]] const char* to_string(MasterWeights mode) noexcept;
+
 struct GptConfig {
   int vocab = 50257;
   int max_seq = 1024;
@@ -47,6 +64,11 @@ struct GptConfig {
   int dim = 768;
   float ln_eps = 1.0e-5f;
   bool deterministic = true;  // gomme geri: siralama+segment (atomiksiz)
+  // ---- FAZ 4 ----
+  DType compute_dtype = DType::F32;                 // F32 (TF32 politikasi globaldir), BF16, F16
+  MasterWeights master = MasterWeights::Fp32Master;  // yalniz dar compute_dtype'ta anlamli
+  bool dynamic_loss_scale = false;                  // F16'da zorunlu olarak acilir
+  nexus_train::LossScalePolicy loss_scale{};
 };
 
 struct GptParamInfo {
@@ -73,6 +95,8 @@ class GptModel {
   [[nodiscard]] std::size_t num_parameters() const noexcept { return num_params_; }
   [[nodiscard]] const std::vector<GptParamInfo>& parameter_info() const noexcept { return params_info_; }
   [[nodiscard]] std::size_t activation_bytes() const noexcept { return activation_bytes_; }
+  /// Parametre + gradyan + optimizer durumu baytlari (tum ana kopya/golge tamponlari dahil).
+  [[nodiscard]] std::size_t state_bytes() const noexcept { return state_bytes_; }
 
   /// d_tokens: aygitta [batch*time]. Kayip aygitta yazilir (host senkronu yok).
   /// Gradyanlar sifirlanip yeniden hesaplanir.
@@ -84,6 +108,11 @@ class GptModel {
 
   [[nodiscard]] const float* device_loss() const noexcept { return loss_.as<float>(); }
   [[nodiscard]] const float* device_grad_norm() const noexcept { return grad_norm_.as<float>(); }
+  /// FP32 gradyan tamponu (test: tasma enjeksiyonu).
+  [[nodiscard]] float* device_gradients() noexcept { return grads_.as<float>(); }
+  /// Kayip olcegi durumu (dinamik olcek kapaliysa olcek 1, sayaclar 0). Senkron okuma.
+  [[nodiscard]] DeviceLossScaleState read_loss_scale() const;
+  [[nodiscard]] bool uses_loss_scale() const noexcept { return use_loss_scale_; }
   [[nodiscard]] std::int64_t step_count() const noexcept { return step_; }
   /// Modelin tum islerini kuyruga koydugu hesap akisi.
   [[nodiscard]] const Stream& stream() const noexcept { return stream_; }
@@ -99,6 +128,11 @@ class GptModel {
   void build_layout();
   void run_forward(const std::int32_t* d_tokens, bool for_backward);
   void run_backward(const std::int32_t* d_tokens);
+  [[nodiscard]] bool narrow() const noexcept { return config_.compute_dtype != DType::F32; }
+  [[nodiscard]] float* master(std::size_t offset) const;      // FP32 ana kopya (yoksa nullptr)
+  [[nodiscard]] void* shadow(std::size_t offset) const;       // dar kopya (yoksa nullptr)
+  [[nodiscard]] const void* weight(std::size_t offset) const;  // GEMM girisi (compute_dtype)
+  void refresh_shadow_from_master();
 
   GptConfig config_;
   int batch_ = 0;
@@ -107,8 +141,12 @@ class GptModel {
   std::vector<GptParamInfo> params_info_;
   std::size_t num_params_ = 0;
   std::size_t activation_bytes_ = 0;
+  std::size_t state_bytes_ = 0;
+  std::size_t small_begin_ = 0;   // kucuk (bias/LN) parametrelerin basladigi ofset
+  std::size_t master_begin_ = 0;  // ana kopyanin kapsadigi ilk ofset (C modunda small_begin_)
+  bool use_loss_scale_ = false;
   std::int64_t step_ = 0;
-  DeviceBuffer params_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_;
+  DeviceBuffer params_, shadow_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_, loss_scale_state_;
   std::unique_ptr<Buffers> buffers_;
 };
 
