@@ -24,6 +24,9 @@ enum class NormKind { LayerNorm, RmsNorm };
 enum class MlpKind { Gelu, SwiGlu, GeGlu };
 enum class PosKind { None, Sinusoidal, Learned, Rope, Alibi };
 enum class InitKind { Gpt2, Llama, MuP };
+/// FAZ 7.1: blok basina aktivasyon yeniden hesaplama (autograd::checkpoint).
+/// every_k: l % k == 0 olan bloklar yeniden hesaplanir (L/k blok).
+enum class RecomputeKind { None, Full, EveryK };
 
 /// RoPE uzunluk olceklemesi (HF transformers `rope_scaling` alanlariyla ayni adlar).
 struct RopeScaling {
@@ -72,6 +75,8 @@ struct LmConfig {
   int mup_base_width = 256;     // muP: genislik carpani m = d_model / mup_base_width
   std::uint64_t seed = 1234;
   std::string dtype = "float32";  // CPU yolu FP32; alan arsive yazilir
+  RecomputeKind recompute = RecomputeKind::None;
+  int recompute_every = 2;
 
   [[nodiscard]] int kv_heads() const noexcept { return n_kv_head > 0 ? n_kv_head : n_head; }
   [[nodiscard]] int hdim() const noexcept { return head_dim > 0 ? head_dim : (n_head > 0 ? d_model / n_head : 0); }
@@ -104,6 +109,7 @@ void validate(const LmConfig& config);
 [[nodiscard]] const char* to_string(PosKind kind) noexcept;
 [[nodiscard]] const char* to_string(InitKind kind) noexcept;
 [[nodiscard]] const char* to_string(RopeScaling::Type type) noexcept;
+[[nodiscard]] const char* to_string(RecomputeKind kind) noexcept;
 
 }  // namespace lm
 }  // namespace nexus

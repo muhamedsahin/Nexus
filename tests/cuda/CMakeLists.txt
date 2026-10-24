@@ -89,3 +89,15 @@ target_link_libraries(test_lm_kernels PRIVATE nexus::nexus nexus::cuda nexus_tes
 nexus_configure_target(test_lm_kernels)
 add_test(NAME test_rope_swiglu_cuda COMMAND test_lm_kernels)
 set_tests_properties(test_rope_swiglu_cuda PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
+
+# FAZ 7 GPU: yeniden hesaplama, parcali CE, ZeRO-Offload, 8-bit AdamW.
+add_executable(test_phase7_memory_cuda test_phase7_memory_cuda.cpp)
+target_link_libraries(test_phase7_memory_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase7_memory_cuda)
+add_test(NAME test_checkpoint_grad_equal_cuda COMMAND test_phase7_memory_cuda recompute)
+add_test(NAME test_chunked_ce_equals_full COMMAND test_phase7_memory_cuda chunked)
+add_test(NAME test_zero_offload_equals_gpu_adam COMMAND test_phase7_memory_cuda offload)
+add_test(NAME test_8bit_adam_converges COMMAND test_phase7_memory_cuda adam8)
+add_test(NAME test_fused_8bit_update COMMAND test_phase7_memory_cuda fused)
+set_tests_properties(test_checkpoint_grad_equal_cuda test_chunked_ce_equals_full test_zero_offload_equals_gpu_adam
+    test_8bit_adam_converges test_fused_8bit_update PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)

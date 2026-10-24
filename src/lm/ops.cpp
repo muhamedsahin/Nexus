@@ -64,20 +64,23 @@ Variable linear(const Variable& x, const Variable& w, const Variable& b) {
       }
     }
   }
-  const Variable xs = x.detach();
-  const Variable ws = w.detach();
+  // Kayit saved-tensor kancasindan gecer: checkpoint/offload bu tensorleri yonetebilir.
+  const ag::SavedTensor xs = ag::save_variable(x);
+  const ag::SavedTensor ws = ag::save_variable(w);
   std::vector<Variable> inputs{x, w};
   if (has_b) {
     inputs.push_back(b);
   }
   return ag::custom_function("lm_linear", inputs, std::move(y), Shape{{n, out}}, [xs, ws, n, in, out, has_b](const Variable& g) {
+    const Variable xv = ag::restore_variable(xs, "lm_linear");
+    const Variable wv = ag::restore_variable(ws, "lm_linear");
     const float* dy = g.values().data();
     std::vector<float> dx(static_cast<std::size_t>(n) * in, 0.0f);
     std::vector<float> dw(static_cast<std::size_t>(in) * out, 0.0f);
-    nexus_model::kernels::gemm_nt_accum(dy, ws.values().data(), dx.data(), n, out, in);  // dx = dy W^T
-    nexus_model::kernels::gemm_tn_accum(xs.values().data(), dy, dw.data(), in, n, out);  // dW = x^T dy
-    std::vector<Variable> grads{Variable::make(std::move(dx), xs.shape(), false),
-                                Variable::make(std::move(dw), ws.shape(), false)};
+    nexus_model::kernels::gemm_nt_accum(dy, wv.values().data(), dx.data(), n, out, in);  // dx = dy W^T
+    nexus_model::kernels::gemm_tn_accum(xv.values().data(), dy, dw.data(), in, n, out);  // dW = x^T dy
+    std::vector<Variable> grads{Variable::make(std::move(dx), xv.shape(), false),
+                                Variable::make(std::move(dw), wv.shape(), false)};
     if (has_b) {
       std::vector<float> db(static_cast<std::size_t>(out), 0.0f);
       for (int r = 0; r < n; ++r) {
@@ -100,16 +103,18 @@ Variable linear_t(const Variable& x, const Variable& w) {
   const int out = static_cast<int>(w.shape().dims[0]);
   std::vector<float> y(static_cast<std::size_t>(n) * out, 0.0f);
   nexus_model::kernels::gemm_nt_accum(x.values().data(), w.values().data(), y.data(), n, in, out);
-  const Variable xs = x.detach();
-  const Variable ws = w.detach();
+  const ag::SavedTensor xs = ag::save_variable(x);
+  const ag::SavedTensor ws = ag::save_variable(w);
   return ag::custom_function("lm_linear_t", {x, w}, std::move(y), Shape{{n, out}}, [xs, ws, n, in, out](const Variable& g) {
+    const Variable xv = ag::restore_variable(xs, "lm_linear_t");
+    const Variable wv = ag::restore_variable(ws, "lm_linear_t");
     const float* dy = g.values().data();
     std::vector<float> dx(static_cast<std::size_t>(n) * in);
     std::vector<float> dw(static_cast<std::size_t>(out) * in, 0.0f);
-    nexus_model::kernels::gemm_nn(dy, ws.values().data(), dx.data(), n, out, in);        // dx = dy W
-    nexus_model::kernels::gemm_tn_accum(dy, xs.values().data(), dw.data(), out, n, in);  // dW = dy^T x
-    return std::vector<Variable>{Variable::make(std::move(dx), xs.shape(), false),
-                                 Variable::make(std::move(dw), ws.shape(), false)};
+    nexus_model::kernels::gemm_nn(dy, wv.values().data(), dx.data(), n, out, in);        // dx = dy W
+    nexus_model::kernels::gemm_tn_accum(dy, xv.values().data(), dw.data(), out, n, in);  // dW = dy^T x
+    return std::vector<Variable>{Variable::make(std::move(dx), xv.shape(), false),
+                                 Variable::make(std::move(dw), wv.shape(), false)};
   });
 }
 
@@ -153,9 +158,10 @@ Variable gated(const Variable& x, const char* name) {
       y[i] = fa * b[i];
     }
   }
-  const Variable saved = x.detach();
-  return ag::custom_function(name, {x}, std::move(out), Shape{{n, f}}, [saved, n, f, s](const Variable& g) {
-    const std::vector<float>& xv2 = saved.values();
+  const ag::SavedTensor saved = ag::save_variable(x);
+  return ag::custom_function(name, {x}, std::move(out), Shape{{n, f}}, [saved, n, f, s, name](const Variable& g) {
+    const Variable xr = ag::restore_variable(saved, name);
+    const std::vector<float>& xv2 = xr.values();
     const std::vector<float>& gv = g.values();
     std::vector<float> dx(static_cast<std::size_t>(n * 2 * f));
     for (std::int64_t r = 0; r < n; ++r) {
@@ -210,21 +216,28 @@ Variable attention(const Variable& q, const Variable& k, const Variable& v, cons
   auto lse = std::make_shared<std::vector<float>>(static_cast<std::size_t>(rows) * a.heads);
   attention::flash_attention_forward_cpu(o->data(), lse->data(), q.values().data(), k.values().data(),
                                          v.values().data(), p);
-  const Variable qs = q.detach();
-  const Variable ks = k.detach();
-  const Variable vs = v.detach();
+  const ag::SavedTensor qs = ag::save_variable(q);
+  const ag::SavedTensor ks = ag::save_variable(k);
+  const ag::SavedTensor vs = ag::save_variable(v);
+  const ag::SavedTensor os = ag::save_variable(Variable::make(*o, q.shape(), false));
+  const ag::SavedTensor ls = ag::save_variable(Variable::make(*lse, Shape{{rows * a.heads}}, false));
   auto slopes = a.alibi_slopes;  // isaretci p icinde: omru kapanista tutulur
   return ag::custom_function("lm_flash_attention", {q, k, v}, *o, q.shape(),
-                             [p, o, lse, qs, ks, vs, slopes](const Variable& g) {
+                             [p, qs, ks, vs, os, ls, slopes](const Variable& g) {
                                (void)slopes;
-                               std::vector<float> dq(qs.values().size()), dk(ks.values().size()), dv(vs.values().size());
+                               const Variable qv = ag::restore_variable(qs, "lm_flash_attention");
+                               const Variable kv = ag::restore_variable(ks, "lm_flash_attention");
+                               const Variable vv = ag::restore_variable(vs, "lm_flash_attention");
+                               const Variable ov = ag::restore_variable(os, "lm_flash_attention");
+                               const Variable lv = ag::restore_variable(ls, "lm_flash_attention");
+                               std::vector<float> dq(qv.values().size()), dk(kv.values().size()), dv(vv.values().size());
                                attention::flash_attention_backward_cpu(dq.data(), dk.data(), dv.data(),
-                                                                       g.values().data(), qs.values().data(),
-                                                                       ks.values().data(), vs.values().data(),
-                                                                       o->data(), lse->data(), p);
-                               return std::vector<Variable>{Variable::make(std::move(dq), qs.shape(), false),
-                                                            Variable::make(std::move(dk), ks.shape(), false),
-                                                            Variable::make(std::move(dv), vs.shape(), false)};
+                                                                       g.values().data(), qv.values().data(),
+                                                                       kv.values().data(), vv.values().data(),
+                                                                       ov.values().data(), lv.values().data(), p);
+                               return std::vector<Variable>{Variable::make(std::move(dq), qv.shape(), false),
+                                                            Variable::make(std::move(dk), kv.shape(), false),
+                                                            Variable::make(std::move(dv), vv.shape(), false)};
                              });
 }
 

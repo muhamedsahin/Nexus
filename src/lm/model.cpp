@@ -338,7 +338,14 @@ Variable LanguageModel::logits(const std::vector<std::int32_t>& tokens, int batc
   }
   Variable x = embed(tokens, batch, time, o);
   for (const DecoderBlock& block : blocks_) {
-    x = block.forward(x, ctx);
+    const bool ckpt = config_.recompute == RecomputeKind::Full ||
+                      (config_.recompute == RecomputeKind::EveryK && block.index() % config_.recompute_every == 0);
+    if (ckpt) {
+      // Yalniz blok girisi saklanir; geri geciste blok yeniden calisir (dropout ayni seed/offset).
+      x = ag::checkpoint([&block, ctx](const std::vector<Variable>& in) { return block.forward(in[0], ctx); }, {x});
+    } else {
+      x = block.forward(x, ctx);
+    }
   }
   if (config_.norm == NormKind::RmsNorm) {
     x = fused::rms_norm(x, nfw_, config_.norm_eps);

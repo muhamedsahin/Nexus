@@ -58,7 +58,24 @@ enum class MasterWeights : std::uint8_t { CastPerForward = 0, Fp32Master = 1, No
 
 enum class AttentionBackend { Auto, Math, Flash };
 
+/// FAZ 7.1: katman aktivasyonlarinin geri gecis icin saklanmasi.
+///  None: hepsi saklanir. Full: yalniz katman girisi (res) + kucuk istatistikler; geri geciste
+///  katman ileri gecisi yeniden calisir. EveryK: l % k == 0 olan katmanlar Full gibi, digerleri
+///  None gibi. Selective: GEMM ciktilari (qkv, att, fc_pre) ve xmid saklanir; norm ciktilari
+///  (ln1, ln2) ve GELU ciktisi (fc_act) yeniden hesaplanir (yalniz flash dikkatle).
+enum class Recompute { None, Selective, Full, EveryK };
+/// FAZ 7.3: AdamW (FP32 durum, aygit) | AdamW8bit (blok bazli 8-bit m/v, aygit) |
+/// ZeroOffload (FP32 ana kopya + m + v host'ta, gradyan katman katman D2H, CPU AdamW, BF16 H2D).
+enum class OptimizerKind { AdamW, AdamW8bit, ZeroOffload, AdamW8bitFused };
+// AdamW8bitFused: 8-bit AdamW geri geciste katman katman uygulanir (LOMO / PyTorch
+// post-accumulate-grad hook tarzi): katman matris gradyani tek katmanlik tampona yazilir ve hemen
+// guncellenir, tam gradyan tamponu yoktur. Kirpma bir adim gecikmeli (onceki adimin global
+// normu). BF16 + ana kopyasiz (C) zorunlu; set_fused_optimizer ile hiperparametre verilir,
+// forward_backward adimi atar, optimizer_step yalniz sonraki kirpmayi sonlandirir.
+
 [[nodiscard]] const char* to_string(AttentionBackend backend) noexcept;
+[[nodiscard]] const char* to_string(Recompute mode) noexcept;
+[[nodiscard]] const char* to_string(OptimizerKind kind) noexcept;
 
 struct GptConfig {
   int vocab = 50257;
@@ -79,6 +96,14 @@ struct GptConfig {
   // math'e dusme nedenini stderr'e yazar. Flash istenip desteklenmezse kurucu hata atar.
   AttentionBackend attention = AttentionBackend::Auto;
   bool deterministic_attention = false;  // flash geri: atomiksiz dQ (T/64 kat dQ tamponu)
+  // ---- FAZ 7 ----
+  Recompute recompute = Recompute::None;
+  int recompute_every = 2;
+  int ce_chunk_rows = 0;  // > 0: lm_head GEMM + CE B*T ekseninde bu satirlik parcalarla (logit tamponu sabit)
+  OptimizerKind optimizer = OptimizerKind::AdamW;
+  bool adam8_embedding_fp32 = true;        // 8-bit: wte/wpe durumu 32-bit (bitsandbytes StableEmbedding onerisi)
+  DType offload_grad_dtype = DType::BF16;  // ZeroOffload: D2H gradyan tipi (F32: GPU AdamW ile birebir test)
+  int offload_threads = 0;                 // ZeroOffload CPU AdamW is parcacigi (0: donanim)
 };
 
 struct GptParamInfo {
@@ -95,7 +120,7 @@ class GptModel {
   /// (N(0, 0.02), artik projeksiyonlar 0.02/sqrt(2L), LN=1/0, bias=0) host'ta tohumla
   /// uretilip yuklenir.
   GptModel(const GptConfig& config, int batch, int time, std::uint64_t seed, const Stream& stream);
-  ~GptModel();
+  ~GptModel();  // ZeroOffload pinned tamponlarini birakir
   GptModel(const GptModel&) = delete;
   GptModel& operator=(const GptModel&) = delete;
 
@@ -107,6 +132,12 @@ class GptModel {
   [[nodiscard]] std::size_t activation_bytes() const noexcept { return activation_bytes_; }
   /// Parametre + gradyan + optimizer durumu baytlari (tum ana kopya/golge tamponlari dahil).
   [[nodiscard]] std::size_t state_bytes() const noexcept { return state_bytes_; }
+  /// Aygitta tutulan parametre + gradyan + optimizer durumu baytlari (ZeroOffload'da host disi).
+  [[nodiscard]] std::size_t device_state_bytes() const noexcept { return device_state_bytes_; }
+  /// ZeroOffload: host'ta tutulan bayt (sayfalanabilir + pinned).
+  [[nodiscard]] std::size_t host_state_bytes() const noexcept { return host_state_bytes_; }
+  /// Son optimizer_step'in CPU guncelleme suresi (ZeroOffload; digerlerinde 0).
+  [[nodiscard]] double last_cpu_update_ms() const noexcept { return last_cpu_update_ms_; }
 
   /// d_tokens: aygitta [batch*time]. Kayip aygitta yazilir (host senkronu yok).
   /// Gradyanlar sifirlanip yeniden hesaplanir.
@@ -115,11 +146,13 @@ class GptModel {
   void forward(const std::int32_t* d_tokens);
   /// Foreach AdamW; agirlik sonumu yalniz 2B matrislere. grad norm aygitta.
   void optimizer_step(const DeviceAdamWConfig& config);
+  /// AdamW8bitFused: geri geciste kullanilacak hiperparametreler (ilk forward_backward'dan once).
+  void set_fused_optimizer(const DeviceAdamWConfig& config);
 
   [[nodiscard]] const float* device_loss() const noexcept { return loss_.as<float>(); }
   [[nodiscard]] const float* device_grad_norm() const noexcept { return grad_norm_.as<float>(); }
-  /// FP32 gradyan tamponu (test: tasma enjeksiyonu).
-  [[nodiscard]] float* device_gradients() noexcept { return grads_.as<float>(); }
+  /// FP32 gradyan tamponu (test: tasma enjeksiyonu). ZeroOffload'da nullptr (gradyan host'ta).
+  [[nodiscard]] float* device_gradients() noexcept { return offload() ? nullptr : grads_.as<float>(); }
   /// Kayip olcegi durumu (dinamik olcek kapaliysa olcek 1, sayaclar 0). Senkron okuma.
   [[nodiscard]] DeviceLossScaleState read_loss_scale() const;
   [[nodiscard]] bool uses_loss_scale() const noexcept { return use_loss_scale_; }
@@ -137,7 +170,22 @@ class GptModel {
 
  private:
   struct Buffers;
+  struct Offload;
   void build_layout();
+  void head_forward(const std::int32_t* d_tokens, bool for_backward);
+  void cpu_optimizer_step(const DeviceAdamWConfig& config);
+  void sync_device_from_host_master(bool rebuild_bf16);
+  void layer_forward(int layer, bool recompute);
+  [[nodiscard]] bool offload() const noexcept { return config_.optimizer == OptimizerKind::ZeroOffload; }
+  /// wte/wpe + kucuk parametre bolgesinin sikistirilmis indeksi (katman matrisleri haric).
+  [[nodiscard]] std::size_t rest_index(std::size_t offset) const noexcept;
+  /// 8-bit modlarda 32-bit Adam durumunun sikistirilmis indeksi (gomme 8-bit ise yalniz kucukler).
+  [[nodiscard]] std::size_t state32_index(std::size_t offset) const noexcept {
+    return q8_begin_ == 0 ? offset - small_begin_ : rest_index(offset);
+  }
+  [[nodiscard]] bool in_layer_matrices(std::size_t offset) const noexcept {
+    return offset >= matrices_begin_ && offset < small_begin_;
+  }
   void run_forward(const std::int32_t* d_tokens, bool for_backward);
   void run_backward(const std::int32_t* d_tokens);
   [[nodiscard]] bool narrow() const noexcept { return config_.compute_dtype != DType::F32; }
@@ -156,11 +204,28 @@ class GptModel {
   std::size_t state_bytes_ = 0;
   std::size_t small_begin_ = 0;   // kucuk (bias/LN) parametrelerin basladigi ofset
   std::size_t master_begin_ = 0;  // ana kopyanin kapsadigi ilk ofset (C modunda small_begin_)
+  std::size_t matrices_begin_ = 0;  // ilk katman matrisi (qkv_w) ofseti
+  std::size_t rest_count_ = 0;      // matrices_begin_ + (num_params_ - small_begin_)
+  std::size_t device_state_bytes_ = 0;
+  std::size_t host_state_bytes_ = 0;
+  double last_cpu_update_ms_ = 0.0;
   bool use_loss_scale_ = false;
   bool flash_ = false;
   std::int64_t step_ = 0;
   DeviceBuffer params_, shadow_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_, loss_scale_state_;
+  // 8-bit AdamW durumu (katman matrisleri [+ gomme]): kodlar ve blok absmax'lari.
+  DeviceBuffer q8_m_, q8_v_, q8_absmax_m_, q8_absmax_v_;
+  std::size_t q8_begin_ = 0;  // 8-bit bolgenin ilk ofseti (bolge [q8_begin_, small_begin_))
   std::unique_ptr<Buffers> buffers_;
+  std::unique_ptr<Offload> offload_;
+  // AdamW8bitFused durumu
+  bool fused_ready_ = false;
+  DeviceAdamWConfig fused_config_{};
+  DeviceBuffer fused_scratch_, fused_clip_, fused_norm_accum_;
+  [[nodiscard]] bool fused() const noexcept { return config_.optimizer == OptimizerKind::AdamW8bitFused; }
+  [[nodiscard]] bool layer_grad_stream() const noexcept { return offload() || fused(); }
+  void fused_update_layer(int layer, const float* layer_grads);
+  void fused_update_rest();
 };
 
 /// Egitmen: pinned cift tamponlu asenkron token kopyasi + N adimda bir kayip okuma.

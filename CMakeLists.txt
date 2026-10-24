@@ -44,6 +44,8 @@ add_library(nexus STATIC
     src/core/mirrored_tensor.cpp
     src/autograd/engine.cpp
     src/autograd/ops.cpp
+    src/autograd/checkpoint.cpp
+    src/memory/planner.cpp
     src/fused/fused.cpp
     src/fused/training.cpp
     src/attention/cpu.cpp

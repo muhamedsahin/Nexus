@@ -87,6 +87,14 @@ __global__ void gelu_forward_kernel(float* __restrict__ out, const float* __rest
   }
 }
 
+template <typename T>
+__global__ void gelu_forward_typed_kernel(T* __restrict__ out, const T* __restrict__ x, std::size_t n) {
+  NEXUS_GRID_STRIDE(i, n) {
+    const float v = detail::Num<T>::load(x[i]);
+    out[i] = detail::Num<T>::store(0.5f * v * (1.0f + tanhf(kGeluC * (v + kGeluA * v * v * v))));
+  }
+}
+
 __global__ void gelu_backward_kernel(float* __restrict__ dx, const float* __restrict__ dout,
                                      const float* __restrict__ x, std::size_t n) {
   NEXUS_GRID_STRIDE(i, n) {
@@ -256,6 +264,15 @@ void softmax_causal_backward(float* dscores, const float* dprobs, const float* p
 void gelu_forward(float* out, const float* x, std::size_t n, cudaStream_t stream) {
   gelu_forward_kernel<<<detail::blocks_for(n, 256), 256, 0, stream>>>(out, x, n);
   detail::check_launch("gelu_forward_kernel");
+}
+
+void gelu_forward(void* out, const void* x, DType type, std::size_t n, cudaStream_t stream) {
+  detail::dispatch_storage(type, "gelu_forward", [&](auto tag) {
+    using T = decltype(tag);
+    gelu_forward_typed_kernel<T><<<detail::blocks_for(n, 256), 256, 0, stream>>>(static_cast<T*>(out),
+                                                                                 static_cast<const T*>(x), n);
+  });
+  detail::check_launch("gelu_forward_typed_kernel");
 }
 
 void gelu_backward(float* dx, const float* dout, const float* x, std::size_t n, cudaStream_t stream) {

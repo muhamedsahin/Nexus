@@ -318,6 +318,36 @@ using CustomBackwardFn = std::function<std::vector<Variable>(const Variable& gra
 Variable custom_function(std::string name, const std::vector<Variable>& inputs, std::vector<float> output,
                          Shape output_shape, CustomBackwardFn backward_fn);
 
+// ---- Aktivasyon yeniden hesaplama (FAZ 7.1) ------------------------------------------
+struct CheckpointOptions {
+  /// Nexus'ta rastgelelik (dropout_philox, dropout, randn) acik (seed, offset) alir: global RNG
+  /// durumu yoktur, yeniden calistirma ayni maskeyi kendiliginden uretir. Bayrak sozlesmeyi
+  /// belgeler; false verilmesi desteklenmez (sessiz farkli maske yok).
+  bool preserve_rng = true;
+};
+
+/// Non-reentrant checkpoint (PyTorch use_reentrant=False karsiligi). Ileri geciste fn normal
+/// grafla calisir ama kaydedilen tensörler saved-tensor kancasiyla yalniz sira numarasi olarak
+/// tutulur; geri geciste ilk unpack fn'i girislerden yeniden calistirir ve kaydedilenleri ayni
+/// sirayla doldurur. Ic ice checkpoint, kismi backward ve retain_graph ile uyumlu. fn
+/// belirlenimci olmali (ayni sirada ayni op'lar).
+Variable checkpoint(const std::function<Variable(const std::vector<Variable>&)>& fn, const std::vector<Variable>& inputs,
+                    const CheckpointOptions& options = {});
+
+/// Olcum: kapsam boyunca save_variable ile kaydedilen bayt (kanca zincirine eklenir).
+class SavedBytesCounter {
+ public:
+  SavedBytesCounter();
+  ~SavedBytesCounter();
+  SavedBytesCounter(const SavedBytesCounter&) = delete;
+  SavedBytesCounter& operator=(const SavedBytesCounter&) = delete;
+  [[nodiscard]] std::size_t bytes() const noexcept { return *bytes_; }
+
+ private:
+  std::shared_ptr<std::size_t> bytes_;
+  std::unique_ptr<SavedTensorsHooksGuard> guard_;
+};
+
 // ---- Motor ------------------------------------------------------------------------
 void backward(const std::vector<Variable>& roots, const std::vector<Variable>& grad_roots, bool retain_graph,
               bool create_graph = false);

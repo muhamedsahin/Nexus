@@ -96,6 +96,15 @@ struct CrossEntropyDeviceOptions {
   float z_loss = 0.0f;
 };
 [[nodiscard]] std::size_t cross_entropy_scratch_bytes(int batch, int time);
+/// FAZ 7.5 parcali CE: begin (gecerli sayim) -> her parca icin chunk (logits/dlogits parca
+/// yerel, row_begin kuresel satir) -> end (ortalama kayip). Tam CE ile ayni satir matematigi.
+void cross_entropy_chunked_begin(const std::int32_t* tokens, int batch, int time, int vocab,
+                                 const CrossEntropyDeviceOptions& options, void* scratch, cudaStream_t stream);
+void cross_entropy_chunk(float* dlogits, const float* logits, const std::int32_t* tokens, int batch, int time, int vocab,
+                         const CrossEntropyDeviceOptions& options, float grad_scale, const float* device_grad_scale,
+                         int row_begin, int rows, void* scratch, cudaStream_t stream);
+void cross_entropy_chunked_end(float* loss_out, std::int32_t* valid_out, int batch, int time, void* scratch,
+                               cudaStream_t stream);
 /// logits [B*T, V]; hedef tokens[b, t+1], son konum ignore. dlogits == logits olabilir
 /// (yerinde). loss_out (aygit, 1 float) gecerli tokenlar uzerinde ortalama; valid_out
 /// (aygit, 1 int, istege bagli). `grad_scale` dlogits'e ek carpan (gradyan biriktirme).
@@ -167,6 +176,34 @@ void loss_scale_init(DeviceLossScaleState* state, const nexus_train::LossScalePo
 void loss_scale_update(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream);
 
 [[nodiscard]] std::size_t adamw_scratch_bytes(int num_slots, std::uint64_t total_numel);
+
+// ---- FAZ 7.3: 8-bit AdamW (blok bazli dinamik nicemleme, blok = 2048) ----------------------
+inline constexpr int kQ8Block = 2048;
+struct Device8bitSlot {
+  float* param = nullptr;   // FP32 ana kopya (nullptr: ana kopyasiz, golge guncellenir)
+  void* shadow = nullptr;   // dar golge (config.shadow_type)
+  const float* grad = nullptr;
+  std::uint8_t* qm = nullptr;      // [numel] isaretli dinamik kod
+  std::uint8_t* qv = nullptr;      // [numel] isaretsiz dinamik kod
+  float* absmax_m = nullptr;       // [ceil(numel / 2048)]
+  float* absmax_v = nullptr;
+  std::uint64_t numel = 0;
+  float weight_decay_scale = 1.0f;
+};
+[[nodiscard]] std::size_t adamw8bit_scratch_bytes(int n32, int n8, std::uint64_t total32, std::uint64_t total8);
+/// 32-bit ve 8-bit slotlar tek adimda: global norm/kirpma hepsi uzerinde. Momentler sifirla
+/// baslar (absmax = 0 -> kod ne olursa olsun 0).
+void adamw_mixed_multi_tensor(const DeviceParamSlot* slots32, int n32, const Device8bitSlot* slots8, int n8,
+                              const DeviceAdamWConfig& config, std::int64_t step, float* grad_norm_out, void* scratch,
+                              cudaStream_t stream);
+/// FAZ 7: geri geciste katman katman guncelleme. `clip` (aygit) onceden hesaplanmis kirpma
+/// carpanidir (bir adim gecikmeli); bu gradyanlarin kare toplami `norm_accum`'a (aygit, double)
+/// eklenir. Scratch: adamw8bit_scratch_bytes.
+void adamw_fixed_clip_update(const DeviceParamSlot* slots32, int n32, const Device8bitSlot* slots8, int n8,
+                             const DeviceAdamWConfig& config, std::int64_t step, const float* clip, double* norm_accum,
+                             void* scratch, cudaStream_t stream);
+/// norm_accum'dan sonraki adimin kirpmasini yazar, norm_out'a normu (istege bagli), biriktiriciyi sifirlar.
+void delayed_clip_finish(float* clip, float* norm_out, double* norm_accum, double max_norm, cudaStream_t stream);
 /// Tum parametreler tek cagrida. Global norm aygitta hesaplanir, kirpma katsayisi
 /// host'a donmeden guncelleme cekirdegine gecer. grad_norm_out (aygit, istege bagli).
 /// `slots` HOST dizisidir; meta-veri scratch'e kopyalanir.
@@ -178,6 +215,8 @@ void adamw_multi_tensor(const DeviceParamSlot* slots, int num_slots, const Devic
 void gelu_forward(float* out, const float* x, std::size_t n, cudaStream_t stream);
 /// dx = dout * gelu'(x).
 void gelu_backward(float* dx, const float* dout, const float* x, std::size_t n, cudaStream_t stream);
+/// FAZ 7.B selective: depolama tipinde GELU (tanh) ileri, FP32 hesap.
+void gelu_forward(void* out, const void* x, DType type, std::size_t n, cudaStream_t stream);
 /// out = a + b.
 void add(float* out, const float* a, const float* b, std::size_t n, cudaStream_t stream);
 /// y += x.

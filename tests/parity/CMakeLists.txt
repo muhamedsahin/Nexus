@@ -103,3 +103,11 @@ set_tests_properties(test_rope_vs_reference test_swiglu_gradcheck test_decoder_b
     test_tied_embeddings_single_copy test_build_param_counts test_lm_nxs_roundtrip test_lm_mup_multipliers
     PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)
 set_tests_properties(test_deep_stack_stability PROPERTIES TIMEOUT 3600)
+
+# FAZ 7 (CPU): non-reentrant checkpoint + bellek planlayici.
+add_executable(test_phase7_memory test_phase7_memory.cpp)
+target_link_libraries(test_phase7_memory PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase7_memory)
+add_test(NAME test_checkpoint_grad_equal COMMAND test_phase7_memory checkpoint)
+add_test(NAME test_planner_no_overlap COMMAND test_phase7_memory planner)
+set_tests_properties(test_checkpoint_grad_equal test_planner_no_overlap PROPERTIES TIMEOUT 300)

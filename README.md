@@ -17,7 +17,7 @@
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--6_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--7_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,16 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**25 Ekim 2026 — FAZ 7 bellek mühendisliği** ([rapor](docs/benchmarks/2026-10-24-faz7/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| 1.31B parametre, RTX 3070 Laptop 8 GB | BF16 + full recompute + geri geçişte 8-bit AdamW: **5.94 GiB**, 1135 ms/adım, kayıp 8.87 → 6.83 |
+| ZeRO-Offload vs GPU AdamW, 200 adım | parametreler **bit-bit aynı** |
+| Recompute full / every_k (BF16 flash, FP32 math) | gradyanlar **bit-bit aynı** |
+| Selective recompute | +%2.4 süre, −%23 aktivasyon |
+| gpt2-350m tepe bellek | AdamW32 6.94 GiB → ZeRO-Offload + full **1.57 GiB** |
+
 **24 Ekim 2026 — FAZ 6 modern LLM bloğu** ([rapor](docs/benchmarks/2026-10-24-faz6/README.md))
 
 | Ölçüm | Sonuç |
@@ -318,8 +328,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 4 | Karışık hassasiyet: BF16/FP16 autocast, ana kopya A/B/C, dinamik ölçek, FP8 emülasyonu | ✅ GPU (GPT-2 BF16 14k token/s) · 🟡 BF16 500. adım %1 ölçütü, PyTorch-CUDA karşılaştırması, sm_89+ FP8 açık |
 | 5 | FlashAttention-2 (CUDA + CPU), varlen, Tq≠Tk, GQA | ✅ GPU + CPU (GPT-2 T=4096 BF16 13.4k token/s, skor belleği 0) · 🟡 çekirdek verimi tepenin %19–29'u, PyTorch-CUDA karşılaştırması, KV önbellek imzası, tek SDPA girişi açık |
 | 6 | Modern LLM bloğu: DecoderBlock, RoPE ailesi, SwiGLU, GQA, µP, `lm::build` + 11 ön tanımlı | ✅ CPU (PyTorch parity tüm gradyanlar ≤1.3e-6) + GPU RoPE/SwiGLU çekirdekleri · 🟡 GPU LLaMA modeli, RoPE-flash füzyonu, Python API açık |
-| 7 | Bellek mühendisliği | ⏭ sıradaki |
-| 8–22 | Veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 7 | Bellek mühendisliği: recompute (selective/full/every_k), parçalı CE, 8-bit AdamW, ZeRO-Offload, planlayıcı | ✅ 1.31B parametre 8 GB'ta eğitiliyor (5.94 GiB, 1.14 s/adım) · 🟡 aktivasyon offload, DPU, Adafactor, 8-bit %2 ölçütü açık |
+| 8 | Veri hattı | ⏭ sıradaki |
+| 9–22 | Dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

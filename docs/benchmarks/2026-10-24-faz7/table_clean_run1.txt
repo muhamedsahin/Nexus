@@ -1,0 +1,18 @@
+FAZ 7 tablo, ilk (temiz) kosu — GPU baska islerle paylasilmiyorken. Surec, gpt3-1.3b ZeroOffload
+satirlarinda host bellegi tukenince dustu (bkz. README); 350M satirlarinin tamami ve 1.3B'nin
+ilk satirlari bu kosudan. B=1, T=1024, BF16, ce_chunk_rows=256. "beklenen" = nexus_estimate.
+
+  info  gpt2-350m  none      adamw32      beklenen= 8.62 GiB  tepe= 6.94 GiB      172.0 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  selective adamw32      beklenen= 8.62 GiB  tepe= 6.67 GiB      210.0 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  full      adamw32      beklenen= 6.00 GiB  tepe= 6.22 GiB      220.0 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  none      adamw8bit    beklenen= 6.64 GiB  tepe= 5.26 GiB      259.5 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  selective adamw8bit    beklenen= 6.64 GiB  tepe= 4.99 GiB      263.0 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  full      adamw8bit    beklenen= 4.01 GiB  tepe= 4.54 GiB      287.7 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  none      zero_offload beklenen= 3.33 GiB  tepe= 2.29 GiB     1278.8 ms/adim (CPU  1100.8 ms)  ok
+  info  gpt2-350m  selective zero_offload beklenen= 3.33 GiB  tepe= 2.02 GiB     1547.1 ms/adim (CPU  1307.6 ms)  ok
+  info  gpt2-350m  full      zero_offload beklenen= 0.71 GiB  tepe= 1.57 GiB     1391.9 ms/adim (CPU  1195.9 ms)  ok
+  info  gpt2-350m  none      adamw8bit_fused beklenen= 3.99 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  denenmedi (fused yalniz recompute ile anlamli)
+  info  gpt2-350m  selective adamw8bit_fused beklenen= 3.99 GiB  tepe= 2.30 GiB      302.2 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  full      adamw8bit_fused beklenen= 1.37 GiB  tepe= 1.85 GiB      328.4 ms/adim (CPU     0.0 ms)  ok
+  info  gpt3-1.3b  none      zero_offload beklenen= 5.92 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  bad allocation
+  info  gpt3-1.3b  selective zero_offload beklenen= 5.92 GiB  tepe= 5.34 GiB    53755.0 ms/adim (CPU 35436.2 ms)  ok   <- host sayfalama

@@ -1,0 +1,5 @@
+{
+  "phase":7,"device":"NVIDIA GeForce RTX 3070 Laptop GPU","batch":1,"time":1024,"dtype":"bf16","ce_chunk_rows":256,
+  "selective_cost":{"model":"gpt2-124m","none_ms":54.72256,"selective_ms":56.03226,"full_ms":62.90944,"none_act":449234944,"selective_act":345425920,"full_act":172410880},
+  "notes":"PyTorch CUDA, bitsandbytes ve DeepSpeed kurulu degil: karsilastirma yok."
+}

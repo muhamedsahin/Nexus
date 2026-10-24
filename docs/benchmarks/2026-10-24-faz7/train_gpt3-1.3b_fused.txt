@@ -1,0 +1,27 @@
+  info  gpt3-1.3b / adamw8bit_fused: 1313626112 parametre, aygit durumu 5.49 GiB, host durumu 0.00 GiB, aktivasyon 0.40 GiB, kurulum 50 s
+  info  ayirici: ayrilan 5.91 GiB, rezerve 5.93 GiB | cudaMemGetInfo bos 0.50 / 8.00 GiB
+  info  adim   0 kayip 11.2218 | ileri+geri 3327 ms, CPU AdamW 0 ms, toplam 3327 ms
+  info  adim   5 kayip 8.3238 | ileri+geri 3007 ms, CPU AdamW 0 ms, toplam 3007 ms
+  info  adim  10 kayip 7.1815 | ileri+geri 3003 ms, CPU AdamW 0 ms, toplam 3003 ms
+  info  adim  15 kayip 6.9157 | ileri+geri 3029 ms, CPU AdamW 0 ms, toplam 3029 ms
+  info  adim  20 kayip 6.8895 | ileri+geri 3029 ms, CPU AdamW 0 ms, toplam 3029 ms
+  info  adim  25 kayip 6.9160 | ileri+geri 3013 ms, CPU AdamW 0 ms, toplam 3013 ms
+  info  adim  30 kayip 6.8986 | ileri+geri 3031 ms, CPU AdamW 0 ms, toplam 3031 ms
+  info  adim  35 kayip 6.8598 | ileri+geri 3915 ms, CPU AdamW 0 ms, toplam 3915 ms
+  info  adim  40 kayip 6.8212 | ileri+geri 3958 ms, CPU AdamW 0 ms, toplam 3958 ms
+  info  adim  45 kayip 6.8373 | ileri+geri 3378 ms, CPU AdamW 0 ms, toplam 3378 ms
+  info  adim  50 kayip 6.8644 | ileri+geri 969 ms, CPU AdamW 0 ms, toplam 969 ms
+  info  adim  55 kayip 6.7821 | ileri+geri 1086 ms, CPU AdamW 0 ms, toplam 1086 ms
+  info  adim  60 kayip 6.8401 | ileri+geri 1125 ms, CPU AdamW 0 ms, toplam 1125 ms
+  info  adim  65 kayip 6.8107 | ileri+geri 1066 ms, CPU AdamW 0 ms, toplam 1066 ms
+  info  adim  70 kayip 6.8698 | ileri+geri 1056 ms, CPU AdamW 0 ms, toplam 1056 ms
+  info  adim  75 kayip 6.8206 | ileri+geri 1105 ms, CPU AdamW 0 ms, toplam 1105 ms
+  info  adim  80 kayip 6.8518 | ileri+geri 1074 ms, CPU AdamW 0 ms, toplam 1074 ms
+  info  adim  85 kayip 6.8813 | ileri+geri 1037 ms, CPU AdamW 0 ms, toplam 1037 ms
+  info  adim  90 kayip 6.7517 | ileri+geri 1031 ms, CPU AdamW 0 ms, toplam 1031 ms
+  info  adim  95 kayip 6.8019 | ileri+geri 1077 ms, CPU AdamW 0 ms, toplam 1077 ms
+  info  adim  99 kayip 6.8445 | ileri+geri 1128 ms, CPU AdamW 0 ms, toplam 1128 ms
+  info  tepe aygit bellegi 5.94 GiB | medyan adim 1135 ms (ileri+geri 1135, CPU AdamW 0) | 902 token/s
+  info  MFU 17.8% (adim) / 17.8% (yalniz GPU) | HFU 23.7% (yalniz GPU)
+  info  kayip: ilk 10 ort. 8.8657 -> son 10 ort. 6.8251 (duser)
+  OK    FAZ 7 benchmark JSON yazildi (train)

@@ -1,0 +1,6 @@
+  info  gpt2-1.5b / adamw8bit_fused: 1557611200 parametre, aygit durumu 6.24 GiB, host durumu 0.00 GiB, aktivasyon 0.48 GiB, kurulum 32 s
+  info  ayirici: ayrilan 6.74 GiB, rezerve 6.78 GiB | cudaMemGetInfo bos 0.00 / 8.00 GiB
+  info  adim   0 kayip 11.1620 | ileri+geri 8419 ms, CPU AdamW 0 ms, toplam 8419 ms
+  info  adim   5 kayip 8.7703 | ileri+geri 33408 ms, CPU AdamW 0 ms, toplam 33408 ms
+  info  adim  10 kayip 7.3559 | ileri+geri 81222 ms, CPU AdamW 0 ms, toplam 81222 ms
+  info  adim  15 kayip 6.9356 | ileri+geri 65701 ms, CPU AdamW 0 ms, toplam 65701 ms

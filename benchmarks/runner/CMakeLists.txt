@@ -91,4 +91,13 @@ if(TARGET nexus_cuda)
     add_test(NAME bench_cuda_phase6 COMMAND bench_cuda_phase6)
     set_tests_properties(bench_cuda_phase6 PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 
+    add_executable(bench_cuda_phase7 bench_cuda_phase7.cpp)
+    target_link_libraries(bench_cuda_phase7 PRIVATE nexus::nexus nexus::cuda nexus_estimate_core)
+    target_include_directories(bench_cuda_phase7 PRIVATE ${CMAKE_SOURCE_DIR}/tools/nexus_estimate)
+    target_compile_definitions(bench_cuda_phase7 PRIVATE
+        NEXUS_FAZ7_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs/benchmarks/2026-10-24-faz7")
+    nexus_configure_target(bench_cuda_phase7)
+    add_test(NAME bench_cuda_phase7 COMMAND bench_cuda_phase7)
+    set_tests_properties(bench_cuda_phase7 PROPERTIES TIMEOUT 7200 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+
 endif()

@@ -14,6 +14,7 @@
 
 #include <cub/device/device_radix_sort.cuh>
 
+#include <algorithm>
 #include <cmath>
 #include <type_traits>
 #include <vector>
@@ -129,15 +130,18 @@ __global__ void ce_count_kernel(std::int32_t* __restrict__ valid, float* __restr
   }
 }
 
+// row_offset: parcali CE (FAZ 7.5). logits/dlogits parcaya gore yerel, row_loss/tokens kuresel.
 __global__ void ce_row_kernel(float* __restrict__ dlogits, float* __restrict__ row_loss, const float* logits,
                               const std::int32_t* __restrict__ tokens, int time, int vocab,
                               std::int32_t ignore_index, float smoothing, float z_coef, float grad_scale,
-                              const float* __restrict__ inv_valid, const float* __restrict__ device_scale) {
+                              const float* __restrict__ inv_valid, const float* __restrict__ device_scale,
+                              std::size_t row_offset) {
   __shared__ float shared[32];
-  const std::size_t row = blockIdx.x;
+  const std::size_t local = blockIdx.x;
+  const std::size_t row = row_offset + local;
   const int t = static_cast<int>(row % time);
-  const float* x = logits + row * vocab;
-  float* d = dlogits != nullptr ? dlogits + row * vocab : nullptr;
+  const float* x = logits + local * vocab;
+  float* d = dlogits != nullptr ? dlogits + local * vocab : nullptr;
   const std::int32_t target = (t + 1 == time) ? ignore_index : tokens[row + 1];
   if (target == ignore_index || target < 0 || target >= vocab) {
     if (d != nullptr) {
@@ -521,7 +525,7 @@ void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_
   detail::check_launch("ce_count_kernel");
   ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
       dlogits, row_loss, logits, tokens, time, vocab, options.ignore_index, options.label_smoothing, options.z_loss,
-      grad_scale, inv_valid, device_grad_scale);
+      grad_scale, inv_valid, device_grad_scale, 0);
   detail::check_launch("ce_row_kernel");
   ce_reduce_kernel<<<1, 1024, 0, stream>>>(loss_out, row_loss, rows, inv_valid, bad);
   detail::check_launch("ce_reduce_kernel");
@@ -628,6 +632,444 @@ void adamw_multi_tensor(const DeviceParamSlot* slots, int num_slots, const Devic
                                                                    static_cast<unsigned long long>(step) * 0x9E3779B97F4A7C15ULL);
   });
   detail::check_launch("adamw_update_kernel");
+}
+
+namespace {
+struct CeScratch {
+  float* row_loss;
+  float* inv_valid;
+  std::int32_t* valid;
+  int* bad;
+};
+CeScratch ce_scratch(void* scratch, int rows) {
+  auto* base = static_cast<char*>(scratch);
+  char* tail = base + align_up(sizeof(float) * static_cast<std::size_t>(rows));
+  return {reinterpret_cast<float*>(base), reinterpret_cast<float*>(tail), reinterpret_cast<std::int32_t*>(tail + 4),
+          reinterpret_cast<int*>(tail + 8)};
+}
+}  // namespace
+
+void cross_entropy_chunked_begin(const std::int32_t* tokens, int batch, int time, int vocab,
+                                 const CrossEntropyDeviceOptions& options, void* scratch, cudaStream_t stream) {
+  if (batch < 1 || time < 2 || vocab < 2 || scratch == nullptr) {
+    throw TensorError("Nexus CUDA CE (parcali): batch>=1, time>=2, vocab>=2, scratch gerekli");
+  }
+  const CeScratch c = ce_scratch(scratch, batch * time);
+  check(cudaMemsetAsync(c.bad, 0, sizeof(int), stream), "cudaMemsetAsync");
+  ce_count_kernel<<<1, 1024, 0, stream>>>(c.valid, c.inv_valid, tokens, batch, time, vocab, options.ignore_index, c.bad);
+  detail::check_launch("ce_count_kernel");
+}
+
+void cross_entropy_chunk(float* dlogits, const float* logits, const std::int32_t* tokens, int batch, int time, int vocab,
+                         const CrossEntropyDeviceOptions& options, float grad_scale, const float* device_grad_scale,
+                         int row_begin, int rows, void* scratch, cudaStream_t stream) {
+  if (row_begin < 0 || rows < 1 || row_begin + rows > batch * time) {
+    throw TensorError("Nexus CUDA CE (parcali): satir araligi gecersiz");
+  }
+  const CeScratch c = ce_scratch(scratch, batch * time);
+  ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
+      dlogits, c.row_loss, logits, tokens, time, vocab, options.ignore_index, options.label_smoothing, options.z_loss,
+      grad_scale, c.inv_valid, device_grad_scale, static_cast<std::size_t>(row_begin));
+  detail::check_launch("ce_row_kernel");
+}
+
+void cross_entropy_chunked_end(float* loss_out, std::int32_t* valid_out, int batch, int time, void* scratch,
+                               cudaStream_t stream) {
+  const CeScratch c = ce_scratch(scratch, batch * time);
+  ce_reduce_kernel<<<1, 1024, 0, stream>>>(loss_out, c.row_loss, batch * time, c.inv_valid, c.bad);
+  detail::check_launch("ce_reduce_kernel");
+  if (valid_out != nullptr) {
+    check(cudaMemcpyAsync(valid_out, c.valid, sizeof(std::int32_t), cudaMemcpyDeviceToDevice, stream), "cudaMemcpyAsync");
+  }
+}
+
+// ================================ 8-bit AdamW (FAZ 7.3) ===========================
+// bitsandbytes blok bazli dinamik nicemleme: blok = 2048 eleman, blok basina absmax; m
+// isaretli, v isaretsiz dinamik harita (create_dynamic_map, 256 deger). Guncelleme tam
+// hassasiyetli yeni m, v ile yapilir; sonra yeni absmax ile yeniden nicemlenir.
+namespace {
+
+__constant__ float c_qmap_signed[256];
+__constant__ float c_qmap_unsigned[256];
+constexpr int kQ8Threads = 256;
+constexpr int kQ8PerThread = kQ8Block / kQ8Threads;
+
+struct Q8Item {
+  std::uint32_t slot;
+  std::uint32_t block;
+};
+
+// bitsandbytes.functional.create_dynamic_map(signed, max_exponent_bits=7, total_bits=8).
+std::vector<float> dynamic_map(bool is_signed) {
+  std::vector<float> data;
+  const int max_exp = 7;
+  const int non_sign = 7;
+  for (int i = 0; i < max_exp; ++i) {
+    const int items = is_signed ? (1 << (i + non_sign - max_exp)) + 1 : (1 << (i + non_sign - max_exp + 1)) + 1;
+    const double scale = std::pow(10.0, -(max_exp - 1) + i);
+    for (int k = 0; k + 1 < items; ++k) {
+      // torch.linspace(0.1, 1, items): ardisik sinirlarin ortasi
+      const double a = 0.1 + 0.9 * k / (items - 1);
+      const double b = 0.1 + 0.9 * (k + 1) / (items - 1);
+      data.push_back(static_cast<float>(scale * (a + b) / 2.0));
+      if (is_signed) {
+        data.push_back(static_cast<float>(-scale * (a + b) / 2.0));
+      }
+    }
+  }
+  data.push_back(0.0f);
+  data.push_back(1.0f);
+  while (data.size() < 256) {
+    data.push_back(0.0f);
+  }
+  std::sort(data.begin(), data.end());
+  return data;
+}
+
+void upload_qmaps() {
+  static bool done = false;
+  if (done) {
+    return;
+  }
+  const std::vector<float> s = dynamic_map(true);
+  const std::vector<float> u = dynamic_map(false);
+  check(cudaMemcpyToSymbol(c_qmap_signed, s.data(), 256 * sizeof(float)), "cudaMemcpyToSymbol(qmap)");
+  check(cudaMemcpyToSymbol(c_qmap_unsigned, u.data(), 256 * sizeof(float)), "cudaMemcpyToSymbol(qmap)");
+  done = true;
+}
+
+__device__ __forceinline__ std::uint8_t quantize_nearest(float x, const float* code) {
+  int lo = 0;
+  int hi = 255;
+  while (hi - lo > 1) {
+    const int mid = (lo + hi) / 2;
+    if (code[mid] <= x) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return static_cast<std::uint8_t>((x - code[lo] <= code[hi] - x) ? lo : hi);
+}
+
+template <typename S>
+__global__ void adamw8bit_kernel(const Device8bitSlot* __restrict__ slots, const Q8Item* __restrict__ items,
+                                 const float* __restrict__ clip_ptr, AdamCoeffs c, const int* __restrict__ found_inf,
+                                 bool stochastic, unsigned long long sr_seed) {
+  if (found_inf != nullptr && *found_inf != 0) {
+    return;
+  }
+  __shared__ float red_m[kQ8Threads / 32];
+  __shared__ float red_v[kQ8Threads / 32];
+  const Q8Item item = items[blockIdx.x];
+  const Device8bitSlot slot = slots[item.slot];
+  const std::uint64_t base = static_cast<std::uint64_t>(item.block) * kQ8Block;
+  const float am = slot.absmax_m[item.block];
+  const float av = slot.absmax_v[item.block];
+  const float clip = *clip_ptr;
+  S* shadow = static_cast<S*>(slot.shadow);
+  float mt[kQ8PerThread];
+  float vt[kQ8PerThread];
+  float local_m = 0.0f;
+  float local_v = 0.0f;
+#pragma unroll
+  for (int k = 0; k < kQ8PerThread; ++k) {
+    const std::uint64_t i = base + threadIdx.x + static_cast<std::uint64_t>(k) * kQ8Threads;
+    mt[k] = 0.0f;
+    vt[k] = 0.0f;
+    if (i >= slot.numel) {
+      continue;
+    }
+    float p = slot.param != nullptr ? slot.param[i] : detail::Num<S>::load(shadow[i]);
+    const float g = __fmul_rn(slot.grad[i], clip);
+    const float lr_wd = __fmul_rn(c.lr_wd, slot.weight_decay_scale);
+    if (lr_wd != 0.0f) {
+      p = __fsub_rn(p, __fmul_rn(lr_wd, p));
+    }
+    const float m0 = c_qmap_signed[slot.qm[i]] * am;
+    const float v0 = c_qmap_unsigned[slot.qv[i]] * av;
+    mt[k] = __fadd_rn(__fmul_rn(c.b1, m0), __fmul_rn(c.ob1, g));
+    vt[k] = __fadd_rn(__fmul_rn(c.b2, v0), __fmul_rn(__fmul_rn(c.ob2, g), g));
+    const float denom = __fadd_rn(__fsqrt_rn(__fmul_rn(vt[k], c.inv2)), c.eps);
+    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(c.lr, __fmul_rn(mt[k], c.inv1)), denom));
+    if (slot.param != nullptr) {
+      slot.param[i] = p;
+    }
+    if (shadow != nullptr) {
+      if constexpr (std::is_same_v<S, __nv_bfloat16>) {
+        shadow[i] = (stochastic && slot.param == nullptr)
+                        ? bf16_stochastic(p, hash32(sr_seed ^ (static_cast<unsigned long long>(item.slot) << 40) ^ i))
+                        : __float2bfloat16_rn(p);
+      } else {
+        shadow[i] = detail::Num<S>::store(p);
+      }
+    }
+    local_m = fmaxf(local_m, fabsf(mt[k]));
+    local_v = fmaxf(local_v, vt[k]);
+  }
+  // Blok absmax (warp + paylasimli bellek).
+#pragma unroll
+  for (int off = 16; off > 0; off >>= 1) {
+    local_m = fmaxf(local_m, __shfl_xor_sync(0xFFFFFFFFu, local_m, off));
+    local_v = fmaxf(local_v, __shfl_xor_sync(0xFFFFFFFFu, local_v, off));
+  }
+  if (threadIdx.x % 32 == 0) {
+    red_m[threadIdx.x / 32] = local_m;
+    red_v[threadIdx.x / 32] = local_v;
+  }
+  __syncthreads();
+  float nm = 0.0f;
+  float nv = 0.0f;
+#pragma unroll
+  for (int w = 0; w < kQ8Threads / 32; ++w) {
+    nm = fmaxf(nm, red_m[w]);
+    nv = fmaxf(nv, red_v[w]);
+  }
+  if (threadIdx.x == 0) {
+    slot.absmax_m[item.block] = nm;
+    slot.absmax_v[item.block] = nv;
+  }
+  const float inv_m = nm > 0.0f ? 1.0f / nm : 0.0f;
+  const float inv_v = nv > 0.0f ? 1.0f / nv : 0.0f;
+#pragma unroll
+  for (int k = 0; k < kQ8PerThread; ++k) {
+    const std::uint64_t i = base + threadIdx.x + static_cast<std::uint64_t>(k) * kQ8Threads;
+    if (i < slot.numel) {
+      slot.qm[i] = quantize_nearest(mt[k] * inv_m, c_qmap_signed);
+      slot.qv[i] = quantize_nearest(vt[k] * inv_v, c_qmap_unsigned);
+    }
+  }
+}
+
+std::vector<Q8Item> q8_items(const Device8bitSlot* slots, int n) {
+  std::vector<Q8Item> out;
+  for (int s = 0; s < n; ++s) {
+    const std::uint64_t blocks = (slots[s].numel + kQ8Block - 1) / kQ8Block;
+    for (std::uint64_t b = 0; b < blocks; ++b) {
+      out.push_back({static_cast<std::uint32_t>(s), static_cast<std::uint32_t>(b)});
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
+namespace {
+__global__ void grad_sq_accumulate_kernel(double* __restrict__ accum, const DeviceParamSlot* __restrict__ slots,
+                                          const Chunk* __restrict__ chunks) {
+  __shared__ double shared[32];
+  const Chunk chunk = chunks[blockIdx.x];
+  const float* g = slots[chunk.slot].grad + chunk.start;
+  double acc = 0.0;
+  for (std::uint64_t i = threadIdx.x; i < chunk.length; i += blockDim.x) {
+    const double v = g[i];
+    acc += v * v;
+  }
+  acc = detail::block_sum(acc, shared);
+  if (threadIdx.x == 0) {
+    atomicAdd(accum, acc);
+  }
+}
+
+__global__ void delayed_clip_kernel(float* __restrict__ clip, float* __restrict__ norm_out, double* __restrict__ accum,
+                                    double max_norm) {
+  const double norm = sqrt(*accum);
+  if (norm_out != nullptr) {
+    *norm_out = static_cast<float>(norm);
+  }
+  *clip = max_norm > 0.0 && isfinite(norm) ? static_cast<float>(fmin(1.0, max_norm / (norm + 1.0e-6))) : 1.0f;
+  *accum = 0.0;
+}
+}  // namespace
+
+void adamw_fixed_clip_update(const DeviceParamSlot* slots32, int n32, const Device8bitSlot* slots8, int n8,
+                             const DeviceAdamWConfig& config, std::int64_t step, const float* clip, double* norm_accum,
+                             void* scratch, cudaStream_t stream) {
+  if (step < 1 || scratch == nullptr || clip == nullptr || norm_accum == nullptr || n32 + n8 == 0) {
+    throw TensorError("Nexus CUDA AdamW (sabit kirpma): step>=1, scratch, clip, norm_accum gerekli");
+  }
+  upload_qmaps();
+  std::vector<DeviceParamSlot> all(slots32, slots32 + n32);
+  std::uint64_t total = 0;
+  for (int i = 0; i < n32; ++i) {
+    total += slots32[i].numel;
+  }
+  for (int i = 0; i < n8; ++i) {
+    DeviceParamSlot d;
+    d.grad = slots8[i].grad;
+    d.numel = slots8[i].numel;
+    all.push_back(d);
+    total += slots8[i].numel;
+  }
+  const int n = n32 + n8;
+  const std::vector<Chunk> chunks_all = make_chunks(all.data(), n);
+  const std::vector<Chunk> chunks32 = n32 > 0 ? make_chunks(slots32, n32) : std::vector<Chunk>{};
+  const std::vector<Q8Item> items = q8_items(slots8, n8);
+  const std::uint64_t mc = max_chunks(n, total);
+  auto* base = static_cast<char*>(scratch);
+  auto* d_all = reinterpret_cast<DeviceParamSlot*>(base);
+  base += align_up(sizeof(DeviceParamSlot) * static_cast<std::size_t>(n));
+  auto* d_chunks_all = reinterpret_cast<Chunk*>(base);
+  base += align_up(sizeof(Chunk) * mc);
+  auto* d_chunks32 = reinterpret_cast<Chunk*>(base);
+  base += align_up(sizeof(Chunk) * mc);
+  base += align_up(sizeof(double) * mc);
+  auto* d_slots8 = reinterpret_cast<Device8bitSlot*>(base);
+  base += align_up(sizeof(Device8bitSlot) * static_cast<std::size_t>(n8 + 1));
+  auto* d_items = reinterpret_cast<Q8Item*>(base);
+  check(cudaMemcpyAsync(d_all, all.data(), sizeof(DeviceParamSlot) * all.size(), cudaMemcpyHostToDevice, stream), "memcpy");
+  check(cudaMemcpyAsync(d_chunks_all, chunks_all.data(), sizeof(Chunk) * chunks_all.size(), cudaMemcpyHostToDevice, stream),
+        "memcpy");
+  if (!chunks32.empty()) {
+    check(cudaMemcpyAsync(d_chunks32, chunks32.data(), sizeof(Chunk) * chunks32.size(), cudaMemcpyHostToDevice, stream),
+          "memcpy");
+  }
+  if (n8 > 0) {
+    check(cudaMemcpyAsync(d_slots8, slots8, sizeof(Device8bitSlot) * static_cast<std::size_t>(n8), cudaMemcpyHostToDevice,
+                          stream),
+          "memcpy");
+    check(cudaMemcpyAsync(d_items, items.data(), sizeof(Q8Item) * items.size(), cudaMemcpyHostToDevice, stream), "memcpy");
+  }
+  // Bu gradyanlarin kare toplami bir sonraki adimin kirpmasi icin biriktirilir (guncellemeden once okunur).
+  grad_sq_accumulate_kernel<<<static_cast<unsigned int>(chunks_all.size()), kAdamThreads, 0, stream>>>(norm_accum, d_all,
+                                                                                                        d_chunks_all);
+  detail::check_launch("grad_sq_accumulate_kernel");
+  const double bc1 = 1.0 - std::pow(config.beta1, static_cast<double>(step));
+  const double bc2 = 1.0 - std::pow(config.beta2, static_cast<double>(step));
+  AdamCoeffs c;
+  c.b1 = static_cast<float>(config.beta1);
+  c.ob1 = static_cast<float>(1.0 - config.beta1);
+  c.b2 = static_cast<float>(config.beta2);
+  c.ob2 = static_cast<float>(1.0 - config.beta2);
+  c.inv1 = static_cast<float>(1.0 / bc1);
+  c.inv2 = static_cast<float>(1.0 / bc2);
+  c.lr = static_cast<float>(config.lr);
+  c.lr_wd = c.lr * static_cast<float>(config.weight_decay);
+  c.eps = static_cast<float>(config.eps);
+  c.beta1 = config.beta1;
+  c.beta2 = config.beta2;
+  const unsigned long long seed =
+      static_cast<unsigned long long>(config.sr_seed) ^ static_cast<unsigned long long>(step) * 0x9E3779B97F4A7C15ULL;
+  detail::dispatch_storage(config.shadow_type, "adamw_fixed_clip_update", [&](auto tag) {
+    using S = decltype(tag);
+    if (!chunks32.empty()) {
+      adamw_update_kernel<S><<<static_cast<unsigned int>(chunks32.size()), kAdamThreads, 0, stream>>>(
+          d_all, d_chunks32, clip, c, nullptr, nullptr, step, config.stochastic_rounding, seed);
+      detail::check_launch("adamw_update_kernel");
+    }
+    if (n8 > 0) {
+      adamw8bit_kernel<S><<<static_cast<unsigned int>(items.size()), kQ8Threads, 0, stream>>>(
+          d_slots8, d_items, clip, c, nullptr, config.stochastic_rounding, seed);
+      detail::check_launch("adamw8bit_kernel");
+    }
+  });
+}
+
+void delayed_clip_finish(float* clip, float* norm_out, double* norm_accum, double max_norm, cudaStream_t stream) {
+  delayed_clip_kernel<<<1, 1, 0, stream>>>(clip, norm_out, norm_accum, max_norm);
+  detail::check_launch("delayed_clip_kernel");
+}
+
+std::size_t adamw8bit_scratch_bytes(int n32, int n8, std::uint64_t total32, std::uint64_t total8) {
+  const int n = n32 + n8;
+  const std::uint64_t chunks = max_chunks(n, total32 + total8);
+  const std::uint64_t blocks = total8 / kQ8Block + static_cast<std::uint64_t>(n8) + 1;
+  return align_up(sizeof(DeviceParamSlot) * static_cast<std::size_t>(n)) + align_up(sizeof(Chunk) * chunks) * 2 +
+         align_up(sizeof(double) * chunks) + align_up(sizeof(Device8bitSlot) * static_cast<std::size_t>(n8 + 1)) +
+         align_up(sizeof(Q8Item) * blocks) + 512;
+}
+
+void adamw_mixed_multi_tensor(const DeviceParamSlot* slots32, int n32, const Device8bitSlot* slots8, int n8,
+                              const DeviceAdamWConfig& config, std::int64_t step, float* grad_norm_out, void* scratch,
+                              cudaStream_t stream) {
+  if (step < 1 || scratch == nullptr || n32 < 0 || n8 < 0 || n32 + n8 == 0) {
+    throw TensorError("Nexus CUDA AdamW8: step>=1, scratch ve en az bir slot gerekli");
+  }
+  if (config.loss_scale != nullptr && config.skipped_steps != nullptr) {
+    throw TensorError("Nexus CUDA AdamW8: dinamik kayip olcegi desteklenmez (BF16 ile kullanin)");
+  }
+  upload_qmaps();
+  // Norm: tum gradyanlar tek coklu-tensör indirgemesinde.
+  std::vector<DeviceParamSlot> all(slots32, slots32 + n32);
+  std::uint64_t total32 = 0;
+  std::uint64_t total8 = 0;
+  for (int i = 0; i < n32; ++i) {
+    total32 += slots32[i].numel;
+  }
+  for (int i = 0; i < n8; ++i) {
+    DeviceParamSlot d;
+    d.grad = slots8[i].grad;
+    d.numel = slots8[i].numel;
+    all.push_back(d);
+    total8 += slots8[i].numel;
+  }
+  const int n = n32 + n8;
+  const std::vector<Chunk> chunks_all = make_chunks(all.data(), n);
+  const std::vector<Chunk> chunks32 = n32 > 0 ? make_chunks(slots32, n32) : std::vector<Chunk>{};
+  const std::vector<Q8Item> items = q8_items(slots8, n8);
+  const std::uint64_t mc = max_chunks(n, total32 + total8);
+  auto* base = static_cast<char*>(scratch);
+  auto* d_all = reinterpret_cast<DeviceParamSlot*>(base);
+  base += align_up(sizeof(DeviceParamSlot) * static_cast<std::size_t>(n));
+  auto* d_chunks_all = reinterpret_cast<Chunk*>(base);
+  base += align_up(sizeof(Chunk) * mc);
+  auto* d_chunks32 = reinterpret_cast<Chunk*>(base);
+  base += align_up(sizeof(Chunk) * mc);
+  auto* partial = reinterpret_cast<double*>(base);
+  base += align_up(sizeof(double) * mc);
+  auto* d_slots8 = reinterpret_cast<Device8bitSlot*>(base);
+  base += align_up(sizeof(Device8bitSlot) * static_cast<std::size_t>(n8 + 1));
+  auto* d_items = reinterpret_cast<Q8Item*>(base);
+  base += align_up(sizeof(Q8Item) * (total8 / kQ8Block + static_cast<std::uint64_t>(n8) + 1));
+  auto* clip = reinterpret_cast<float*>(base);
+  check(cudaMemcpyAsync(d_all, all.data(), sizeof(DeviceParamSlot) * all.size(), cudaMemcpyHostToDevice, stream), "memcpy");
+  check(cudaMemcpyAsync(d_chunks_all, chunks_all.data(), sizeof(Chunk) * chunks_all.size(), cudaMemcpyHostToDevice, stream),
+        "memcpy");
+  if (!chunks32.empty()) {
+    check(cudaMemcpyAsync(d_chunks32, chunks32.data(), sizeof(Chunk) * chunks32.size(), cudaMemcpyHostToDevice, stream),
+          "memcpy");
+  }
+  if (n8 > 0) {
+    check(cudaMemcpyAsync(d_slots8, slots8, sizeof(Device8bitSlot) * static_cast<std::size_t>(n8), cudaMemcpyHostToDevice,
+                          stream),
+          "memcpy");
+    check(cudaMemcpyAsync(d_items, items.data(), sizeof(Q8Item) * items.size(), cudaMemcpyHostToDevice, stream), "memcpy");
+  }
+  grad_norm_partial_kernel<<<static_cast<unsigned int>(chunks_all.size()), kAdamThreads, 0, stream>>>(partial, d_all,
+                                                                                                        d_chunks_all);
+  detail::check_launch("grad_norm_partial_kernel");
+  grad_norm_final_kernel<<<1, 1024, 0, stream>>>(clip, grad_norm_out, partial, static_cast<int>(chunks_all.size()),
+                                                 config.max_grad_norm, config.loss_scale, config.found_inf);
+  detail::check_launch("grad_norm_final_kernel");
+  const double bc1 = 1.0 - std::pow(config.beta1, static_cast<double>(step));
+  const double bc2 = 1.0 - std::pow(config.beta2, static_cast<double>(step));
+  AdamCoeffs c;
+  c.b1 = static_cast<float>(config.beta1);
+  c.ob1 = static_cast<float>(1.0 - config.beta1);
+  c.b2 = static_cast<float>(config.beta2);
+  c.ob2 = static_cast<float>(1.0 - config.beta2);
+  c.inv1 = static_cast<float>(1.0 / bc1);
+  c.inv2 = static_cast<float>(1.0 / bc2);
+  c.lr = static_cast<float>(config.lr);
+  c.lr_wd = c.lr * static_cast<float>(config.weight_decay);
+  c.eps = static_cast<float>(config.eps);
+  c.beta1 = config.beta1;
+  c.beta2 = config.beta2;
+  const unsigned long long seed =
+      static_cast<unsigned long long>(config.sr_seed) ^ static_cast<unsigned long long>(step) * 0x9E3779B97F4A7C15ULL;
+  detail::dispatch_storage(config.shadow_type, "adamw_mixed_multi_tensor", [&](auto tag) {
+    using S = decltype(tag);
+    if (!chunks32.empty()) {
+      adamw_update_kernel<S><<<static_cast<unsigned int>(chunks32.size()), kAdamThreads, 0, stream>>>(
+          d_all, d_chunks32, clip, c, config.found_inf, nullptr, step, config.stochastic_rounding, seed);
+      detail::check_launch("adamw_update_kernel");
+    }
+    if (n8 > 0) {
+      adamw8bit_kernel<S><<<static_cast<unsigned int>(items.size()), kQ8Threads, 0, stream>>>(
+          d_slots8, d_items, clip, c, config.found_inf, config.stochastic_rounding, seed);
+      detail::check_launch("adamw8bit_kernel");
+    }
+  });
 }
 
 void loss_scale_update(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream) {

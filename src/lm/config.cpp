@@ -81,6 +81,18 @@ const char* to_string(RopeScaling::Type type) noexcept {
   return "unknown";
 }
 
+const char* to_string(RecomputeKind kind) noexcept {
+  switch (kind) {
+    case RecomputeKind::None:
+      return "none";
+    case RecomputeKind::Full:
+      return "full";
+    case RecomputeKind::EveryK:
+      return "every_k";
+  }
+  return "unknown";
+}
+
 namespace {
 
 [[noreturn]] void fail(const std::string& what) { throw TensorError("Nexus lm: " + what); }
@@ -118,6 +130,9 @@ void validate(const LmConfig& c) {
   }
   if (c.init == InitKind::MuP && c.mup_base_width < 1) {
     fail("mup_base_width >= 1 olmali");
+  }
+  if (c.recompute == RecomputeKind::EveryK && c.recompute_every < 1) {
+    fail("recompute_every >= 1 olmali");
   }
   if (c.dtype != "float32") {
     fail("CPU lm yolu yalniz float32 (dar tipler GPU yolunda)");
@@ -417,7 +432,8 @@ std::string to_json(const LmConfig& c) {
     << ",\"attn_dropout\":" << fmt(c.attn_dropout) << ",\"vocab_pad_multiple\":" << c.vocab_pad_multiple
     << ",\"init\":\"" << to_string(c.init) << "\",\"init_std\":" << fmt(c.init_std)
     << ",\"init_truncated\":" << (c.init_truncated ? "true" : "false") << ",\"mup_base_width\":" << c.mup_base_width
-    << ",\"seed\":" << c.seed << ",\"dtype\":\"" << c.dtype << "\"}";
+    << ",\"seed\":" << c.seed << ",\"dtype\":\"" << c.dtype << "\",\"recompute\":\""
+    << to_string(c.recompute) << "\",\"recompute_every\":" << c.recompute_every << "}";
   return o.str();
 }
 
@@ -484,6 +500,10 @@ LmConfig apply_overrides(LmConfig c, const std::string& json) {
     else if (key == "mup_base_width") c.mup_base_width = static_cast<int>(num(v, key));
     else if (key == "seed") c.seed = static_cast<std::uint64_t>(num(v, key));
     else if (key == "dtype") c.dtype = str(v, key);
+    else if (key == "recompute")
+      c.recompute = parse_enum<RecomputeKind>(str(v, key), {RecomputeKind::None, RecomputeKind::Full, RecomputeKind::EveryK},
+                                              "recompute");
+    else if (key == "recompute_every") c.recompute_every = static_cast<int>(num(v, key));
     else fail("JSON: bilinmeyen anahtar: " + key);
   }
   return c;
