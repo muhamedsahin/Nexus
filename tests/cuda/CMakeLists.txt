@@ -82,3 +82,10 @@ foreach(_mode grid decode varlen dropout determinism future)
     add_test(NAME ${_name} COMMAND test_flash_attention ${_mode})
     set_tests_properties(${_name} PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
 endforeach()
+
+# FAZ 6: RoPE ve SwiGLU/GeGLU GPU cekirdekleri (CPU nexus::lm referansina karsi).
+add_executable(test_lm_kernels test_lm_kernels.cpp)
+target_link_libraries(test_lm_kernels PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_lm_kernels)
+add_test(NAME test_rope_swiglu_cuda COMMAND test_lm_kernels)
+set_tests_properties(test_rope_swiglu_cuda PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)

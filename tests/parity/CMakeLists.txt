@@ -83,3 +83,23 @@ set_tests_properties(test_parity_nano PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77
 # tiny: tam sekil (L=6, d=384, V=8192); B=1, T=64 ile (otograd CPU naif GEMM'de sure sinirli).
 add_test(NAME test_parity_tiny COMMAND test_parity_nano "${CMAKE_SOURCE_DIR}/configs/tiny.json" 1 64)
 set_tests_properties(test_parity_tiny PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
+
+# FAZ 6: nexus::lm (RoPE + olcekleme, SwiGLU, GQA, DecoderBlock, kurucu, NXS) vs PyTorch (HF formulleri).
+add_executable(test_phase6_lm test_phase6_lm.cpp)
+target_link_libraries(test_phase6_lm PRIVATE nexus::nexus nexus_test_support)
+target_compile_definitions(test_phase6_lm PRIVATE
+    NEXUS_PARITY_PYTHON="${_nexus_parity_python}"
+    NEXUS_PARITY_SCRIPTS="${CMAKE_CURRENT_SOURCE_DIR}")
+nexus_configure_target(test_phase6_lm)
+add_test(NAME test_rope_vs_reference COMMAND test_phase6_lm rope)
+add_test(NAME test_swiglu_gradcheck COMMAND test_phase6_lm gradcheck)
+add_test(NAME test_decoder_block_parity COMMAND test_phase6_lm parity)
+add_test(NAME test_tied_embeddings_single_copy COMMAND test_phase6_lm tied)
+add_test(NAME test_build_param_counts COMMAND test_phase6_lm counts)
+add_test(NAME test_lm_nxs_roundtrip COMMAND test_phase6_lm nxs)
+add_test(NAME test_lm_mup_multipliers COMMAND test_phase6_lm mup)
+add_test(NAME test_deep_stack_stability COMMAND test_phase6_lm deep 500)
+set_tests_properties(test_rope_vs_reference test_swiglu_gradcheck test_decoder_block_parity
+    test_tied_embeddings_single_copy test_build_param_counts test_lm_nxs_roundtrip test_lm_mup_multipliers
+    PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)
+set_tests_properties(test_deep_stack_stability PROPERTIES TIMEOUT 3600)

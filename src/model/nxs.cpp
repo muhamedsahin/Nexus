@@ -511,6 +511,9 @@ std::shared_ptr<nn::Module> make_one(const LayerSpec& spec) {
         case LayerKind::CausalBlock:
             return std::make_shared<nn::CausalTransformerBlock>(require_i32(spec, "embed"), require_i32(spec, "heads"),
                                                                require_i32(spec, "feedforward"));
+        case LayerKind::DecoderBlock:
+        case LayerKind::LanguageModel:
+            fail("DecoderBlock/LanguageModel autograd tabanlidir: nexus::lm::LanguageModel::load_nxs ile yukleyin");
         default:
             fail("nxs layer type is unknown");
     }

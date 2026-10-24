@@ -47,6 +47,10 @@ add_library(nexus STATIC
     src/fused/fused.cpp
     src/fused/training.cpp
     src/attention/cpu.cpp
+    src/lm/config.cpp
+    src/lm/rope.cpp
+    src/lm/ops.cpp
+    src/lm/model.cpp
     src/prof/prof.cpp
     src/model/nxs.cpp)
 add_library(nexus::nexus ALIAS nexus)
@@ -116,6 +120,7 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/kernels_train.cu
         src/cuda/kernels_fp8.cu
         src/cuda/flash_attention.cu
+        src/cuda/kernels_lm.cu
         src/cuda/fp8_native.cpp
         src/cuda/cast_cache.cpp
         src/cuda/gpt.cpp)

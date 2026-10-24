@@ -1,0 +1,18 @@
+test_deep_stack_stability: 32/48 katman, on-norm vs son-norm, Markov (taban 1.208)
+  info  lr=1e-03 L=32 on-norm : kayip[0]=4.852 egri(son20 ort.) 100:2.638 200:1.811 300:1.553 400:1.483 500:1.476 sonlu=evet | katman grad normu max/min ilk=1.22 son=5.98 | 91s
+  PASS  on-norm NaN'siz (lr=0.001000, L=32)
+  PASS  on-norm ogreniyor (lr=0.001000, L=32)
+  info  lr=1e-03 L=32 son-norm: kayip[0]=4.846 egri(son20 ort.) 100:2.447 200:1.668 300:1.445 400:1.410 500:1.413 sonlu=evet | katman grad normu max/min ilk=1.01 son=1.26 | 88s
+  info  lr=1e-03 L=48 on-norm : kayip[0]=4.883 egri(son20 ort.) 100:2.789 200:1.870 300:1.580 400:1.504 500:1.491 sonlu=evet | katman grad normu max/min ilk=1.45 son=7.94 | 126s
+  PASS  on-norm NaN'siz (lr=0.001000, L=48)
+  PASS  on-norm ogreniyor (lr=0.001000, L=48)
+  info  lr=1e-03 L=48 son-norm: kayip[0]=4.885 egri(son20 ort.) 100:2.482 200:1.684 300:1.465 400:1.425 500:1.429 sonlu=evet | katman grad normu max/min ilk=1.02 son=1.49 | 129s
+  info  lr=3e-03 L=32 on-norm : kayip[0]=4.852 egri(son20 ort.) 100:4.000 200:2.431 300:1.693 400:1.559 500:1.542 sonlu=evet | katman grad normu max/min ilk=1.22 son=41.31 | 76s
+  PASS  on-norm NaN'siz (lr=0.003000, L=32)
+  PASS  on-norm ogreniyor (lr=0.003000, L=32)
+  info  lr=3e-03 L=32 son-norm: kayip[0]=4.846 egri(son20 ort.) 100:1.664 200:1.495 300:1.469 400:1.468 500:1.507 sonlu=evet | katman grad normu max/min ilk=1.01 son=4.08 | 75s
+  info  lr=3e-03 L=48 on-norm : kayip[0]=4.883 egri(son20 ort.) 100:4.602 200:4.357 300:4.069 400:3.357 500:2.800 sonlu=evet | katman grad normu max/min ilk=1.45 son=27.59 | 116s
+  PASS  on-norm NaN'siz (lr=0.003000, L=48)
+  PASS  on-norm ogreniyor (lr=0.003000, L=48)
+  info  lr=3e-03 L=48 son-norm: kayip[0]=4.885 egri(son20 ort.) 100:1.709 200:1.537 300:1.497 400:1.501 500:1.534 sonlu=evet | katman grad normu max/min ilk=1.02 son=3.97 | 116s
+faz6-lm: 8 gecti, 0 basarisiz

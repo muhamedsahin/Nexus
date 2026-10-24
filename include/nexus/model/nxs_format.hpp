@@ -57,6 +57,8 @@ enum class LayerKind : std::uint16_t {
     Graph = 31,
     Concat = 32,
     CausalBlock = 33,
+    DecoderBlock = 34,   // FAZ 6: nexus::lm (on-norm, RoPE, GQA, SwiGLU)
+    LanguageModel = 35,  // FAZ 6: kok; config JSON gomulu, nexus::lm::LanguageModel::load_nxs
 };
 
 enum class AttrKind : std::uint8_t { I32 = 1, F32 = 2, Bool = 3, String = 4 };

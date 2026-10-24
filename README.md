@@ -17,7 +17,7 @@
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--5_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--6_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,16 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**24 Ekim 2026 — FAZ 6 modern LLM bloğu** ([rapor](docs/benchmarks/2026-10-24-faz6/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| LLaMA/Qwen2/GPT-2/paralel/son-norm vs PyTorch (HF formülleri) | kayıp birebir, tüm gradyanlar ≤ **1.3e-6** |
+| RoPE ölçeklemeleri (linear, NTK, dinamik, YaRN, llama3) | HF formüllerine ≤ 5.3e-8 |
+| 11 ön tanımlı parametre sayısı | hepsi resmi değerle **birebir** (llama3-8b 8 030 261 248) |
+| SwiGLU MLP d=4096, d_ff=11008 BF16 | ileri 30.3, geri 31.2 TFLOPS |
+| 48 katman ön-norm, 500 adım | NaN yok; bu ölçekte son-norm da kararlı (raporda) |
+
 **24 Ekim 2026 — FAZ 5 FlashAttention-2** ([rapor](docs/benchmarks/2026-10-24-faz5/README.md))
 
 | Ölçüm | Sonuç |
@@ -307,8 +317,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 3 | Eğitim yolu: cuBLASLt + CUDA çekirdekleri, GPT-2 124M tek kartta | ✅ CPU + GPU · 🟡 genel `nn::` katmanları GPU'da değil |
 | 4 | Karışık hassasiyet: BF16/FP16 autocast, ana kopya A/B/C, dinamik ölçek, FP8 emülasyonu | ✅ GPU (GPT-2 BF16 14k token/s) · 🟡 BF16 500. adım %1 ölçütü, PyTorch-CUDA karşılaştırması, sm_89+ FP8 açık |
 | 5 | FlashAttention-2 (CUDA + CPU), varlen, Tq≠Tk, GQA | ✅ GPU + CPU (GPT-2 T=4096 BF16 13.4k token/s, skor belleği 0) · 🟡 çekirdek verimi tepenin %19–29'u, PyTorch-CUDA karşılaştırması, KV önbellek imzası, tek SDPA girişi açık |
-| 6 | Modern LLM bloğu | ⏭ sıradaki |
-| 7–22 | Bellek mühendisliği, veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 6 | Modern LLM bloğu: DecoderBlock, RoPE ailesi, SwiGLU, GQA, µP, `lm::build` + 11 ön tanımlı | ✅ CPU (PyTorch parity tüm gradyanlar ≤1.3e-6) + GPU RoPE/SwiGLU çekirdekleri · 🟡 GPU LLaMA modeli, RoPE-flash füzyonu, Python API açık |
+| 7 | Bellek mühendisliği | ⏭ sıradaki |
+| 8–22 | Veri hattı, dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

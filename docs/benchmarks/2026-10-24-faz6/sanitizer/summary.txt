@@ -1,0 +1,4 @@
+test_lm_kernels memcheck rc=0 20 PASS | ========= ERROR SUMMARY: 0 errors
+test_lm_kernels racecheck rc=0 20 PASS | ========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+test_lm_kernels initcheck rc=0 20 PASS | ========= ERROR SUMMARY: 0 errors
+test_lm_kernels synccheck rc=0 20 PASS | ========= ERROR SUMMARY: 0 errors

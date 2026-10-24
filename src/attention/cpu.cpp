@@ -14,6 +14,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <cmath>
 #include <functional>
 #include <limits>
@@ -152,6 +154,101 @@ void check_cpu(const AttentionParams& p) {
   }
 }
 
+// Kalici is parcacigi havuzu: cagri basina thread acmak kucuk sekillerde (T <= 512, cok katmanli
+// model) is suresini asiyordu. Isler tek tek dagitilir (atomik sayac); cagiran da calisir.
+// Ayni anda tek is (job_mutex_); ic ice parallel_for ayni havuza girmez, seri kosar.
+class WorkerPool {
+ public:
+  static WorkerPool& instance() {
+    static WorkerPool pool;
+    return pool;
+  }
+  void run(int count, int threads, const std::function<void(int)>& fn) {
+    if (inside_) {
+      for (int i = 0; i < count; ++i) {
+        fn(i);
+      }
+      return;
+    }
+    std::lock_guard<std::mutex> job(job_mutex_);
+    const int helpers = std::min(threads - 1, static_cast<int>(workers_.size()));
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      fn_ = &fn;
+      count_ = count;
+      next_.store(0);
+      active_ = helpers;
+      pending_ = helpers;
+      ++generation_;
+    }
+    wake_.notify_all();
+    drain();
+    std::unique_lock<std::mutex> lock(mutex_);
+    done_.wait(lock, [&] { return pending_ == 0; });
+    fn_ = nullptr;
+  }
+
+ private:
+  WorkerPool() {
+    const int n = static_cast<int>(std::max(1u, std::thread::hardware_concurrency())) - 1;
+    for (int t = 0; t < n; ++t) {
+      workers_.emplace_back([this, t] { loop(t); });
+    }
+  }
+  ~WorkerPool() {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      stop_ = true;
+      ++generation_;
+    }
+    wake_.notify_all();
+    for (auto& w : workers_) {
+      w.join();
+    }
+  }
+  void drain() {
+    inside_ = true;
+    for (int i = next_.fetch_add(1); i < count_; i = next_.fetch_add(1)) {
+      (*fn_)(i);
+    }
+    inside_ = false;
+  }
+  void loop(int id) {
+    std::uint64_t seen = 0;
+    while (true) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      wake_.wait(lock, [&] { return stop_ || generation_ != seen; });
+      seen = generation_;
+      if (stop_) {
+        return;
+      }
+      if (id >= active_) {
+        continue;  // bu is icin istenmedi
+      }
+      lock.unlock();
+      drain();
+      lock.lock();
+      if (--pending_ == 0) {
+        done_.notify_one();
+      }
+    }
+  }
+
+  std::vector<std::thread> workers_;
+  std::mutex job_mutex_, mutex_;
+  std::condition_variable wake_, done_;
+  const std::function<void(int)>* fn_ = nullptr;
+  int count_ = 0;
+  int active_ = 0;
+  int pending_ = 0;
+  std::uint64_t generation_ = 0;
+  bool stop_ = false;
+  std::atomic<int> next_{0};
+  static thread_local bool inside_;
+};
+
+thread_local bool WorkerPool::inside_ = false;
+
 void parallel_for(int count, int threads, const std::function<void(int)>& fn) {
   if (threads <= 0) {
     threads = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
@@ -163,18 +260,7 @@ void parallel_for(int count, int threads, const std::function<void(int)>& fn) {
     }
     return;
   }
-  std::atomic<int> next{0};
-  std::vector<std::thread> pool;
-  for (int t = 0; t < threads; ++t) {
-    pool.emplace_back([&] {
-      for (int i = next.fetch_add(1); i < count; i = next.fetch_add(1)) {
-        fn(i);
-      }
-    });
-  }
-  for (auto& th : pool) {
-    th.join();
-  }
+  WorkerPool::instance().run(count, threads, fn);
 }
 
 constexpr int kBlock = 64;
