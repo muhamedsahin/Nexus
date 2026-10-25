@@ -1,0 +1,11 @@
+test_ddp_equivalence: dp=4 x micro 2 == dp=1 x micro 8 (FP32, CPU, thread), 100 adim
+  info  param 4 (16 oge): gradyani yalniz gurultu (max |g_p|/|g| = 1.8e-08), fark 2.65e-03
+  info  gurultu_parametresi_max_fark=0.00264744
+  info  agirlik_max_abs_fark_100_adim=2.38419e-07
+  info  kayip_max_abs_fark=2.38419e-07
+  info  kayip_0=3.60414
+  info  kayip_99=2.65204
+  PASS  rank'ler arasi agirliklar ayni
+  PASS  100 adim sonra agirlik farki <= 1e-6
+  PASS  adim kayiplari ayni (<= 1e-5)
+test_phase10_dist: 3 gecti, 0 basarisiz

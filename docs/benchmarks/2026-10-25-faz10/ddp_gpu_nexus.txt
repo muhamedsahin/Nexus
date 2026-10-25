@@ -1,0 +1,2 @@
+{"framework":"nexus","ranks":1,"params":13891584,"rows_per_rank":8,"T":256,"ms_per_step":15.78,"tokens_per_s":129768,"buckets":0,"comm_busy_ms":0.00,"overlapped_ms":0.00}
+{"framework":"nexus","ranks":2,"params":13891584,"rows_per_rank":8,"T":256,"ms_per_step":157.41,"tokens_per_s":26022,"buckets":2,"comm_busy_ms":89.98,"overlapped_ms":7.17}

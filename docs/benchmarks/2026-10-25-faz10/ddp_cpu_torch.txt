@@ -1,0 +1,4 @@
+{"framework": "pytorch-2.14.1+cu132", "device": "cpu", "ranks": 1, "params": 540939, "rows_per_rank": 4, "T": 64, "ms_per_step": 21.33898499978386, "tokens_per_s": 11996.821779601652}
+{"framework": "pytorch-2.14.1+cu132", "device": "cpu", "ranks": 2, "params": 540939, "rows_per_rank": 4, "T": 64, "ms_per_step": 46.02031500053272, "tokens_per_s": 11125.521413620772}
+{"framework": "pytorch-2.14.1+cu132", "device": "cpu", "ranks": 4, "params": 540939, "rows_per_rank": 4, "T": 64, "ms_per_step": 44.08755500044208, "tokens_per_s": 23226.50915864425}
+{"framework": "pytorch-2.14.1+cu132", "device": "cpu", "ranks": 8, "params": 540939, "rows_per_rank": 4, "T": 64, "ms_per_step": 69.73616999985097, "tokens_per_s": 29367.8302092641}

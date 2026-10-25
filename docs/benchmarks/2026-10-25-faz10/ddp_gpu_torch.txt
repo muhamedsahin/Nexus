@@ -1,0 +1,1 @@
+{"framework": "pytorch-2.14.1+cu132", "device": "cuda", "ranks": 1, "params": 13891584, "rows_per_rank": 8, "T": 256, "ms_per_step": 30.685809999158664, "tokens_per_s": 66740.9463871461}

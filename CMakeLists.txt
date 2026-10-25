@@ -56,7 +56,12 @@ add_library(nexus STATIC
     src/prof/prof.cpp
     src/model/nxs.cpp
     src/train/lm_trainer.cpp
-    src/train/loggers.cpp)
+    src/train/loggers.cpp
+    src/dist/net.cpp
+    src/dist/store.cpp
+    src/dist/process_group.cpp
+    src/dist/ddp.cpp
+    src/dist/topology.cpp)
 add_library(nexus::nexus ALIAS nexus)
 
 target_compile_features(nexus PUBLIC cxx_std_20)
@@ -74,6 +79,9 @@ target_link_libraries(nexus
         nexusdata)
 
 target_compile_definitions(nexus PUBLIC NEXUS_FRAMEWORK_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
+if(WIN32)
+    target_link_libraries(nexus PUBLIC ws2_32)  # FAZ 10: TCP arka ucu ve TCPStore
+endif()
 
 if(NEXUS_ENABLE_AVX2)
     target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_AVX2=1)

@@ -17,7 +17,7 @@
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--9_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--10_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,16 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**25 Ekim 2026 — FAZ 10 çok süreç / DDP** ([rapor](docs/benchmarks/2026-10-25-faz10/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| DDP eşdeğerliği, 100 adım FP32 | CPU dp=4×2 ≡ dp=1×8: **2.4e-7** (thread ve 4 süreç tcp) · GPU 2 süreç: **1.5e-7** |
+| Örtüşme | ilk kova iletişimi geri geçişin 0.43. ms'inde (CPU, 2.6 ms) ve 1.69. ms'inde (GPU olayları, 11.1 ms) |
+| all-reduce busbw, 1 GB, Nexus tcp vs PyTorch gloo | 2 rank **1.17 vs 0.17 GB/s**, 4 rank **0.75 vs 0.55**; 8 B gecikme 212 vs 795 µs |
+| CPU DDP zayıf ölçek verimi 2 / 4 / 8 rank | Nexus 0.77 / 0.55 / 0.31 · PyTorch 0.46 / 0.48 / 0.31 |
+| Çok GPU ölçekleme, NCCL | ⛔ ölçülemedi (tek GPU, Windows'ta NCCL yok) |
+
 **25 Ekim 2026 — FAZ 9 dil modeli eğitmeni v2** ([rapor](docs/benchmarks/2026-10-25-faz9/README.md))
 
 | Ölçüm | Sonuç |
@@ -352,8 +362,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 7 | Bellek mühendisliği: recompute (selective/full/every_k), parçalı CE, 8-bit AdamW, ZeRO-Offload, planlayıcı | ✅ 1.31B parametre 8 GB'ta eğitiliyor (5.94 GiB, 1.14 s/adım) · 🟡 aktivasyon offload, DPU, Adafactor, 8-bit %2 ölçütü açık |
 | 8 | Veri hattı: byte BPE (kodlama + eğitim), NXTK parçaları, `nexus_tokenize`, Feistel örnekleyici, paketleme, karışım, devam, GPU yükleyici | ✅ tiktoken ile bayt-bayt aynı (GPT-2 + cl100k, 200 MB gerçek derlem), kodlama 5–8× tiktoken, 1 GB / 32k BPE eğitimi HF ile birebir ve 7.6× hızlı, devam birebir, GPU veri beklemesi ≈ 0 · 🟡 50 MB/s/çekirdek, o200k, Python, varlen GPU eğitimi, RAM'den büyük gerçek veri açık |
 | 9 | Dil modeli eğitmeni v2: builder, token ağırlıklı biriktirme (ek tampon yok), zamanlayıcılar, gruplar/µP, değerlendirme, MFU, TensorBoard/W&B, NaN/sıçrama teşhisi, eski API yönlendirmesi | ✅ token/s ≥ nanoGPT eager (+%3–4, daha az bellek), ısınma sonrası eğri ±%1, eski API bit bit · 🟡 torch.compile'dan %4–9 geride, ısınmada %3.5, TF/XLA ölçülmedi, GPU kayıp maskesi açık |
-| 10 | Çok süreç / çok kart: başlatıcı, rendezvous, NCCL, DDP | ⏭ sıradaki |
-| 11–22 | FSDP/ZeRO, TP/PP, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 10 | Çok süreç: ProcessGroup (thread/tcp), TCPStore, `nexus-run`, kovalı + örtüşmeli DDP (CPU + GPU), `no_sync`, BF16 sıkıştırma, hiyerarşik all-reduce, kollektif doğrulama | ✅ eşdeğerlik (≤1e-6, sıfır-gradyanlı anahtar bias'ı hariç), örtüşme kanıtı, rank ölümünde temiz çıkış, busbw gloo'dan yüksek · ⛔ çok GPU / NCCL ölçülemedi (tek GPU, Windows) |
+| 11 | ZeRO-1/2/3, FSDP, CPU/NVMe offload | ⏭ sıradaki |
+| 12–22 | TP/PP, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

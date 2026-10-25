@@ -20,12 +20,21 @@
  * "Adim" her zaman optimizer adimidir. Eski LanguageTrainer::fit(rows, epochs) bu donguye
  * yonlenir: "epoch" = ayni yiginda bir optimizer adimi (biriktirme yok).
  *
+ * FAZ 10.H veri paralelligi (.process_group(pg, ddp)): her rank bir surec (ya da thread arka
+ * ucunda is parcacigi). accum = global_batch_tokens / (micro * T * dp). Gecerli token sayilari
+ * adim basinda all-reduce edilir; w_i = gecerli_i / KURESEL toplam, gradyan SUM ile indirgenir
+ * (yalniz son mikro adimda: no_sync). Parametreler baslangicta rank 0'dan yayilir. Kayip ve
+ * degerlendirme rank'ler uzerinden toplanir; gunluk yalniz rank 0'da. Her rank kendi veri
+ * parcasini verir (or. TokenStream(manifest, T - 1, seed, rank, dp)). save/resume rank basina
+ * dosya (`yol.rank<r>`).
+ *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
  * olarak gelistirilmistir.
  */
 
 #include "nexus/core/config.hpp"
+#include "nexus/dist/ddp.hpp"
 #include "nexus/train/schedule.hpp"
 #include "nexus_train/logging/logger_base.hpp"
 
@@ -190,6 +199,13 @@ class LmBackend {
   virtual void reset_peak_memory() = 0;
   /// Kullanilan sayi bicimi icin tepe dense FLOPS (0: bilinmiyor -> MFU NaN).
   [[nodiscard]] virtual double peak_flops() const = 0;
+  /// FAZ 10: veri paralelligi. Bagliysa micro_step(index == count - 1) gradyani rank'ler
+  /// uzerinde SUM ile (kovalar, ortusmeli) indirger; optimizer_step indirgemenin bitmesini bekler.
+  virtual void attach_process_group(std::shared_ptr<dist::ProcessGroup> group, const dist::DdpOptions& options);
+  /// Parametreleri rank 0'dan yayar (attach'ten sonra, egitimden once).
+  virtual void broadcast_parameters();
+  /// Son senkron adimin olcumu (ortusme kaniti).
+  [[nodiscard]] virtual dist::DdpStepStats ddp_stats() const { return {}; }
 };
 
 using BackendFactory = std::function<std::unique_ptr<LmBackend>(const LmBackendRequest&)>;
@@ -255,6 +271,7 @@ struct StepRecord {
   bool skipped = false;
   std::int64_t skipped_total = 0;
   double val_loss = 0.0;      // NaN: bu adimda degerlendirme yok
+  dist::DdpStepStats ddp{};   // FAZ 10: dp > 1 ise bu adimin iletisim olcumu
 };
 
 struct SpikeEvent {
@@ -329,6 +346,8 @@ class LanguageTrainerBuilder {
   LanguageTrainerBuilder& log_wandb(const std::string& path);
   /// Test/teshis kancasi: tum mikro adimlardan sonra, optimizer adimindan once.
   LanguageTrainerBuilder& after_backward(std::function<void(LmBackend&, std::int64_t step)> hook);
+  /// FAZ 10: veri paralelligi (DDP). Grup boyu dp; rank 0 gunluk yazar.
+  LanguageTrainerBuilder& process_group(std::shared_ptr<dist::ProcessGroup> group, dist::DdpOptions options = {});
 
   [[nodiscard]] std::unique_ptr<LanguageModelTrainer> build();
 
@@ -355,6 +374,8 @@ class LanguageTrainerBuilder {
   bool console_ = true;
   std::vector<std::shared_ptr<nexus_train::LoggerBase>> loggers_;
   std::function<void(LmBackend&, std::int64_t)> after_backward_;
+  std::shared_ptr<dist::ProcessGroup> group_;
+  dist::DdpOptions ddp_{};
 };
 
 class LanguageModelTrainer {
@@ -385,6 +406,8 @@ class LanguageModelTrainer {
   [[nodiscard]] const std::vector<std::vector<LmNormEntry>>& norm_history() const noexcept { return norms_; }
   [[nodiscard]] double lr_factor() const noexcept { return lr_factor_; }
   [[nodiscard]] double flops_per_token() const;
+  [[nodiscard]] int data_parallel_size() const noexcept { return dp_; }
+  [[nodiscard]] int rank() const noexcept { return rank_; }
 
  private:
   friend class LanguageTrainerBuilder;
@@ -420,6 +443,10 @@ class LanguageModelTrainer {
   bool console_ = true;
   std::vector<std::shared_ptr<nexus_train::LoggerBase>> loggers_;
   std::function<void(LmBackend&, std::int64_t)> after_backward_;
+  std::shared_ptr<dist::ProcessGroup> group_;
+  int dp_ = 1;
+  int rank_ = 0;
+  [[nodiscard]] std::string rank_path(const std::string& path) const;
 
   std::int64_t step_ = 0;
   double lr_factor_ = 1.0;

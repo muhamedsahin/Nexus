@@ -1,0 +1,4 @@
+{"ranks":1,"mean_step_ms":17.94,"rows_per_rank":4,"T":64,"backward_ms":0.00,"comm_busy_ms":0.00,"overlapped_ms":0.00}
+{"ranks":2,"mean_step_ms":23.43,"rows_per_rank":4,"T":64,"backward_ms":12.16,"comm_busy_ms":3.64,"overlapped_ms":0.00}
+{"ranks":4,"mean_step_ms":32.64,"rows_per_rank":4,"T":64,"backward_ms":15.24,"comm_busy_ms":0.92,"overlapped_ms":0.00}
+{"ranks":8,"mean_step_ms":57.05,"rows_per_rank":4,"T":64,"backward_ms":20.02,"comm_busy_ms":8.23,"overlapped_ms":0.00}

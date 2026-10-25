@@ -154,3 +154,28 @@ add_test(NAME test_classifier_shared_infra COMMAND test_phase9_trainer classifie
 set_tests_properties(test_old_api_still_works test_accum_equivalence test_schedule_values test_param_groups_wd
     test_nan_policy test_loss_spike test_trainer_resume test_eval_fixed_set test_trainer_loggers
     test_classifier_shared_infra PROPERTIES TIMEOUT 300)
+
+# FAZ 10: ProcessGroup (thread + tcp), dogrulama, rank olumu.
+add_executable(test_phase10_dist test_phase10_dist.cpp)
+target_link_libraries(test_phase10_dist PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase10_dist)
+add_test(NAME test_collectives_thread COMMAND test_phase10_dist collectives_thread)
+foreach(_n 2 3 4 8)
+    math(EXPR _port "29620 + ${_n}")
+    add_test(NAME test_collectives_tcp_${_n} COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node ${_n} --master-port ${_port}
+        -- $<TARGET_FILE:test_phase10_dist> collectives_tcp)
+endforeach()
+add_test(NAME test_mismatched_collective_detected COMMAND test_phase10_dist mismatch_thread)
+add_test(NAME test_mismatched_collective_detected_tcp COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 2 --master-port 29631
+    -- $<TARGET_FILE:test_phase10_dist> mismatch_tcp)
+add_test(NAME test_rank_failure_clean_exit COMMAND test_phase10_dist failure $<TARGET_FILE:nexus_run> $<TARGET_FILE:test_phase10_dist>)
+add_test(NAME test_collectives_nccl COMMAND test_phase10_dist nccl)
+add_test(NAME test_topology_and_lr_scaling COMMAND test_phase10_dist topology)
+add_test(NAME test_ddp_equivalence COMMAND test_phase10_dist ddp_thread)
+add_test(NAME test_ddp_equivalence_tcp COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 4 --master-port 29641
+    -- $<TARGET_FILE:test_phase10_dist> ddp_tcp)
+add_test(NAME test_overlap_occurs COMMAND test_phase10_dist overlap_thread)
+set_tests_properties(test_collectives_thread test_collectives_tcp_2 test_collectives_tcp_3 test_collectives_tcp_4
+    test_collectives_tcp_8 test_mismatched_collective_detected test_mismatched_collective_detected_tcp
+    test_rank_failure_clean_exit test_collectives_nccl test_ddp_equivalence test_ddp_equivalence_tcp test_overlap_occurs test_topology_and_lr_scaling
+    PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE)

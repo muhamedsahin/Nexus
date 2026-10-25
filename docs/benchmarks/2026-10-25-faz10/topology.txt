@@ -1,0 +1,2 @@
+  info  dunya 4 = 1 dugum x 4 rank (bu rank: dugum 0, yerel 1); 16 mantiksal CPU, 1 NUMA, 0 CUDA aygiti; all-reduce: ring
+  info  dunya 8 = 2 dugum x 4 rank (bu rank: dugum 1, yerel 1); 16 mantiksal CPU, 1 NUMA, 0 CUDA aygiti; all-reduce: hierarchical

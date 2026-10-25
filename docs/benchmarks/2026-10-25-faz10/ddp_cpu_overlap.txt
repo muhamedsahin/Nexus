@@ -1,0 +1,10 @@
+test_overlap_occurs (CPU): 2 rank, 6 blok, kova 64 KB
+  info  kova=7
+  info  geri_gecis_ms=2.5931
+  info  ilk_iletisim_baslangici_ms=0.4289
+  info  son_iletisim_bitisi_ms=2.6529
+  info  iletisim_mesgul_ms=0.2914
+  info  ortusen_ms=0.232
+  PASS  ilk kova iletisimi geri gecis bitmeden basladi
+  PASS  iletisimin bir kismi geri gecisle ortusuyor
+test_phase10_dist: 2 gecti, 0 basarisiz

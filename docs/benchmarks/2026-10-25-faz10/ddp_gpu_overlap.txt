@@ -1,0 +1,6 @@
+  info  2 rank (ayni GPU), 7 kova, geri gecis 11.07 ms, ilk iletisim 1.69 ms, son bitis 88.87 ms, mesgul 87.17 ms, ortusen 9.38 ms, adim 99.1 ms
+  PASS  rank 0: ilk kova iletisimi geri gecis bitmeden basladi (CUDA olay zamanlari)
+  PASS  rank 0: iletisimin bir kismi geri gecisle ortusuyor
+nexus-run: 2 surec, 2.1 s
+  rank 0: cikis 0
+  rank 1: cikis 0

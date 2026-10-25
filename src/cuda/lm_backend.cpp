@@ -11,7 +11,13 @@
 
 #include "nexus/core/error.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <condition_variable>
+#include <deque>
+#include <map>
+#include <mutex>
+#include <thread>
 #if defined(_WIN32)
 #include <windows.h>
 #else
@@ -173,7 +179,246 @@ GptLmBackend::GptLmBackend(GptConfig config, const train::LmBackendRequest& requ
   peak_flops_ = tensor_core_peak_flops(device_, c.compute_dtype);
 }
 
+// ============================================================================== FAZ 10 DDP
+struct GptLmBackend::Ddp {
+  std::shared_ptr<dist::ProcessGroup> group;
+  dist::DdpOptions options;
+  int device = 0;
+  Stream comm;
+  std::map<int, Event> stage_events;          // asama -> hesap akisindaki "hazir" olayi
+  std::vector<dist::Stage> stages;            // hazir olma sirasi (plan)
+  std::vector<dist::Bucket> buckets;
+  std::map<int, std::size_t> bucket_of;
+  std::vector<float*> pinned;                 // kova basina pinned host tampon (dolgulu)
+  std::vector<std::size_t> capacity;
+  std::vector<dist::HostBucket> host;
+  std::vector<Event> start, end;
+  std::vector<int> ready;
+  std::vector<int> observed;
+  bool sync = false;
+  bool order_checked = false;
+  Event fb_end;
+  // iletisim is parcacigi
+  std::mutex mu;
+  std::condition_variable cv;
+  std::deque<std::size_t> queue;
+  std::size_t done = 0;
+  std::size_t queued = 0;
+  bool stop = false;
+  std::exception_ptr error;
+  std::thread worker;
+  float* grads = nullptr;
+
+  void release_buffers() {
+    for (float* p : pinned) pinned_allocator().deallocate(p);
+    pinned.clear();
+  }
+
+  void run() {
+    NEXUS_CUDA_CHECK(cudaSetDevice(device));
+    for (;;) {
+      std::size_t b = 0;
+      {
+        std::unique_lock<std::mutex> lock(mu);
+        cv.wait(lock, [&] { return stop || !queue.empty(); });
+        if (queue.empty()) return;
+        b = queue.front();
+        queue.pop_front();
+      }
+      try {
+        for (int id : buckets[b].stages) stage_events.at(id).wait(comm);
+        start[b].record(comm);
+        std::size_t pos = 0;
+        for (const dist::GradSlice& sl : buckets[b].slices) {
+          NEXUS_CUDA_CHECK(cudaMemcpyAsync(pinned[b] + pos, grads + sl.offset, sl.numel * sizeof(float),
+                                           cudaMemcpyDeviceToHost, comm.handle()));
+          pos += sl.numel;
+        }
+        comm.synchronize();
+        host[b].launch(*group, options);
+        host[b].finish();
+        pos = 0;
+        for (const dist::GradSlice& sl : buckets[b].slices) {
+          NEXUS_CUDA_CHECK(cudaMemcpyAsync(grads + sl.offset, pinned[b] + pos, sl.numel * sizeof(float),
+                                           cudaMemcpyHostToDevice, comm.handle()));
+          pos += sl.numel;
+        }
+        end[b].record(comm);
+      } catch (...) {
+        std::lock_guard<std::mutex> lock(mu);
+        error = std::current_exception();
+      }
+      {
+        std::lock_guard<std::mutex> lock(mu);
+        ++done;
+      }
+      cv.notify_all();
+    }
+  }
+
+  void push(std::size_t b) {
+    {
+      std::lock_guard<std::mutex> lock(mu);
+      queue.push_back(b);
+      ++queued;
+    }
+    cv.notify_all();
+  }
+};
+
+void GptLmBackend::plan_buckets() {
+  Ddp& d = *ddp_;
+  d.release_buffers();
+  d.buckets = dist::plan_buckets(d.stages, d.options.bucket_bytes);
+  d.bucket_of.clear();
+  d.host.assign(d.buckets.size(), dist::HostBucket{});
+  d.start.clear();
+  d.end.clear();
+  const std::size_t pad = d.options.ranks_per_node > 1 ? static_cast<std::size_t>(d.options.ranks_per_node) : 1;
+  for (std::size_t b = 0; b < d.buckets.size(); ++b) {
+    for (int id : d.buckets[b].stages) d.bucket_of[id] = b;
+    const std::size_t cap = (d.buckets[b].numel + pad - 1) / pad * pad;
+    auto* p = static_cast<float*>(pinned_allocator().allocate(cap * sizeof(float)));
+    std::fill(p, p + cap, 0.0f);
+    d.pinned.push_back(p);
+    d.host[b].bind(p, d.buckets[b].numel, cap);
+    d.start.emplace_back(true);
+    d.end.emplace_back(true);
+  }
+}
+
+void GptLmBackend::attach_process_group(std::shared_ptr<dist::ProcessGroup> group, const dist::DdpOptions& options) {
+  if (model_->config().optimizer == OptimizerKind::ZeroOffload || model_->config().optimizer == OptimizerKind::AdamW8bitFused) {
+    throw dist::DistError("cuda::gpt_backend: DDP ZeroOffload/AdamW8bitFused ile desteklenmez (tam gradyan tamponu yok)");
+  }
+  ddp_ = std::make_unique<Ddp>();
+  Ddp& d = *ddp_;
+  d.group = std::move(group);
+  d.options = options;
+  d.device = device_;
+  d.comm = Stream::create(device_);
+  d.grads = model_->device_gradients();
+  // Asamalar, geri gecis sirasiyla (ilk tahmin): lnf, katman L-1..0, gomme.
+  const int L = model_->config().layers;
+  const auto& info = model_->parameter_info();
+  auto layered = [L](const GptParamInfo& p) {
+    return p.shape.size() >= 2 && p.shape.front() == L && p.name != "wte" && p.name != "wpe";
+  };
+  dist::Stage head{GptModel::kStageHead, {}};
+  dist::Stage emb{GptModel::kStageEmbedding, {}};
+  std::vector<dist::Stage> layers(static_cast<std::size_t>(L));
+  for (int l = 0; l < L; ++l) layers[static_cast<std::size_t>(l)].id = l;
+  for (const GptParamInfo& p : info) {
+    if (p.name == "lnf_w" || p.name == "lnf_b") {
+      head.slices.push_back(dist::GradSlice{p.offset, p.numel});
+    } else if (p.name == "wte" || p.name == "wpe") {
+      emb.slices.push_back(dist::GradSlice{p.offset, p.numel});
+    } else if (layered(p)) {
+      const std::size_t per = p.numel / static_cast<std::size_t>(L);
+      for (int l = 0; l < L; ++l) {
+        layers[static_cast<std::size_t>(l)].slices.push_back(dist::GradSlice{p.offset + static_cast<std::size_t>(l) * per, per});
+      }
+    } else {
+      throw dist::DistError("cuda::gpt_backend: DDP asamasi bilinmeyen parametre: " + p.name);
+    }
+  }
+  d.stages.push_back(head);
+  for (int l = L - 1; l >= 0; --l) d.stages.push_back(layers[static_cast<std::size_t>(l)]);
+  d.stages.push_back(emb);
+  for (const dist::Stage& st : d.stages) d.stage_events.emplace(st.id, Event(true));
+  plan_buckets();
+  Ddp* raw = ddp_.get();
+  d.worker = std::thread([raw] { raw->run(); });
+  model_->set_backward_hook([this](int stage) { on_stage(stage); });
+}
+
+void GptLmBackend::on_stage(int stage) {
+  Ddp& d = *ddp_;
+  if (!d.sync) return;
+  d.stage_events.at(stage).record(stream_);
+  d.observed.push_back(stage);
+  const std::size_t b = d.bucket_of.at(stage);
+  const bool early = d.options.overlap && !d.options.find_unused_parameters;
+  if (++d.ready[b] == static_cast<int>(d.buckets[b].stages.size()) && early) {
+    d.push(b);
+  }
+}
+
+void GptLmBackend::finish_sync() {
+  Ddp& d = *ddp_;
+  for (std::size_t b = 0; b < d.buckets.size(); ++b) {
+    if (d.ready[b] != static_cast<int>(d.buckets[b].stages.size())) {
+      throw dist::DistError("cuda::gpt_backend: DDP asamasi geri geciste hazir olmadi");
+    }
+  }
+  if (!(d.options.overlap && !d.options.find_unused_parameters)) {
+    for (std::size_t b = 0; b < d.buckets.size(); ++b) d.push(b);  // geri gecisten sonra
+  }
+  {
+    std::unique_lock<std::mutex> lock(d.mu);
+    const auto timeout = d.group->options().timeout + std::chrono::seconds(5);
+    if (!d.cv.wait_for(lock, timeout, [&] { return d.done == d.queued; })) {
+      throw dist::DistTimeout("cuda::gpt_backend: DDP kovalari zaman asimina kadar bitmedi");
+    }
+    if (d.error) std::rethrow_exception(d.error);
+  }
+  for (std::size_t b = 0; b < d.buckets.size(); ++b) d.end[b].wait(stream_);
+  // Olcum: zamanlar ilk asama olayina (geri gecisin kafasi) gore.
+  d.fb_end.synchronize();
+  const Event& t0 = d.stage_events.at(d.observed.front());
+  stats_ = dist::DdpStepStats{};
+  stats_.backward_ms = t0.elapsed_ms(d.fb_end);
+  stats_.buckets = static_cast<int>(d.buckets.size());
+  for (std::size_t b = 0; b < d.buckets.size(); ++b) {
+    d.end[b].synchronize();
+    const double a = t0.elapsed_ms(d.start[b]);
+    const double e = t0.elapsed_ms(d.end[b]);
+    stats_.comm_first_start_ms = stats_.comm_first_start_ms < 0 ? a : std::min(stats_.comm_first_start_ms, a);
+    stats_.comm_last_end_ms = std::max(stats_.comm_last_end_ms, e);
+    stats_.comm_busy_ms += e - a;
+    stats_.comm_overlapped_ms += std::max(0.0, std::min(e, stats_.backward_ms) - std::max(a, 0.0));
+  }
+  d.sync = false;
+  if (!d.order_checked) {  // ilk senkron adim: gercek sira farkliysa kovalari yeniden kur
+    d.order_checked = true;
+    std::vector<int> planned;
+    for (const dist::Stage& st : d.stages) planned.push_back(st.id);
+    if (planned != d.observed) {
+      std::vector<dist::Stage> reordered;
+      for (int id : d.observed)
+        for (const dist::Stage& st : d.stages)
+          if (st.id == id) reordered.push_back(st);
+      stream_.synchronize();
+      d.stages = std::move(reordered);
+      plan_buckets();
+      stats_.rebuilt = true;
+    }
+  }
+}
+
+void GptLmBackend::broadcast_parameters() {
+  if (!ddp_) throw dist::DistError("cuda::gpt_backend: once attach_process_group");
+  std::vector<float> p = model_->download_parameters();
+  ddp_->group->broadcast(p.data(), p.size(), DType::F32, 0)->wait();
+  model_->upload_parameters(p);
+}
+
 GptLmBackend::~GptLmBackend() {
+  if (ddp_) {
+    {
+      std::lock_guard<std::mutex> lock(ddp_->mu);
+      ddp_->stop = true;
+    }
+    ddp_->cv.notify_all();
+    if (ddp_->worker.joinable()) ddp_->worker.join();
+    model_->set_backward_hook({});
+    try {
+      ddp_->comm.synchronize();
+    } catch (...) {
+    }
+    ddp_->release_buffers();
+    ddp_->comm.destroy();
+  }
   try {
     stream_.synchronize();
   } catch (...) {
@@ -258,7 +503,21 @@ void GptLmBackend::micro_step(const std::int32_t* tokens, float grad_weight, int
     throw std::invalid_argument("cuda::gpt_backend: mikro adim indeksi gecersiz");
   }
   const std::int32_t* d = upload(tokens);
+  if (ddp_ && index + 1 == count) {  // no_sync: yalniz son mikro adim iletisim yapar
+    Ddp& dd = *ddp_;
+    dd.sync = true;
+    dd.observed.clear();
+    dd.ready.assign(dd.buckets.size(), 0);
+    {
+      std::lock_guard<std::mutex> lock(dd.mu);
+      dd.done = 0;
+      dd.queued = 0;
+    }
+  }
   model_->forward_backward(d, grad_weight, index > 0);  // ilk mikro adim sifirlar, sonrakiler ekler
+  if (ddp_ && ddp_->sync) {
+    ddp_->fb_end.record(stream_);
+  }
   NEXUS_CUDA_CHECK(cudaMemcpyAsync(pinned_losses_ + index, model_->device_loss(), sizeof(float), cudaMemcpyDeviceToHost,
                                    stream_.handle()));
   count_ = count;
@@ -272,6 +531,9 @@ void GptLmBackend::optimizer_step(const train::AdamW& opt, double lr, double cli
   c.eps = opt.eps;
   c.weight_decay = opt.weight_decay;
   c.max_grad_norm = clip;
+  if (ddp_ && ddp_->sync) {
+    finish_sync();  // kovalar indirgenmeden norm/kirpma/guncelleme yok
+  }
   model_->optimizer_step(c);
   NEXUS_CUDA_CHECK(cudaMemcpyAsync(&pinned_tail_->grad_norm, model_->device_grad_norm(), sizeof(float),
                                    cudaMemcpyDeviceToHost, stream_.handle()));

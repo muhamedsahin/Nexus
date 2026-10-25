@@ -959,6 +959,9 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
   float* res = b.res.as<float>();
   layernorm_backward(dres, grad(kLnfW), grad(kLnfB), dln, res + static_cast<std::size_t>(L) * btc, f32(kLnfW),
                      b.lnf_mean.as<float>(), b.lnf_rstd.as<float>(), BT, C, false, scratch, s);
+  if (backward_hook_) {
+    backward_hook_(kStageHead);  // lnf gradyanlari kuyrukta tamam (dwte gomme geri gecisini bekler)
+  }
 
   for (int l = L - 1; l >= 0; --l) {
     const std::size_t lc = static_cast<std::size_t>(l) * C;
@@ -1036,6 +1039,9 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
     layernorm_backward(dres, grad(kLn1W, lc), grad(kLn1B, lc), dln, x_in, f32(kLn1W, lc),
                        b.ln1_mean.as<float>() + static_cast<std::size_t>(l) * BT,
                        b.ln1_rstd.as<float>() + static_cast<std::size_t>(l) * BT, BT, C, true, scratch, s);
+    if (backward_hook_) {
+      backward_hook_(l);  // katman l'nin tum dilimleri kuyrukta tamam
+    }
     if (fused()) {
       fused_update_layer(l, o->scratch[0].as<float>());  // ayni akis: sonraki katman tamponu guvenle yeniden yazar
     }
@@ -1065,6 +1071,9 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
     embedding_backward_deterministic(grad(kWte), grad(kWpe), dres, d_tokens, B, T, C, V, -1, b.emb_scratch.data(), s);
   } else {
     embedding_backward_atomic(grad(kWte), grad(kWpe), dres, d_tokens, B, T, C, s);
+  }
+  if (backward_hook_) {
+    backward_hook_(kStageEmbedding);
   }
   if (fused()) {
     fused_update_rest();

@@ -1,0 +1,14 @@
+[W1025 18:10:59.000000000 socket.cpp:764] [c10d] The client socket has failed to connect to [kubernetes.docker.internal]:29714 (system error: 10049 - Ýstenen adres içeriðinde geçerli deðil.).
+[W1025 18:10:59.000000000 socket.cpp:764] [c10d] The client socket has failed to connect to [kubernetes.docker.internal]:29714 (system error: 10049 - Ýstenen adres içeriðinde geçerli deðil.).
+[W1025 18:10:59.000000000 socket.cpp:764] [c10d] The client socket has failed to connect to [kubernetes.docker.internal]:29714 (system error: 10049 - Ýstenen adres içeriðinde geçerli deðil.).
+[W1025 18:10:59.000000000 socket.cpp:764] [c10d] The client socket has failed to connect to [kubernetes.docker.internal]:29714 (system error: 10049 - Ýstenen adres içeriðinde geçerli deðil.).
+{"bytes": 8, "us": 1247.7680000301916, "algbw": 6.411448281897299e-06, "busbw": 9.617172422845949e-06}
+{"bytes": 64, "us": 2325.725999980932, "algbw": 2.7518288913021016e-05, "busbw": 4.127743336953152e-05}
+{"bytes": 512, "us": 2245.8840000035707, "algbw": 0.00022797259341942236, "busbw": 0.00034195889012913355}
+{"bytes": 4096, "us": 2246.192000020528, "algbw": 0.0018235306687774536, "busbw": 0.0027352960031661803}
+{"bytes": 32768, "us": 2335.5679999804124, "algbw": 0.014029991847925137, "busbw": 0.021044987771887704}
+{"bytes": 262144, "us": 2121.374000053038, "algbw": 0.12357274106001392, "busbw": 0.1853591115900209}
+{"bytes": 2097152, "us": 3869.3375004186237, "algbw": 0.5419925245014449, "busbw": 0.8129887867521672}
+{"bytes": 16777216, "us": 42897.01249990685, "algbw": 0.3911045320472243, "busbw": 0.5866567980708364}
+{"bytes": 134217728, "us": 315299.3666662951, "algbw": 0.425683468441764, "busbw": 0.638525202662646}
+{"bytes": 1073741824, "us": 2905271.3500004755, "algbw": 0.36958400598271973, "busbw": 0.5543760089740796}

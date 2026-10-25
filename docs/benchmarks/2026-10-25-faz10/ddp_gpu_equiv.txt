@@ -1,0 +1,9 @@
+  PASS  rank   0: tum rank'lerin parametreleri bit bit ayni
+PASS  rank 1: tum rank'lerin parametreleri bit bit ayni
+  info  dp=2, 136960 parametre; gurultu ogesi 2240 (max fark 7.57e-06)
+  info  agirlik max fark (100 adim) 1.453e-07, kayip max fark 4.768e-07, kayip 6.2627 -> 6.2500
+  PASS  rank 0: dp=2 x micro 2 == dp=1 x micro 4: 100 adim sonra agirlik farki <= 1e-6
+  PASS  rank 0: adim kayiplari ayni (<= 1e-5)
+nexus-run: 2 surec, 1.2 s
+  rank 0: cikis 0
+  rank 1: cikis 0

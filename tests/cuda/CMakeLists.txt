@@ -123,3 +123,13 @@ add_test(NAME test_eval_no_grad_memory COMMAND test_phase9_trainer_cuda eval_mem
 add_test(NAME test_trainer_resume_cuda COMMAND test_phase9_trainer_cuda resume)
 set_tests_properties(test_accum_equivalence_cuda test_param_groups_wd_cuda test_nan_policy_cuda
     test_eval_no_grad_memory test_trainer_resume_cuda PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+
+# FAZ 10: GPU DDP (tek GPU'yu paylasan surecler, tcp ProcessGroup; nexus-run ile).
+add_executable(test_phase10_ddp_cuda test_phase10_ddp_cuda.cpp)
+target_link_libraries(test_phase10_ddp_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase10_ddp_cuda)
+add_test(NAME test_ddp_equivalence_cuda COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 2 --master-port 29651
+    -- $<TARGET_FILE:test_phase10_ddp_cuda> equiv)
+add_test(NAME test_overlap_occurs_cuda COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 2 --master-port 29652
+    -- $<TARGET_FILE:test_phase10_ddp_cuda> overlap)
+set_tests_properties(test_ddp_equivalence_cuda test_overlap_occurs_cuda PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

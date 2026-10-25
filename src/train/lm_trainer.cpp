@@ -26,6 +26,7 @@
 #include <fstream>
 #include <limits>
 #include <iterator>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <typeinfo>
@@ -211,7 +212,53 @@ class CpuModuleBackend final : public LmBackend {
     time_ = seq_len;
   }
 
-  void micro_step(const std::int32_t* tokens, float grad_weight, int index, int /*count*/) override {
+  void attach_process_group(std::shared_ptr<dist::ProcessGroup> group, const dist::DdpOptions& options) override {
+    group_ = std::move(group);
+    ddp_ = options;
+    // Asama = parametreli bir Sequential katmani; ilk tahmin: ters katman sirasi (geri gecis sirasi).
+    // Dilimde offset = parametre indeksi (CPU gradyanlari ayri tensorler; kova paketleme indeksle).
+    std::vector<dist::Stage> stages;
+    if (const auto* seq = dynamic_cast<const nn::Sequential*>(model_)) {
+      std::size_t p = 0;
+      for (std::size_t i = 0; i < seq->size(); ++i) {
+        const std::size_t count = seq->layer(i)->parameters().size();
+        dist::Stage st;
+        st.id = static_cast<int>(i);
+        for (std::size_t j = 0; j < count; ++j, ++p) {
+          st.slices.push_back(dist::GradSlice{p, params_[p]->grad.numel()});
+        }
+        if (count > 0) {
+          stages.push_back(std::move(st));
+        }
+      }
+      std::reverse(stages.begin(), stages.end());
+      layered_ = true;
+    } else {
+      dist::Stage st;
+      for (std::size_t p = 0; p < params_.size(); ++p) {
+        st.slices.push_back(dist::GradSlice{p, params_[p]->grad.numel()});
+      }
+      stages.push_back(std::move(st));
+      layered_ = false;
+    }
+    stages_ = std::move(stages);
+    plan();
+  }
+
+  void broadcast_parameters() override {
+    require_group();
+    std::vector<dist::WorkPtr> works;
+    for (nexus_model::Parameter* p : params_) {
+      works.push_back(group_->broadcast(p->data.data(), p->data.numel(), DType::F32, 0));
+    }
+    for (const dist::WorkPtr& w : works) {
+      w->wait();
+    }
+  }
+
+  dist::DdpStepStats ddp_stats() const override { return stats_; }
+
+  void micro_step(const std::int32_t* tokens, float grad_weight, int index, int count) override {
     if (index == 0) {
       for (nexus_model::Parameter* p : params_) {
         p->zero_grad();  // eski LanguageTrainer ile ayni sifirlama
@@ -230,12 +277,20 @@ class CpuModuleBackend final : public LmBackend {
         g[i] *= grad_weight;  // mikro adim agirligi (dlogits)
       }
     }
-    model_->backward(full);  // Parameter::grad += (FAZ 2 AccumulateGrad)
+    const bool sync = group_ != nullptr && index + 1 == count;  // no_sync: yalniz son mikro adim
+    if (!sync) {
+      model_->backward(full);  // Parameter::grad += (FAZ 2 AccumulateGrad)
+    } else {
+      sync_backward(full);
+    }
     losses_.push_back(result.loss);
   }
 
   void optimizer_step(const AdamW& opt, double lr, double clip) override {
     ensure_optimizer(opt);
+    if (group_ != nullptr && pending_) {
+      finish_sync();
+    }
     // FAZ 9.8 ortak yardimci (siniflandirma Trainer'i ile ayni): norm, sonluluk, torch kirpma katsayisi.
     const GradClipResult clipped = clip_global_norm(params_, clip);
     norm_ = clipped.norm;
@@ -415,6 +470,115 @@ class CpuModuleBackend final : public LmBackend {
   nn::Module& module() noexcept { return *model_; }
 
  private:
+  void require_group() const {
+    if (group_ == nullptr) {
+      throw std::logic_error("Nexus LM trainer: once attach_process_group");
+    }
+  }
+
+  void plan() {
+    buckets_ = dist::plan_buckets(stages_, ddp_.bucket_bytes);
+    host_.assign(buckets_.size(), dist::HostBucket{});
+    for (std::size_t b = 0; b < buckets_.size(); ++b) {
+      host_[b].resize(buckets_[b].numel, ddp_.ranks_per_node);
+    }
+    bucket_of_.clear();
+    for (std::size_t b = 0; b < buckets_.size(); ++b) {
+      for (int id : buckets_[b].stages) {
+        bucket_of_[id] = b;
+      }
+    }
+  }
+
+  void launch(std::size_t b) {
+    float* dst = host_[b].data();
+    for (const dist::GradSlice& sl : buckets_[b].slices) {
+      std::memcpy(dst, params_[sl.offset]->grad.data(), sl.numel * sizeof(float));
+      dst += sl.numel;
+    }
+    host_[b].launch(*group_, ddp_);
+    launched_[b] = true;
+  }
+
+  // Son mikro adimin geri gecisi: Sequential'da katman katman; her katmanin parametreleri hazir
+  // olunca asamasi isaretlenir, kovasinin tum asamalari hazirsa all-reduce baslar (ProcessGroup is
+  // parcacigi geri gecisin kalaniyla es zamanli calisir).
+  void sync_backward(const nexus_model::Tensor& dlogits) {
+    launched_.assign(buckets_.size(), false);
+    ready_.assign(buckets_.size(), 0);
+    observed_.clear();
+    pending_ = true;
+    const bool early = layered_ && ddp_.overlap && !ddp_.find_unused_parameters;
+    t_bwd0_ = std::chrono::steady_clock::now();
+    if (early) {
+      const auto* seq = static_cast<const nn::Sequential*>(model_);
+      nexus_model::Tensor grad = dlogits;
+      for (std::size_t i = seq->size(); i-- > 0;) {
+        grad = seq->layer(i)->backward(grad);
+        const auto it = bucket_of_.find(static_cast<int>(i));
+        if (it == bucket_of_.end()) {
+          continue;  // parametresiz katman
+        }
+        observed_.push_back(static_cast<int>(i));
+        const std::size_t b = it->second;
+        if (++ready_[b] == static_cast<int>(buckets_[b].stages.size())) {
+          launch(b);
+        }
+      }
+    } else {
+      model_->backward(dlogits);
+    }
+    t_bwd1_ = std::chrono::steady_clock::now();
+  }
+
+  void finish_sync() {
+    for (std::size_t b = 0; b < buckets_.size(); ++b) {
+      if (!launched_[b]) {
+        launch(b);  // ortusmesiz yol / find_unused_parameters: geri gecisten sonra
+      }
+    }
+    using ms = std::chrono::duration<double, std::milli>;
+    stats_ = dist::DdpStepStats{};
+    stats_.backward_ms = ms(t_bwd1_ - t_bwd0_).count();
+    stats_.buckets = static_cast<int>(buckets_.size());
+    for (std::size_t b = 0; b < buckets_.size(); ++b) {
+      host_[b].finish();
+      const float* src = host_[b].data();
+      for (const dist::GradSlice& sl : buckets_[b].slices) {
+        std::memcpy(params_[sl.offset]->grad.data(), src, sl.numel * sizeof(float));
+        src += sl.numel;
+      }
+      const auto s0 = host_[b].work()->started();
+      const auto s1 = host_[b].work()->finished();
+      const double a = ms(s0 - t_bwd0_).count();
+      const double e = ms(s1 - t_bwd0_).count();
+      stats_.comm_first_start_ms = stats_.comm_first_start_ms < 0 ? a : std::min(stats_.comm_first_start_ms, a);
+      stats_.comm_last_end_ms = std::max(stats_.comm_last_end_ms, e);
+      stats_.comm_busy_ms += e - a;
+      stats_.comm_overlapped_ms += std::max(0.0, std::min(e, stats_.backward_ms) - std::max(a, 0.0));
+    }
+    pending_ = false;
+    // Ilk senkron adim: gercek hazir olma sirasi tahminden farkliysa kovalar yeniden kurulur.
+    if (!order_checked_ && !observed_.empty()) {
+      order_checked_ = true;
+      std::vector<int> planned;
+      for (const dist::Stage& st : stages_) {
+        planned.push_back(st.id);
+      }
+      if (planned != observed_) {
+        std::vector<dist::Stage> reordered;
+        for (int id : observed_) {
+          for (const dist::Stage& st : stages_) {
+            if (st.id == id) reordered.push_back(st);
+          }
+        }
+        stages_ = std::move(reordered);
+        plan();
+        stats_.rebuilt = true;
+      }
+    }
+  }
+
   nexus_model::Tensor token_tensor(const std::int32_t* tokens) const {
     nexus_model::Tensor t =
         nexus_model::Tensor::zeros({static_cast<std::size_t>(batch_), static_cast<std::size_t>(time_)});
@@ -499,6 +663,21 @@ class CpuModuleBackend final : public LmBackend {
   double norm_ = 0.0;
   bool skipped_ = false;
   std::int64_t skipped_total_ = 0;
+  // FAZ 10 DDP
+  std::shared_ptr<dist::ProcessGroup> group_;
+  dist::DdpOptions ddp_{};
+  bool layered_ = false;
+  std::vector<dist::Stage> stages_;
+  std::vector<dist::Bucket> buckets_;
+  std::vector<dist::HostBucket> host_;
+  std::map<int, std::size_t> bucket_of_;
+  std::vector<bool> launched_;
+  std::vector<int> ready_;
+  std::vector<int> observed_;
+  bool order_checked_ = false;
+  bool pending_ = false;
+  std::chrono::steady_clock::time_point t_bwd0_{}, t_bwd1_{};
+  dist::DdpStepStats stats_{};
 };
 
 double median_of(std::vector<double> v) {
@@ -512,6 +691,14 @@ double median_of(std::vector<double> v) {
 }
 
 }  // namespace
+
+void LmBackend::attach_process_group(std::shared_ptr<dist::ProcessGroup>, const dist::DdpOptions&) {
+  throw dist::DistError("Nexus LM trainer: bu arka uc veri paralelligini desteklemiyor");
+}
+
+void LmBackend::broadcast_parameters() {
+  throw dist::DistError("Nexus LM trainer: bu arka uc veri paralelligini desteklemiyor");
+}
 
 BackendFactory cpu_backend(nn::Module& model) {
   return [&model](const LmBackendRequest& request) -> std::unique_ptr<LmBackend> {
@@ -748,6 +935,16 @@ LanguageTrainerBuilder& LanguageTrainerBuilder::after_backward(std::function<voi
   return *this;
 }
 
+LanguageTrainerBuilder& LanguageTrainerBuilder::process_group(std::shared_ptr<dist::ProcessGroup> group,
+                                                              dist::DdpOptions options) {
+  if (!group) {
+    throw std::invalid_argument("LanguageTrainerBuilder: bos ProcessGroup");
+  }
+  group_ = std::move(group);
+  ddp_ = options;
+  return *this;
+}
+
 std::unique_ptr<LanguageModelTrainer> LanguageTrainerBuilder::build() {
   return std::unique_ptr<LanguageModelTrainer>(new LanguageModelTrainer(*this));
 }
@@ -761,17 +958,27 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
       adamw_(b.adamw_), schedule_(b.schedule_), micro_batch_(b.request_.micro_batch), seq_len_(b.request_.seq_len),
       clip_(b.clip_), eval_every_(b.eval_every_), log_every_(b.log_every_), nan_(b.nan_), spike_(b.spike_),
       histogram_every_(b.histogram_every_), console_(b.console_), loggers_(b.loggers_),
-      after_backward_(b.after_backward_) {
+      after_backward_(b.after_backward_), group_(b.group_) {
+  if (group_) {
+    dp_ = group_->size();
+    rank_ = group_->rank();
+  }
+  if (rank_ != 0) {
+    console_ = false;  // gunluk yalniz rank 0'da
+    loggers_.clear();
+  }
   if (train_ == nullptr) {
     throw std::invalid_argument("LanguageTrainerBuilder: .data(train, ...) gerekli");
   }
   const std::int64_t per_micro = static_cast<std::int64_t>(micro_batch_) * seq_len_;
   if (b.global_batch_tokens_ > 0) {
-    if (b.global_batch_tokens_ % per_micro != 0) {
-      throw std::invalid_argument("LanguageTrainerBuilder: global_batch_tokens, micro_batch * seq_len'in kati olmali (" +
-                                  std::to_string(b.global_batch_tokens_) + " % " + std::to_string(per_micro) + ")");
+    const std::int64_t per_step = per_micro * dp_;
+    if (b.global_batch_tokens_ % per_step != 0) {
+      throw std::invalid_argument(
+          "LanguageTrainerBuilder: global_batch_tokens, micro_batch * seq_len * dp'nin kati olmali (" +
+          std::to_string(b.global_batch_tokens_) + " % " + std::to_string(per_step) + ")");
     }
-    accum_ = static_cast<int>(b.global_batch_tokens_ / per_micro);  // dp_size = 1 (FAZ 10: / dunya boyutu)
+    accum_ = static_cast<int>(b.global_batch_tokens_ / per_step);  // global = micro * accum * dp
   }
   LmBackendRequest request = b.request_;
   request.accum_steps = accum_;
@@ -808,6 +1015,10 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
     }
   }
   backend_->set_param_scales(wd, lr);
+  if (group_ && dp_ > 1) {
+    backend_->attach_process_group(group_, b.ddp_);
+    backend_->broadcast_parameters();
+  }
   if (eval_every_ > 0) {
     if (val_ == nullptr) {
       throw std::invalid_argument("LanguageTrainerBuilder: eval_every icin dogrulama kaynagi gerekli");
@@ -823,7 +1034,11 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
 LanguageModelTrainer::~LanguageModelTrainer() = default;
 
 std::int64_t LanguageModelTrainer::tokens_per_step() const noexcept {
-  return static_cast<std::int64_t>(accum_) * micro_batch_ * seq_len_;
+  return static_cast<std::int64_t>(accum_) * micro_batch_ * seq_len_ * dp_;  // kuresel
+}
+
+std::string LanguageModelTrainer::rank_path(const std::string& path) const {
+  return dp_ > 1 ? path + ".rank" + std::to_string(rank_) : path;
 }
 
 double LanguageModelTrainer::flops_per_token() const {
@@ -915,6 +1130,9 @@ TrainSummary LanguageModelTrainer::train(std::int64_t max_steps) {
       }
       total_valid += valid[static_cast<std::size_t>(i)];
     }
+    if (dp_ > 1) {
+      group_->all_reduce(&total_valid, 1, DType::I64, dist::ReduceOp::Sum)->wait();  // kuresel token agirligi
+    }
     if (total_valid == 0) {
       throw std::runtime_error("Nexus LM trainer: adimda gecerli hedef token yok");
     }
@@ -954,10 +1172,14 @@ TrainSummary LanguageModelTrainer::train(std::int64_t max_steps) {
     for (std::size_t i = 0; i < result.losses.size() && i < weights.size(); ++i) {
       loss += weights[i] * static_cast<double>(result.losses[i]);
     }
+    if (dp_ > 1) {
+      group_->all_reduce(&loss, 1, DType::F64, dist::ReduceOp::Sum)->wait();  // kuresel token agirlikli kayip
+      rec.ddp = backend_->ddp_stats();
+    }
     rec.loss = loss;
     rec.tokens_per_s = static_cast<double>(tokens_per_step()) / (step_ms / 1000.0);
     const double peak = backend_->peak_flops();
-    rec.mfu = peak > 0.0 ? flops_per_token() * rec.tokens_per_s / peak : std::numeric_limits<double>::quiet_NaN();
+    rec.mfu = peak > 0.0 ? flops_per_token() * rec.tokens_per_s / (peak * dp_) : std::numeric_limits<double>::quiet_NaN();
     rec.peak_memory = backend_->peak_memory_bytes();
 
     const bool anomaly = !std::isfinite(loss) || (!backend_->loss_scaled() && (result.skipped || !std::isfinite(result.grad_norm)));
@@ -1122,6 +1344,10 @@ EvalResult LanguageModelTrainer::evaluate() {
     tokens += valid;
   }
   val_->restore(saved);
+  if (dp_ > 1) {  // her rank kendi dogrulama parcasini degerlendirir
+    group_->all_reduce(&sum, 1, DType::F64, dist::ReduceOp::Sum)->wait();
+    group_->all_reduce(&tokens, 1, DType::I64, dist::ReduceOp::Sum)->wait();
+  }
   EvalResult r;
   r.tokens = tokens;
   r.loss = tokens > 0 ? sum / static_cast<double>(tokens) : std::numeric_limits<double>::quiet_NaN();
@@ -1192,17 +1418,17 @@ void LanguageModelTrainer::save(const std::string& path) const {
   w.str(val_ != nullptr ? val_->state() : std::string());
   const std::vector<unsigned char> blob = backend_->save_state();
   w.bytes(blob.data(), blob.size());
-  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  std::ofstream out(rank_path(path), std::ios::binary | std::ios::trunc);
   out.write(reinterpret_cast<const char*>(w.out.data()), static_cast<std::streamsize>(w.out.size()));
   if (!out) {
-    throw std::runtime_error("LanguageModelTrainer::save: yazilamadi " + path);
+    throw std::runtime_error("LanguageModelTrainer::save: yazilamadi " + rank_path(path));
   }
 }
 
 void LanguageModelTrainer::resume(const std::string& path) {
-  std::ifstream in(path, std::ios::binary);
+  std::ifstream in(rank_path(path), std::ios::binary);
   if (!in) {
-    throw std::runtime_error("LanguageModelTrainer::resume: acilamadi " + path);
+    throw std::runtime_error("LanguageModelTrainer::resume: acilamadi " + rank_path(path));
   }
   std::vector<unsigned char> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
   if (data.size() < 8 || std::memcmp(data.data(), kMagic, 8) != 0) {

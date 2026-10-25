@@ -22,6 +22,13 @@
  * Tepe FLOPS: CC 8.6/8.9 icin SM basina saat basina 512 (BF16/F16, FP32 biriktirme, dense) ve 256
  * (TF32); CC 8.0 icin 1024 / 512; saat NVML azami SM saati (yoksa cudaDevAttrClockRate). Diger mimariler 0.
  *
+ * FAZ 10.3 DDP (attach_process_group): son mikro adimda GptModel geri gecis kancasi her asama
+ * (lnf, katman L-1..0, gomme) icin hesap akisina olay kaydeder; tum asamalari hazir olan kova bir
+ * iletisim is parcacigina verilir: ayri akista olayi bekler -> dilimleri pinned host kovaya D2H ->
+ * ProcessGroup all-reduce (host, tcp) -> H2D geri -> bitis olayi. optimizer_step tum kovalari bekler,
+ * hesap akisi bitis olaylarini bekler. Iletisim geri gecisin kalaniyla ortusur. Tek GPU'yu paylasan
+ * cok surecte calisir (WDDM'de CUDA IPC / NCCL yok: aktarim host uzerinden).
+ *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
  * olarak gelistirilmistir.
@@ -68,10 +75,20 @@ class GptLmBackend final : public train::LmBackend {
   void reset_peak_memory() override;
   double peak_flops() const override { return peak_flops_; }
 
+  void attach_process_group(std::shared_ptr<dist::ProcessGroup> group, const dist::DdpOptions& options) override;
+  void broadcast_parameters() override;
+  dist::DdpStepStats ddp_stats() const override { return stats_; }
+
   [[nodiscard]] GptModel& model() noexcept { return *model_; }
 
  private:
   const std::int32_t* upload(const std::int32_t* tokens);
+  struct Ddp;
+  void on_stage(int stage);
+  void finish_sync();
+  void plan_buckets();
+  std::unique_ptr<Ddp> ddp_;
+  dist::DdpStepStats stats_{};
 
   int device_ = 0;
   Stream stream_;

@@ -44,6 +44,7 @@
 #include "nexus/cuda/runtime.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -186,6 +187,13 @@ class GptModel {
     double grad = 0.0;
   };
   [[nodiscard]] std::vector<NormEntry> layer_norms() const;
+  /// FAZ 10.3 DDP: geri gecis asama kancasi (host'ta, isler kuyruga alinirken cagrilir; asamanin
+  /// gradyanlari o ana kadar kuyruga alinmis islerle tamamlanir, cagiran akisa olay kaydetmeli).
+  /// Sira: kStageHead (lnf_w/b), katman L-1 ... 0 (katmanin tum [l] dilimleri), kStageEmbedding
+  /// (wte, wpe). Bos fonksiyon: kanca yok.
+  static constexpr int kStageHead = -1;
+  static constexpr int kStageEmbedding = -2;
+  void set_backward_hook(std::function<void(int stage)> hook) { backward_hook_ = std::move(hook); }
   /// Yalniz ileri + kayip (degerlendirme).
   void forward(const std::int32_t* d_tokens);
   /// Foreach AdamW; agirlik sonumu yalniz 2B matrislere. grad norm aygitta.
@@ -261,6 +269,7 @@ class GptModel {
   bool guard_ = false;       // FAZ 9.7: kayip olceksiz inf/NaN adim atlama
   float grad_scale_ = 1.0f;  // FAZ 9.2: forward_backward mikro adim agirligi
   bool accumulate_ = false;  // FAZ 9.2: bu geri geciste gradyana ekle
+  std::function<void(int)> backward_hook_;  // FAZ 10.3
   std::vector<GptParamScale> scales_;
   std::int64_t step_ = 0;
   DeviceBuffer params_, shadow_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_, loss_scale_state_;
