@@ -16,6 +16,7 @@
  * olarak gelistirilmistir.
  */
 
+#include "autoparallel.hpp"
 #include "estimate.hpp"
 #include "json_mini.hpp"
 
@@ -32,6 +33,10 @@ namespace {
 using nexus::estimate::DTypePlan;
 using nexus::estimate::ModelShape;
 using nexus::estimate::Plan;
+using nexus::estimate::AutoOptions;
+using nexus::estimate::AutoResult;
+using nexus::estimate::Candidate;
+using nexus::estimate::Cluster;
 
 void usage() {
   std::cout <<
@@ -45,6 +50,9 @@ void usage() {
       "  --param-bytes N --grad-bytes N --optim-bytes N --master-bytes N --act-bytes N\n"
       "  --peak-tflops X --mem-gbps X    roofline ust siniri icin (ops.)\n"
       "  --json <dosya>                  JSON cikti yolu (ops.)\n"
+      "  --auto-parallel                 FAZ 12.G: (dp,tp,pp,cp,mikro-yigin,recompute,zero) onericisi\n"
+      "    --gpus N --gpus-per-node N --gpu-mem-gib X --peak-tflops X --intra-gbps X --inter-gbps X\n"
+      "    --mfu X --dp-overlap X --global-batch-tokens N --top N\n"
       "  --help\n";
 }
 
@@ -213,6 +221,9 @@ int main(int argc, char** argv) {
   double mem_gbps = 0.0;
   std::string json_path;
   bool preset_applied = false;
+  bool auto_mode = false;
+  Cluster cluster;
+  AutoOptions auto_opt;
 
   try {
     for (int i = 1; i < argc; ++i) {
@@ -291,6 +302,27 @@ int main(int argc, char** argv) {
         dtype.activation_elem_bytes = std::stoll(next_value());
       } else if (argument == "--peak-tflops") {
         peak_tflops = std::stod(next_value());
+        cluster.peak_tflops = peak_tflops;
+      } else if (argument == "--auto-parallel") {
+        auto_mode = true;
+      } else if (argument == "--gpus") {
+        cluster.gpus = std::stoi(next_value());
+      } else if (argument == "--gpus-per-node") {
+        cluster.gpus_per_node = std::stoi(next_value());
+      } else if (argument == "--gpu-mem-gib") {
+        cluster.mem_gib = std::stod(next_value());
+      } else if (argument == "--intra-gbps") {
+        cluster.intra_gbps = std::stod(next_value());
+      } else if (argument == "--inter-gbps") {
+        cluster.inter_gbps = std::stod(next_value());
+      } else if (argument == "--mfu") {
+        cluster.mfu = std::stod(next_value());
+      } else if (argument == "--dp-overlap") {
+        cluster.dp_overlap = std::stod(next_value());
+      } else if (argument == "--global-batch-tokens") {
+        auto_opt.global_batch_tokens = std::stoll(next_value());
+      } else if (argument == "--top") {
+        auto_opt.top = std::stoi(next_value());
       } else if (argument == "--mem-gbps") {
         mem_gbps = std::stod(next_value());
       } else {
@@ -306,6 +338,36 @@ int main(int argc, char** argv) {
       shape = preset_shape("gpt2-124m");
     }
 
+    if (auto_mode) {
+      const AutoResult r = nexus::estimate::auto_parallel(shape, dtype, cluster, auto_opt);
+      std::printf("Otomatik paralellik (TAHMIN, olcum degil): %d GPU (%d/dugum), %.0f GiB, %.0f TFLOPS, mfu %.2f\n",
+                  cluster.gpus, cluster.gpus_per_node, cluster.mem_gib, cluster.peak_tflops, cluster.mfu);
+      std::printf("Denenen %lld, sigan %lld kombinasyon\n", static_cast<long long>(r.evaluated),
+                  static_cast<long long>(r.feasible));
+      std::string js = "{\"evaluated\": " + std::to_string(r.evaluated) + ", \"feasible\": " + std::to_string(r.feasible) +
+                       ", \"best\": [";
+      int rank = 1;
+      for (const Candidate& c : r.best) {
+        std::printf("#%d dp=%d tp=%d pp=%d cp=%d zero=%d mb=%d accum=%lld recompute=%s | bellek %.1f GiB (statik %.1f, akt %.1f, "
+                    "logit %.1f) | adim %.3f s (hesap %.3f, tp %.3f, cp %.3f, dp %.3f, kabarcik %.1f%%) | MFU %.1f%%\n",
+                    rank, c.dp, c.tp, c.pp, c.cp, c.zero, c.micro_batch, static_cast<long long>(c.grad_accum),
+                    c.recompute ? "evet" : "hayir", c.memory_gib, c.static_gib, c.activation_gib, c.logits_gib, c.step_s,
+                    c.compute_s, c.tp_comm_s, c.cp_comm_s, c.dp_comm_s, 100.0 * c.bubble, 100.0 * c.mfu);
+        js += std::string(rank > 1 ? ", " : "") + "{\"dp\": " + std::to_string(c.dp) + ", \"tp\": " + std::to_string(c.tp) +
+              ", \"pp\": " + std::to_string(c.pp) + ", \"cp\": " + std::to_string(c.cp) + ", \"zero\": " + std::to_string(c.zero) +
+              ", \"micro_batch\": " + std::to_string(c.micro_batch) + ", \"recompute\": " + (c.recompute ? "true" : "false") +
+              ", \"memory_gib\": " + std::to_string(c.memory_gib) + ", \"step_s\": " + std::to_string(c.step_s) +
+              ", \"mfu\": " + std::to_string(c.mfu) + "}";
+        ++rank;
+      }
+      js += "], \"note\": \"" + r.note + "\"}\n";
+      if (!r.note.empty()) std::printf("%s\n", r.note.c_str());
+      if (!json_path.empty()) {
+        std::ofstream file(json_path, std::ios::binary | std::ios::trunc);
+        file << js;
+      }
+      return r.best.empty() ? 3 : 0;
+    }
     print_table(shape, dtype, plan);
     const std::string json = json_output(shape, dtype, plan, peak_tflops, mem_gbps);
     if (!json_path.empty()) {

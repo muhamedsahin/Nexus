@@ -3,6 +3,7 @@
 # benchmarks/runner/estimate.py ile parite tests/parity altinda dogrulanir.
 add_library(nexus_estimate_core STATIC
     estimate.cpp
+    autoparallel.cpp
     json_mini.cpp)
 
 target_include_directories(nexus_estimate_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

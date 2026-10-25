@@ -704,6 +704,20 @@ WorkPtr ProcessGroup::recv(void* data, std::size_t count, DType dtype, int src, 
   }, false);
 }
 
+WorkPtr ProcessGroup::send_recv(const void* send_data, std::size_t send_count, int dst, void* recv_data,
+                                std::size_t recv_count, int src, DType dtype, int tag) {
+  if (dst < 0 || dst >= size_ || dst == rank_ || src < 0 || src >= size_ || src == rank_) {
+    throw DistError("Nexus dist: send_recv hedef/kaynak gecersiz");
+  }
+  return enqueue("send_recv", dtype, send_count, dst, [this, send_data, send_count, dst, recv_data, recv_count, src, dtype, tag] {
+    const std::uint32_t ch = channel(group_id_, kP2P, tag);
+    const int to = members_[static_cast<std::size_t>(dst)];
+    const std::uint64_t t = transport_->isend(to, ch, send_data, send_count * size_of(dtype));
+    transport_->recv(members_[static_cast<std::size_t>(src)], ch, recv_data, recv_count * size_of(dtype), options_.timeout);
+    transport_->wait_send(to, t, options_.timeout);
+  }, false);
+}
+
 WorkPtr ProcessGroup::barrier() {
   auto buf = std::make_shared<std::vector<std::int32_t>>(static_cast<std::size_t>(size_), 1);
   WorkPtr w = all_reduce(buf->data(), buf->size(), DType::I32, ReduceOp::Sum);
@@ -725,6 +739,10 @@ WorkPtr ProcessGroup::barrier() {
 void ProcessGroup::synchronize() { barrier()->wait(); }
 
 GroupPtr ProcessGroup::new_group(const std::vector<int>& ranks) {
+  if (next_child_ >= 64u) {
+    // Kanal kimligi ust * 64 + cocuk: 64. cocuk torun kimligiyle cakisirdi (sessiz karisma yerine hata).
+    throw DistError("Nexus dist: bir gruptan en fazla 63 alt grup kurulabilir");
+  }
   const std::uint32_t id = group_id_ * 64u + next_child_++;
   if (ranks.empty()) throw DistError("Nexus dist: new_group bos liste");
   std::vector<int> world;

@@ -825,6 +825,9 @@ void FixedRowsSource::next(std::int32_t* dst, int rows, int time, std::uint64_t*
 
 LanguageTrainerBuilder::LanguageTrainerBuilder(nn::Module& model) : factory_(cpu_backend(model)), cpu_module_(true) {}
 
+LanguageTrainerBuilder::LanguageTrainerBuilder(const lm::LanguageModel& model)
+    : factory_(parallel_backend(model, nullptr, {})), lm_model_(&model) {}
+
 LanguageTrainerBuilder::LanguageTrainerBuilder(BackendFactory factory) : factory_(std::move(factory)) {
   if (!factory_) {
     throw std::invalid_argument("LanguageTrainerBuilder: bos arka uc fabrikasi");
@@ -1015,6 +1018,43 @@ LanguageTrainerBuilder& LanguageTrainerBuilder::fsdp(std::shared_ptr<dist::Proce
 }
 
 LanguageTrainerBuilder& LanguageTrainerBuilder::parallel(std::shared_ptr<dist::ProcessGroup> group, Parallel config) {
+  if (lm_model_ != nullptr) {
+    // FAZ 12: lm::LanguageModel -> ParallelLm (DP x PP x CP x TP); grup = world.
+    if (!group) {
+      throw std::invalid_argument("LanguageTrainerBuilder: bos ProcessGroup");
+    }
+    dist::ParallelConfig c;
+    c.dp = config.dp;
+    c.tp = config.tp;
+    c.pp = config.pp;
+    c.cp = config.cp;
+    c.zero = config.zero < 0 ? 0 : config.zero;
+    c.sp = config.sp;
+    c.async_tp = config.async_tp;
+    c.pp_schedule = dist::parse_pipe_schedule(config.pp_schedule);
+    c.virtual_stages = config.virtual_stages;
+    if (config.cp_algorithm == "ring") {
+      c.cp_algorithm = dist::CpAlgorithm::Ring;
+    } else if (config.cp_algorithm == "ulysses") {
+      c.cp_algorithm = dist::CpAlgorithm::Ulysses;
+    } else {
+      throw std::invalid_argument("LanguageTrainerBuilder: cp_algorithm 'ring' | 'ulysses'");
+    }
+    if (config.cp_layout == "zigzag") {
+      c.cp_layout = dist::CpLayout::Zigzag;
+    } else if (config.cp_layout == "contiguous") {
+      c.cp_layout = dist::CpLayout::Contiguous;
+    } else {
+      throw std::invalid_argument("LanguageTrainerBuilder: cp_layout 'zigzag' | 'contiguous'");
+    }
+    parallel_ = c;
+    world_ = group;
+    factory_ = parallel_backend(*lm_model_, std::move(group), c);
+    return *this;
+  }
+  if (config.tp != 1 || config.pp != 1 || config.cp != 1) {
+    throw std::invalid_argument("LanguageTrainerBuilder: tp/pp/cp > 1 builder'in lm::LanguageModel ile kurulmasini ister");
+  }
   if (config.zero < 0) {
     return process_group(std::move(group), config.ddp);
   }
@@ -1040,6 +1080,12 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
     dp_ = group_->size();
     rank_ = group_->rank();
   }
+  if (b.lm_model_ != nullptr && b.world_) {
+    dp_ = b.parallel_.dp;  // FAZ 12: dp grubu arka ucun cihaz aginda; gunluk dunya rank 0'da
+    rank_ = b.world_->rank();
+    multi_rank_ = b.world_->size() > 1;
+  }
+  multi_rank_ = multi_rank_ || dp_ > 1;
   if (rank_ != 0) {
     console_ = false;  // gunluk yalniz rank 0'da
     loggers_.clear();
@@ -1060,6 +1106,9 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
   LmBackendRequest request = b.request_;
   request.accum_steps = accum_;
   backend_ = b.factory_(request);
+  if (b.lm_model_ != nullptr && dp_ > 1) {
+    group_ = backend_->data_parallel_group();
+  }
   if (backend_->micro_batch() != micro_batch_ || backend_->seq_len() != seq_len_) {
     throw std::logic_error("LanguageTrainerBuilder: arka uc yigin sekli istenenle ayni degil");
   }
@@ -1094,7 +1143,7 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
   backend_->set_param_scales(wd, lr);
   if (group_ && b.use_fsdp_) {
     backend_->attach_fsdp(group_, b.fsdp_);  // rank 0'dan yayin + parcalama icinde
-  } else if (group_ && dp_ > 1) {
+  } else if (group_ && dp_ > 1 && b.lm_model_ == nullptr) {
     backend_->attach_process_group(group_, b.ddp_);
     backend_->broadcast_parameters();
   }
@@ -1117,7 +1166,7 @@ std::int64_t LanguageModelTrainer::tokens_per_step() const noexcept {
 }
 
 std::string LanguageModelTrainer::rank_path(const std::string& path) const {
-  return dp_ > 1 ? path + ".rank" + std::to_string(rank_) : path;
+  return multi_rank_ ? path + ".rank" + std::to_string(rank_) : path;
 }
 
 double LanguageModelTrainer::flops_per_token() const {

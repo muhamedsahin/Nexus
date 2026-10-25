@@ -1,0 +1,46 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+      Start 47: test_old_api_still_works
+ 1/20 Test #47: test_old_api_still_works ..............   Passed    0.13 sec
+      Start 57: test_collectives_thread
+ 2/20 Test #57: test_collectives_thread ...............   Passed    1.06 sec
+      Start 58: test_collectives_tcp_2
+ 3/20 Test #58: test_collectives_tcp_2 ................   Passed    0.33 sec
+      Start 59: test_collectives_tcp_3
+ 4/20 Test #59: test_collectives_tcp_3 ................   Passed    0.37 sec
+      Start 60: test_collectives_tcp_4
+ 5/20 Test #60: test_collectives_tcp_4 ................   Passed    0.36 sec
+      Start 61: test_collectives_tcp_8
+ 6/20 Test #61: test_collectives_tcp_8 ................   Passed    0.39 sec
+      Start 65: test_collectives_nccl
+ 7/20 Test #65: test_collectives_nccl .................   Passed    0.05 sec
+      Start 70: test_zero_stages_equivalence
+ 8/20 Test #70: test_zero_stages_equivalence ..........   Passed    1.40 sec
+      Start 71: test_zero_stages_equivalence_tcp
+ 9/20 Test #71: test_zero_stages_equivalence_tcp ......   Passed    0.77 sec
+      Start 77: test_dtensor_redistribute_all_pairs
+10/20 Test #77: test_dtensor_redistribute_all_pairs ...   Passed    0.70 sec
+      Start 78: test_tp_equivalence
+11/20 Test #78: test_tp_equivalence ...................   Passed    1.36 sec
+      Start 79: test_vocab_parallel_ce_equals_full
+12/20 Test #79: test_vocab_parallel_ce_equals_full ....   Passed    0.27 sec
+      Start 80: test_pp_schedules_equivalence
+13/20 Test #80: test_pp_schedules_equivalence .........   Passed    1.27 sec
+      Start 81: test_ring_attention_equals_flash
+14/20 Test #81: test_ring_attention_equals_flash ......   Passed    0.24 sec
+      Start 82: test_parallel_zero1_equivalence
+15/20 Test #82: test_parallel_zero1_equivalence .......   Passed    0.54 sec
+      Start 83: test_3d_equivalence
+16/20 Test #83: test_3d_equivalence ...................   Passed    1.73 sec
+      Start 84: test_4d_equivalence
+17/20 Test #84: test_4d_equivalence ...................   Passed    2.20 sec
+      Start 85: test_parallel_trainer_api
+18/20 Test #85: test_parallel_trainer_api .............   Passed    0.59 sec
+      Start 86: test_tp_equivalence_tcp
+19/20 Test #86: test_tp_equivalence_tcp ...............   Passed    0.55 sec
+      Start 87: test_auto_parallel_config
+20/20 Test #87: test_auto_parallel_config .............   Passed    0.12 sec
+
+100% tests passed, 0 tests failed out of 20
+
+Total Test time (real) =  14.53 sec

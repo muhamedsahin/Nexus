@@ -57,13 +57,18 @@ add_library(nexus STATIC
     src/model/nxs.cpp
     src/train/lm_trainer.cpp
     src/train/loggers.cpp
+    src/train/parallel_backend.cpp
     src/dist/net.cpp
     src/dist/store.cpp
     src/dist/process_group.cpp
     src/dist/ddp.cpp
     src/dist/topology.cpp
     src/dist/nvme.cpp
-    src/dist/fsdp.cpp)
+    src/dist/fsdp.cpp
+    src/dist/dtensor.cpp
+    src/dist/context_parallel.cpp
+    src/dist/pipeline.cpp
+    src/dist/parallel_lm.cpp)
 add_library(nexus::nexus ALIAS nexus)
 
 target_compile_features(nexus PUBLIC cxx_std_20)

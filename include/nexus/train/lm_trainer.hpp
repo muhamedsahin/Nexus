@@ -36,6 +36,7 @@
 #include "nexus/core/config.hpp"
 #include "nexus/dist/ddp.hpp"
 #include "nexus/dist/fsdp_options.hpp"
+#include "nexus/dist/parallel_lm.hpp"
 #include "nexus/train/schedule.hpp"
 #include "nexus_train/logging/logger_base.hpp"
 
@@ -53,6 +54,9 @@ class TokenStream;
 }  // namespace nexusdata
 
 namespace nexus {
+namespace lm {
+class LanguageModel;
+}  // namespace lm
 namespace nn {
 class Module;
 }  // namespace nn
@@ -210,12 +214,19 @@ class LmBackend {
   /// FAZ 11: ZeRO / FSDP (parametre, gradyan, optimizer parcalama). Yalniz CPU nn::Sequential arka ucu.
   virtual void attach_fsdp(std::shared_ptr<dist::ProcessGroup> group, const dist::FsdpOptions& options);
   [[nodiscard]] virtual dist::FsdpEngine* fsdp() noexcept { return nullptr; }
+  /// FAZ 12: arka uc kendi cihaz agini kurduysa veri paralel grubu (token agirligi toplami icin).
+  [[nodiscard]] virtual std::shared_ptr<dist::ProcessGroup> data_parallel_group() const { return nullptr; }
+  [[nodiscard]] virtual dist::ParallelLm* parallel_model() noexcept { return nullptr; }
 };
 
 using BackendFactory = std::function<std::unique_ptr<LmBackend>(const LmBackendRequest&)>;
 
 /// CPU arka ucu: nn::Module, FP32, NexusOptim AdamW (grup basina sonum ve LR).
 [[nodiscard]] BackendFactory cpu_backend(nn::Module& model);
+/// FAZ 12: lm::LanguageModel'in 4B paralel CPU arka ucu (dist::ParallelLm). world bos: tek rank.
+/// Mikro adimlar (biriktirme) pipeline mikro yiginlaridir; son mikro adimda tum zamanlama kosar.
+[[nodiscard]] BackendFactory parallel_backend(const lm::LanguageModel& model, std::shared_ptr<dist::ProcessGroup> world,
+                                              dist::ParallelConfig config);
 
 // ------------------------------------------------------------------------------------------
 // Veri
@@ -323,6 +334,8 @@ class LanguageTrainerBuilder {
  public:
   explicit LanguageTrainerBuilder(nn::Module& model);
   explicit LanguageTrainerBuilder(BackendFactory factory);
+  /// FAZ 12: lm::build yapilandirmasi; .parallel({dp, tp, pp, cp, ...}) paralel katman surumlerini secer.
+  explicit LanguageTrainerBuilder(const lm::LanguageModel& model);
 
   LanguageTrainerBuilder& data(TokenBatchSource& train, TokenBatchSource* validation = nullptr);
   LanguageTrainerBuilder& data(nexusdata::text::TokenStream& train, nexusdata::text::TokenStream* validation = nullptr);
@@ -355,10 +368,22 @@ class LanguageTrainerBuilder {
   /// FAZ 11: ZeRO / FSDP / HSDP (dp = grup boyu). Ayni token agirligi ve gunluk kurallari.
   LanguageTrainerBuilder& fsdp(std::shared_ptr<dist::ProcessGroup> group, dist::FsdpOptions options = {});
   /// .parallel({zero}) kisayolu: zero < 0 DDP, 0..3 ZeRO asamasi (FsdpEngine).
+  /// FAZ 12 (builder lm::LanguageModel ile kurulduysa): grup = world; dp * tp * pp * cp = world boyu;
+  /// zero 0/1 (< 0: 0). pp_schedule: "gpipe" | "1f1b" | "interleaved_1f1b" | "zb_h1".
   struct Parallel {
     int zero = -1;
     dist::FsdpOptions fsdp{};
     dist::DdpOptions ddp{};
+    int dp = 1;
+    int tp = 1;
+    int pp = 1;
+    int cp = 1;
+    bool sp = false;
+    bool async_tp = false;
+    std::string pp_schedule = "1f1b";
+    int virtual_stages = 1;
+    std::string cp_algorithm = "ring";  // "ring" | "ulysses"
+    std::string cp_layout = "zigzag";   // "zigzag" | "contiguous"
   };
   LanguageTrainerBuilder& parallel(std::shared_ptr<dist::ProcessGroup> group, Parallel config);
 
@@ -391,6 +416,9 @@ class LanguageTrainerBuilder {
   dist::DdpOptions ddp_{};
   bool use_fsdp_ = false;
   dist::FsdpOptions fsdp_{};
+  const lm::LanguageModel* lm_model_ = nullptr;  // FAZ 12 paralel arka uc
+  dist::ParallelConfig parallel_{};
+  std::shared_ptr<dist::ProcessGroup> world_;
 };
 
 class LanguageModelTrainer {
@@ -461,6 +489,7 @@ class LanguageModelTrainer {
   std::shared_ptr<dist::ProcessGroup> group_;
   int dp_ = 1;
   int rank_ = 0;
+  bool multi_rank_ = false;  // kayit dosyasi rank basina (dp > 1 ya da FAZ 12 dunya > 1)
   [[nodiscard]] std::string rank_path(const std::string& path) const;
 
   std::int64_t step_ = 0;

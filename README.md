@@ -13,11 +13,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest_se%C3%A7ili-39%2F39_ge%C3%A7ti-2EA44F?style=flat-square)
+![Testler](https://img.shields.io/badge/ctest-108%2F108_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--11_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--12_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,18 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**25 Ekim 2026 — FAZ 12 TP / SP / PP / CP, DeviceMesh / DTensor** ([rapor](docs/benchmarks/2026-10-25-faz12/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| DTensor redistribute, tüm (kaynak, hedef) çiftleri | 1B mesh **16/16**, 2×2 mesh **196/196** |
+| TP / SP / async TP, tp=2/4, 3 model (GQA, KV kopyalama dahil) | kayıp farkı **0**, gradyan ≤ 6.9e-7; tp=1 = `lm::LanguageModel` otogradı |
+| PP: GPipe / 1F1B / interleaved / ZB-H1 | gradyan **bit bit aynı**; kabarcık m=8: 0.18 / 0.19 / **0.11** / 0.14 |
+| 4B (dp=2 × pp=2 × cp=2 × tp=2), 16 rank, 3 adım | tek ranka göre kayıp 3.6e-6, gradyan 6.9e-7 |
+| Ring attention zigzag, cp=8 | **128k bağlam** ileri+geri çalışıyor, rank başına 76 MB |
+| TP adım süresi (CPU, 4.3M param) tp=1 / 4+SP+async | Nexus 536 → **157 ms** · PyTorch TP 283 → 420 ms (ölçeklenmiyor) · PyTorch 8 iş p. TP'siz **105 ms** (önde) |
+| 7B MFU ≥ TorchTitan/Megatron | ⛔ ölçülemedi (tek GPU, GPU yolunda TP/PP/CP yok) |
+
 **25 Ekim 2026 — FAZ 11 ZeRO / FSDP** ([rapor](docs/benchmarks/2026-10-25-faz11/README.md))
 
 | Ölçüm | Sonuç |
@@ -375,8 +387,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 9 | Dil modeli eğitmeni v2: builder, token ağırlıklı biriktirme (ek tampon yok), zamanlayıcılar, gruplar/µP, değerlendirme, MFU, TensorBoard/W&B, NaN/sıçrama teşhisi, eski API yönlendirmesi | ✅ token/s ≥ nanoGPT eager (+%3–4, daha az bellek), ısınma sonrası eğri ±%1, eski API bit bit · 🟡 torch.compile'dan %4–9 geride, ısınmada %3.5, TF/XLA ölçülmedi, GPU kayıp maskesi açık |
 | 10 | Çok süreç: ProcessGroup (thread/tcp), TCPStore, `nexus-run`, kovalı + örtüşmeli DDP (CPU + GPU), `no_sync`, BF16 sıkıştırma, hiyerarşik all-reduce, kollektif doğrulama | ✅ eşdeğerlik (≤1e-6, sıfır-gradyanlı anahtar bias'ı hariç), örtüşme kanıtı, rank ölümünde temiz çıkış, busbw gloo'dan yüksek · ⛔ çok GPU / NCCL ölçülemedi (tek GPU, Windows) |
 | 11 | ZeRO-0/1/2/3, FSDP, HSDP, önceden getirme + sınırlayıcı, BF16 iletişim, NVMe takası, parçalı kayıt + yeniden parçalama (CPU) | ✅ aşamalar bit bit eşdeğer, ZeRO-3 bellek 1/dp (FSDP2 ile aynı), FSDP2'den hızlı · ⛔ GPU FSDP ve 7B ZeRO-Infinity yok · 🟡 ZeRO-0/1/2 fazladan kopya, kopyasız görünüm yok |
-| 12 | TP/SP/PP/CP, DeviceMesh, DTensor | ⏭ sıradaki |
-| 13–22 | derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 12 | DeviceMesh/DTensor (redistribute + yayılım), TP (sözlük-parçalı CE, GQA), SP, async TP, PP (GPipe/1F1B/interleaved/ZB-H1), CP (ring zigzag + Ulysses), ZeRO-1, `nexus_estimate --auto-parallel`, `.parallel({dp,tp,pp,cp})` (CPU) | ✅ tüm eşdeğerlikler (4B 16 rank dahil), 128k ring attention · ⛔ GPU TP/PP/CP ve 7B MFU yok · 🟡 tek iş p. çekirdekler PyTorch'tan 1.9× yavaş, ZB-H1 çalışma anı, tahminci kalibre değil |
+| 13 | Grafik IR, füzyon derleyicisi, CUDA Graphs | ⏭ sıradaki |
+| 14–22 | MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

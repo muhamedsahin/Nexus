@@ -195,3 +195,28 @@ add_test(NAME test_hsdp_and_bf16_comm COMMAND test_phase11_fsdp hybrid)
 set_tests_properties(test_zero_stages_equivalence test_zero_stages_equivalence_tcp test_fsdp_memory_scaling
     test_fsdp_prefetch_order test_nvme_offload_roundtrip test_sharded_checkpoint_reshard test_hsdp_and_bf16_comm
     PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 12: DeviceMesh/DTensor, TP/SP/async TP, PP zamanlamalari, CP (ring/Ulysses), 3B/4B esdegerlik.
+add_executable(test_phase12_parallel test_phase12_parallel.cpp)
+target_link_libraries(test_phase12_parallel PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase12_parallel)
+add_test(NAME test_dtensor_redistribute_all_pairs COMMAND test_phase12_parallel dtensor)
+add_test(NAME test_tp_equivalence COMMAND test_phase12_parallel tp)
+add_test(NAME test_vocab_parallel_ce_equals_full COMMAND test_phase12_parallel vocab)
+add_test(NAME test_pp_schedules_equivalence COMMAND test_phase12_parallel pp)
+add_test(NAME test_ring_attention_equals_flash COMMAND test_phase12_parallel ring)
+add_test(NAME test_parallel_zero1_equivalence COMMAND test_phase12_parallel zero)
+add_test(NAME test_3d_equivalence COMMAND test_phase12_parallel 3d)
+add_test(NAME test_4d_equivalence COMMAND test_phase12_parallel 4d)
+add_test(NAME test_parallel_trainer_api COMMAND test_phase12_parallel trainer)
+add_test(NAME test_tp_equivalence_tcp COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 4 --master-port 29681
+    -- $<TARGET_FILE:test_phase12_parallel> tcp)
+set_tests_properties(test_dtensor_redistribute_all_pairs test_tp_equivalence test_vocab_parallel_ce_equals_full
+    test_pp_schedules_equivalence test_ring_attention_equals_flash test_parallel_zero1_equivalence test_3d_equivalence
+    test_4d_equivalence test_parallel_trainer_api test_tp_equivalence_tcp PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 12.G: otomatik paralellik onericisi (nexus_estimate auto_parallel).
+add_executable(test_phase12_autoconfig test_phase12_autoconfig.cpp)
+target_link_libraries(test_phase12_autoconfig PRIVATE nexus_estimate_core nexus_test_support)
+nexus_configure_target(test_phase12_autoconfig)
+add_test(NAME test_auto_parallel_config COMMAND test_phase12_autoconfig)

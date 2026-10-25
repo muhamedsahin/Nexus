@@ -97,6 +97,10 @@ class ProcessGroup {
                        const std::vector<std::size_t>& recv_counts, DType dtype);
   WorkPtr send(const void* data, std::size_t count, DType dtype, int dst, int tag = 0);
   WorkPtr recv(void* data, std::size_t count, DType dtype, int src, int tag = 0);
+  /// FAZ 12: tek islemde dst'ye gonder + src'den al (halka adimi). Gonderim ve alim ayni gorevde
+  /// ortusur; tcp'de iki ayri isin karsilikli gonderimde birbirini beklemesini (kilitlenme) onler.
+  WorkPtr send_recv(const void* send_data, std::size_t send_count, int dst, void* recv_data, std::size_t recv_count,
+                    int src, DType dtype, int tag = 0);
   WorkPtr barrier();
   /// Gorevi tum islerin bitmesini bekler (hata varsa firlatir).
   void synchronize();
