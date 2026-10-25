@@ -9,6 +9,8 @@
 
 #include "nexus/train/lm_trainer.hpp"
 
+#include "nexus/dist/fsdp.hpp"
+
 #include "nexus/fused/training.hpp"
 #include "nexus/nn/modules.hpp"
 #include "nexus/train/grad_utils.hpp"
@@ -258,10 +260,26 @@ class CpuModuleBackend final : public LmBackend {
 
   dist::DdpStepStats ddp_stats() const override { return stats_; }
 
+  void attach_fsdp(std::shared_ptr<dist::ProcessGroup> group, const dist::FsdpOptions& options) override {
+    auto* seq = dynamic_cast<nn::Sequential*>(model_);
+    if (seq == nullptr) {
+      throw dist::DistError("Nexus LM trainer: FSDP nn::Sequential model ister");
+    }
+    engine_ = std::make_unique<dist::FsdpEngine>(*seq, std::move(group), options);
+    engine_->set_param_scales(wd_, lr_);
+    engine_->initialize();
+  }
+
+  dist::FsdpEngine* fsdp() noexcept override { return engine_.get(); }
+
   void micro_step(const std::int32_t* tokens, float grad_weight, int index, int count) override {
     if (index == 0) {
-      for (nexus_model::Parameter* p : params_) {
-        p->zero_grad();  // eski LanguageTrainer ile ayni sifirlama
+      if (engine_) {
+        engine_->zero_grad();  // FSDP: parcalanmis/serbest gradyanlar dokunulmaz
+      } else {
+        for (nexus_model::Parameter* p : params_) {
+          p->zero_grad();  // eski LanguageTrainer ile ayni sifirlama
+        }
       }
       losses_.clear();
     }
@@ -277,6 +295,11 @@ class CpuModuleBackend final : public LmBackend {
         g[i] *= grad_weight;  // mikro adim agirligi (dlogits)
       }
     }
+    if (engine_) {
+      engine_->backward(full, index + 1 == count);  // no_sync: yalniz son mikro adim RS
+      losses_.push_back(result.loss);
+      return;
+    }
     const bool sync = group_ != nullptr && index + 1 == count;  // no_sync: yalniz son mikro adim
     if (!sync) {
       model_->backward(full);  // Parameter::grad += (FAZ 2 AccumulateGrad)
@@ -287,6 +310,14 @@ class CpuModuleBackend final : public LmBackend {
   }
 
   void optimizer_step(const AdamW& opt, double lr, double clip) override {
+    if (engine_) {
+      const dist::FsdpEngine::StepResult r =
+          engine_->step(dist::FsdpAdamW{opt.lr, opt.beta1, opt.beta2, opt.eps, opt.weight_decay}, lr, clip);
+      norm_ = r.grad_norm;
+      skipped_ = r.skipped;
+      skipped_total_ += r.skipped ? 1 : 0;
+      return;
+    }
     ensure_optimizer(opt);
     if (group_ != nullptr && pending_) {
       finish_sync();
@@ -351,6 +382,13 @@ class CpuModuleBackend final : public LmBackend {
 
   LmNonFinite diagnose(const std::int32_t* tokens) override {
     LmNonFinite rep;
+    if (engine_) {  // FSDP: katman katman tarama parcali parametrelerle yapilmaz; model duzeyinde
+      const nexus_model::Tensor logits = forward(tokens);
+      rep.first_activation = finite_tensor(logits) ? "" : "model";
+      rep.loss = fused::cross_entropy_shifted(logits.data(), tokens, batch_, time_, static_cast<int>(logits.size(2)), ce_,
+                                              nullptr).loss;
+      return rep;
+    }
     for (std::size_t i = 0; i < params_.size(); ++i) {
       if (!finite_tensor(params_[i]->data)) {
         rep.parameters.push_back(names_[i]);
@@ -390,6 +428,13 @@ class CpuModuleBackend final : public LmBackend {
   }
 
   std::vector<unsigned char> save_state() const override {
+    if (engine_) {  // FSDP: bu rank'in parcalari (trainer rank basina dosya yazar)
+      Writer w;
+      const std::vector<unsigned char> blob = engine_->save_shard();
+      w.bytes(blob.data(), blob.size());
+      w.pod(skipped_total_);
+      return w.out;
+    }
     Writer w;
     w.pod<std::uint64_t>(params_.size());
     for (const nexus_model::Parameter* p : params_) {
@@ -419,6 +464,12 @@ class CpuModuleBackend final : public LmBackend {
   }
 
   void load_state(const std::vector<unsigned char>& blob) override {
+    if (engine_) {
+      Reader r(blob);
+      engine_->load_shard(r.bytes());
+      skipped_total_ = r.pod<std::int64_t>();
+      return;
+    }
     Reader r(blob);
     if (r.pod<std::uint64_t>() != params_.size()) {
       throw std::runtime_error("Nexus LM trainer: durum baska bir modelden (parametre sayisi)");
@@ -457,6 +508,9 @@ class CpuModuleBackend final : public LmBackend {
 
   std::vector<LmNormEntry> layer_norms() override {
     std::vector<LmNormEntry> out;
+    if (engine_) {
+      return out;  // FSDP: parametre/gradyan tensorleri parcali ya da serbest (katman normu yok)
+    }
     for (std::size_t i = 0; i < params_.size(); ++i) {
       out.push_back(LmNormEntry{names_[i], l2(params_[i]->data), l2(params_[i]->grad)});
     }
@@ -589,7 +643,7 @@ class CpuModuleBackend final : public LmBackend {
   }
 
   nexus_model::Tensor forward(const std::int32_t* tokens) {
-    nexus_model::Tensor logits = model_->forward(token_tensor(tokens));
+    nexus_model::Tensor logits = engine_ ? engine_->forward(token_tensor(tokens)) : model_->forward(token_tensor(tokens));
     if (logits.rank() != 3 || logits.size(0) != static_cast<std::size_t>(batch_) ||
         logits.size(1) != static_cast<std::size_t>(time_)) {
       throw std::invalid_argument("language logits must be [batch, time, vocab]");
@@ -663,6 +717,7 @@ class CpuModuleBackend final : public LmBackend {
   double norm_ = 0.0;
   bool skipped_ = false;
   std::int64_t skipped_total_ = 0;
+  std::unique_ptr<dist::FsdpEngine> engine_;  // FAZ 11
   // FAZ 10 DDP
   std::shared_ptr<dist::ProcessGroup> group_;
   dist::DdpOptions ddp_{};
@@ -698,6 +753,10 @@ void LmBackend::attach_process_group(std::shared_ptr<dist::ProcessGroup>, const 
 
 void LmBackend::broadcast_parameters() {
   throw dist::DistError("Nexus LM trainer: bu arka uc veri paralelligini desteklemiyor");
+}
+
+void LmBackend::attach_fsdp(std::shared_ptr<dist::ProcessGroup>, const dist::FsdpOptions&) {
+  throw dist::DistError("Nexus LM trainer: bu arka uc ZeRO/FSDP desteklemiyor (yalniz CPU nn::Sequential)");
 }
 
 BackendFactory cpu_backend(nn::Module& model) {
@@ -945,6 +1004,24 @@ LanguageTrainerBuilder& LanguageTrainerBuilder::process_group(std::shared_ptr<di
   return *this;
 }
 
+LanguageTrainerBuilder& LanguageTrainerBuilder::fsdp(std::shared_ptr<dist::ProcessGroup> group, dist::FsdpOptions options) {
+  if (!group) {
+    throw std::invalid_argument("LanguageTrainerBuilder: bos ProcessGroup");
+  }
+  group_ = std::move(group);
+  use_fsdp_ = true;
+  fsdp_ = options;
+  return *this;
+}
+
+LanguageTrainerBuilder& LanguageTrainerBuilder::parallel(std::shared_ptr<dist::ProcessGroup> group, Parallel config) {
+  if (config.zero < 0) {
+    return process_group(std::move(group), config.ddp);
+  }
+  config.fsdp.sharding = dist::zero_stage(config.zero);
+  return fsdp(std::move(group), config.fsdp);
+}
+
 std::unique_ptr<LanguageModelTrainer> LanguageTrainerBuilder::build() {
   return std::unique_ptr<LanguageModelTrainer>(new LanguageModelTrainer(*this));
 }
@@ -1015,7 +1092,9 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
     }
   }
   backend_->set_param_scales(wd, lr);
-  if (group_ && dp_ > 1) {
+  if (group_ && b.use_fsdp_) {
+    backend_->attach_fsdp(group_, b.fsdp_);  // rank 0'dan yayin + parcalama icinde
+  } else if (group_ && dp_ > 1) {
     backend_->attach_process_group(group_, b.ddp_);
     backend_->broadcast_parameters();
   }

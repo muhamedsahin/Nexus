@@ -17,7 +17,7 @@
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--10_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--11_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,17 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**25 Ekim 2026 — FAZ 11 ZeRO / FSDP** ([rapor](docs/benchmarks/2026-10-25-faz11/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| ZeRO-0/1/2/3 eşdeğerliği, dp=4, 100 adım FP32 (CPU) | ağırlık, m, v **bit bit aynı** (thread ve 4 tcp süreci) |
+| ZeRO-3 rank başına kalıcı bellek, dp=1/2/4/8 (3.17M parametre) | 50.7 / 25.3 / 12.7 / **6.34 MB** — PyTorch FSDP2 ile aynı |
+| ZeRO-3 adım süresi dp=2 / 4 / 8 vs FSDP2 (CPU gloo) | **129 / 166 / 279 ms** vs 355 / 305 / 651 ms |
+| NVMe takaslı ZeRO-3 (optimizer + parametre parçası diskte) | RAM'dekiyle **bit bit aynı**, kalıcı RAM 142 → 36 KB |
+| dp=4 parçalı kayıt → dp=2 yükleme | tam durum bit bit aynı |
+| GPU FSDP, 8 kartta 7B, 8 GB kartta 7B ZeRO-Infinity | ⛔ yapılmadı (tek GPU, `GptModel` katman akıtma yok, disk 26 GB) |
+
 **25 Ekim 2026 — FAZ 10 çok süreç / DDP** ([rapor](docs/benchmarks/2026-10-25-faz10/README.md))
 
 | Ölçüm | Sonuç |
@@ -363,8 +374,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 8 | Veri hattı: byte BPE (kodlama + eğitim), NXTK parçaları, `nexus_tokenize`, Feistel örnekleyici, paketleme, karışım, devam, GPU yükleyici | ✅ tiktoken ile bayt-bayt aynı (GPT-2 + cl100k, 200 MB gerçek derlem), kodlama 5–8× tiktoken, 1 GB / 32k BPE eğitimi HF ile birebir ve 7.6× hızlı, devam birebir, GPU veri beklemesi ≈ 0 · 🟡 50 MB/s/çekirdek, o200k, Python, varlen GPU eğitimi, RAM'den büyük gerçek veri açık |
 | 9 | Dil modeli eğitmeni v2: builder, token ağırlıklı biriktirme (ek tampon yok), zamanlayıcılar, gruplar/µP, değerlendirme, MFU, TensorBoard/W&B, NaN/sıçrama teşhisi, eski API yönlendirmesi | ✅ token/s ≥ nanoGPT eager (+%3–4, daha az bellek), ısınma sonrası eğri ±%1, eski API bit bit · 🟡 torch.compile'dan %4–9 geride, ısınmada %3.5, TF/XLA ölçülmedi, GPU kayıp maskesi açık |
 | 10 | Çok süreç: ProcessGroup (thread/tcp), TCPStore, `nexus-run`, kovalı + örtüşmeli DDP (CPU + GPU), `no_sync`, BF16 sıkıştırma, hiyerarşik all-reduce, kollektif doğrulama | ✅ eşdeğerlik (≤1e-6, sıfır-gradyanlı anahtar bias'ı hariç), örtüşme kanıtı, rank ölümünde temiz çıkış, busbw gloo'dan yüksek · ⛔ çok GPU / NCCL ölçülemedi (tek GPU, Windows) |
-| 11 | ZeRO-1/2/3, FSDP, CPU/NVMe offload | ⏭ sıradaki |
-| 12–22 | TP/PP, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 11 | ZeRO-0/1/2/3, FSDP, HSDP, önceden getirme + sınırlayıcı, BF16 iletişim, NVMe takası, parçalı kayıt + yeniden parçalama (CPU) | ✅ aşamalar bit bit eşdeğer, ZeRO-3 bellek 1/dp (FSDP2 ile aynı), FSDP2'den hızlı · ⛔ GPU FSDP ve 7B ZeRO-Infinity yok · 🟡 ZeRO-0/1/2 fazladan kopya, kopyasız görünüm yok |
+| 12 | TP/SP/PP/CP, DeviceMesh, DTensor | ⏭ sıradaki |
+| 13–22 | derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

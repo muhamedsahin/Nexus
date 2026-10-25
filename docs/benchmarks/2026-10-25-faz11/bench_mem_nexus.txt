@@ -1,0 +1,16 @@
+{"dp":1,"zero":0,"params":3168267,"persistent_mb":63.365,"param_mb":12.673,"grad_mb":25.346,"opt_mb":25.346,"mean_step_ms":114.78}
+{"dp":2,"zero":0,"params":3168267,"persistent_mb":57.029,"param_mb":12.673,"grad_mb":19.010,"opt_mb":25.346,"mean_step_ms":132.27}
+{"dp":4,"zero":0,"params":3168267,"persistent_mb":53.861,"param_mb":12.673,"grad_mb":15.841,"opt_mb":25.346,"mean_step_ms":180.68}
+{"dp":8,"zero":0,"params":3168267,"persistent_mb":52.276,"param_mb":12.673,"grad_mb":14.257,"opt_mb":25.346,"mean_step_ms":299.53}
+{"dp":1,"zero":1,"params":3168267,"persistent_mb":76.038,"param_mb":25.346,"grad_mb":25.346,"opt_mb":25.346,"mean_step_ms":118.76}
+{"dp":2,"zero":1,"params":3168267,"persistent_mb":50.692,"param_mb":19.010,"grad_mb":19.010,"opt_mb":12.673,"mean_step_ms":129.27}
+{"dp":4,"zero":1,"params":3168267,"persistent_mb":38.019,"param_mb":15.841,"grad_mb":15.841,"opt_mb":6.337,"mean_step_ms":169.05}
+{"dp":8,"zero":1,"params":3168267,"persistent_mb":31.683,"param_mb":14.257,"grad_mb":14.257,"opt_mb":3.168,"mean_step_ms":270.19}
+{"dp":1,"zero":2,"params":3168267,"persistent_mb":63.365,"param_mb":25.346,"grad_mb":12.673,"opt_mb":25.346,"mean_step_ms":108.67}
+{"dp":2,"zero":2,"params":3168267,"persistent_mb":38.019,"param_mb":19.010,"grad_mb":6.337,"opt_mb":12.673,"mean_step_ms":127.59}
+{"dp":4,"zero":2,"params":3168267,"persistent_mb":25.346,"param_mb":15.841,"grad_mb":3.168,"opt_mb":6.337,"mean_step_ms":150.97}
+{"dp":8,"zero":2,"params":3168267,"persistent_mb":19.010,"param_mb":14.257,"grad_mb":1.584,"opt_mb":3.168,"mean_step_ms":244.46}
+{"dp":1,"zero":3,"params":3168267,"persistent_mb":50.692,"param_mb":12.673,"grad_mb":12.673,"opt_mb":25.346,"mean_step_ms":119.41}
+{"dp":2,"zero":3,"params":3168267,"persistent_mb":25.346,"param_mb":6.337,"grad_mb":6.337,"opt_mb":12.673,"mean_step_ms":129.30}
+{"dp":4,"zero":3,"params":3168267,"persistent_mb":12.673,"param_mb":3.168,"grad_mb":3.168,"opt_mb":6.337,"mean_step_ms":166.08}
+{"dp":8,"zero":3,"params":3168267,"persistent_mb":6.337,"param_mb":1.584,"grad_mb":1.584,"opt_mb":3.168,"mean_step_ms":278.61}

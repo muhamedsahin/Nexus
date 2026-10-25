@@ -179,3 +179,19 @@ set_tests_properties(test_collectives_thread test_collectives_tcp_2 test_collect
     test_collectives_tcp_8 test_mismatched_collective_detected test_mismatched_collective_detected_tcp
     test_rank_failure_clean_exit test_collectives_nccl test_ddp_equivalence test_ddp_equivalence_tcp test_overlap_occurs test_topology_and_lr_scaling
     PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE)
+
+# FAZ 11: ZeRO-0/1/2/3, FSDP, HSDP, onceden getirme, NVMe takasi, parcali kayit.
+add_executable(test_phase11_fsdp test_phase11_fsdp.cpp)
+target_link_libraries(test_phase11_fsdp PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase11_fsdp)
+add_test(NAME test_zero_stages_equivalence COMMAND test_phase11_fsdp stages)
+add_test(NAME test_zero_stages_equivalence_tcp COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 4 --master-port 29671
+    -- $<TARGET_FILE:test_phase11_fsdp> stages_tcp)
+add_test(NAME test_fsdp_memory_scaling COMMAND test_phase11_fsdp memory)
+add_test(NAME test_fsdp_prefetch_order COMMAND test_phase11_fsdp prefetch)
+add_test(NAME test_nvme_offload_roundtrip COMMAND test_phase11_fsdp nvme)
+add_test(NAME test_sharded_checkpoint_reshard COMMAND test_phase11_fsdp reshard)
+add_test(NAME test_hsdp_and_bf16_comm COMMAND test_phase11_fsdp hybrid)
+set_tests_properties(test_zero_stages_equivalence test_zero_stages_equivalence_tcp test_fsdp_memory_scaling
+    test_fsdp_prefetch_order test_nvme_offload_roundtrip test_sharded_checkpoint_reshard test_hsdp_and_bf16_comm
+    PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

@@ -61,7 +61,9 @@ add_library(nexus STATIC
     src/dist/store.cpp
     src/dist/process_group.cpp
     src/dist/ddp.cpp
-    src/dist/topology.cpp)
+    src/dist/topology.cpp
+    src/dist/nvme.cpp
+    src/dist/fsdp.cpp)
 add_library(nexus::nexus ALIAS nexus)
 
 target_compile_features(nexus PUBLIC cxx_std_20)

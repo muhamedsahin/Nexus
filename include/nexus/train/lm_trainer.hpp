@@ -35,6 +35,7 @@
 
 #include "nexus/core/config.hpp"
 #include "nexus/dist/ddp.hpp"
+#include "nexus/dist/fsdp_options.hpp"
 #include "nexus/train/schedule.hpp"
 #include "nexus_train/logging/logger_base.hpp"
 
@@ -206,6 +207,9 @@ class LmBackend {
   virtual void broadcast_parameters();
   /// Son senkron adimin olcumu (ortusme kaniti).
   [[nodiscard]] virtual dist::DdpStepStats ddp_stats() const { return {}; }
+  /// FAZ 11: ZeRO / FSDP (parametre, gradyan, optimizer parcalama). Yalniz CPU nn::Sequential arka ucu.
+  virtual void attach_fsdp(std::shared_ptr<dist::ProcessGroup> group, const dist::FsdpOptions& options);
+  [[nodiscard]] virtual dist::FsdpEngine* fsdp() noexcept { return nullptr; }
 };
 
 using BackendFactory = std::function<std::unique_ptr<LmBackend>(const LmBackendRequest&)>;
@@ -348,6 +352,15 @@ class LanguageTrainerBuilder {
   LanguageTrainerBuilder& after_backward(std::function<void(LmBackend&, std::int64_t step)> hook);
   /// FAZ 10: veri paralelligi (DDP). Grup boyu dp; rank 0 gunluk yazar.
   LanguageTrainerBuilder& process_group(std::shared_ptr<dist::ProcessGroup> group, dist::DdpOptions options = {});
+  /// FAZ 11: ZeRO / FSDP / HSDP (dp = grup boyu). Ayni token agirligi ve gunluk kurallari.
+  LanguageTrainerBuilder& fsdp(std::shared_ptr<dist::ProcessGroup> group, dist::FsdpOptions options = {});
+  /// .parallel({zero}) kisayolu: zero < 0 DDP, 0..3 ZeRO asamasi (FsdpEngine).
+  struct Parallel {
+    int zero = -1;
+    dist::FsdpOptions fsdp{};
+    dist::DdpOptions ddp{};
+  };
+  LanguageTrainerBuilder& parallel(std::shared_ptr<dist::ProcessGroup> group, Parallel config);
 
   [[nodiscard]] std::unique_ptr<LanguageModelTrainer> build();
 
@@ -376,6 +389,8 @@ class LanguageTrainerBuilder {
   std::function<void(LmBackend&, std::int64_t)> after_backward_;
   std::shared_ptr<dist::ProcessGroup> group_;
   dist::DdpOptions ddp_{};
+  bool use_fsdp_ = false;
+  dist::FsdpOptions fsdp_{};
 };
 
 class LanguageModelTrainer {

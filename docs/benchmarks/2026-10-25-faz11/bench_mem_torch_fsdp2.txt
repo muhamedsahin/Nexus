@@ -1,0 +1,4 @@
+{"framework": "pytorch-fsdp2-2.14.1+cu132", "dp": 1, "params": 3168267, "persistent_mb": 50.692272, "param_mb": 12.673068, "grad_mb": 12.673068, "opt_mb": 25.346136, "mean_step_ms": 97.22757500003354}
+{"framework": "pytorch-fsdp2-2.14.1+cu132", "dp": 2, "params": 3168267, "persistent_mb": 25.35024, "param_mb": 6.33756, "grad_mb": 6.33756, "opt_mb": 12.67512, "mean_step_ms": 354.5191999992312}
+{"framework": "pytorch-fsdp2-2.14.1+cu132", "dp": 4, "params": 3168267, "persistent_mb": 12.67512, "param_mb": 3.16878, "grad_mb": 3.16878, "opt_mb": 6.33756, "mean_step_ms": 305.3574750010739}
+{"framework": "pytorch-fsdp2-2.14.1+cu132", "dp": 8, "params": 3168267, "persistent_mb": 6.341664, "param_mb": 1.585416, "grad_mb": 1.585416, "opt_mb": 3.170832, "mean_step_ms": 650.9941749991413}
