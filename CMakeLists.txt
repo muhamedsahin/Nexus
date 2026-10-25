@@ -125,7 +125,8 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/kernels_lm.cu
         src/cuda/fp8_native.cpp
         src/cuda/cast_cache.cpp
-        src/cuda/gpt.cpp)
+        src/cuda/gpt.cpp
+        src/cuda/token_loader.cpp)
     add_library(nexus::cuda ALIAS nexus_cuda)
     # nexus'un kullanim gereksinimleri (or. NexusLoss'un INTERFACE /W4) nvcc'ye gecmesin:
     # yalniz baglama icin nexus, basliklar ve tanimlar acikca verilir.

@@ -1,0 +1,1 @@
+nexus_tokenize: 59990 belge (5019 tekrar atildi), 918.3 MB, 395925902 token, 8 parca, 58.0 s (15.8 MB/s)

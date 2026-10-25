@@ -1,0 +1,19 @@
+rc=0
+  info  nexus gpt2  1 is parcacigi: 13.08 MB/s (24598 belge, 200.0 MB, 90698916 token)
+  info  nexus gpt2  8 is parcacigi: 94.04 MB/s (24598 belge, 200.0 MB, 90698916 token)
+  info  nexus gpt2 16 is parcacigi: 149.95 MB/s (24598 belge, 200.0 MB, 90698916 token)
+{"bytes": 199999999, "docs": 24598, "tiktoken": {"1": 2.7974685975091576, "8": 14.366500948598544, "16": 19.172789329206726}}
+  info  nexus cl100k  1 is parcacigi: 11.64 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k  8 is parcacigi: 94.35 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k 16 is parcacigi: 151.10 MB/s (24598 belge, 200.0 MB, 64626389 token)
+{"bytes": 199999999, "docs": 24598, "tiktoken": {"1": 2.274014754251221, "8": 15.081403117952423, "16": 20.501957106584996}}
+  info  nexus gpt2  1 is parcacigi: 10.88 MB/s (24598 belge, 200.0 MB, 90698916 token)
+  info  nexus gpt2  8 is parcacigi: 85.50 MB/s (24598 belge, 200.0 MB, 90698916 token)
+  info  nexus gpt2 16 is parcacigi: 137.87 MB/s (24598 belge, 200.0 MB, 90698916 token)
+{"bytes": 199999999, "docs": 24598, "tiktoken": {"1": 2.1818429050736703, "8": 14.498634217776502, "16": 18.826785421261533}}
+  info  nexus cl100k  1 is parcacigi: 11.67 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k  8 is parcacigi: 92.65 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k 16 is parcacigi: 143.48 MB/s (24598 belge, 200.0 MB, 64626389 token)
+{"bytes": 199999999, "docs": 24598, "tiktoken": {"1": 2.2796656179615815, "8": 15.268782681254962, "16": 19.981584272487076}}
+
+[exited with code 0]

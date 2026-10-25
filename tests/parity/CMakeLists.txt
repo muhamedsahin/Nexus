@@ -114,3 +114,25 @@ nexus_configure_target(test_phase7_memory)
 add_test(NAME test_checkpoint_grad_equal COMMAND test_phase7_memory checkpoint)
 add_test(NAME test_planner_no_overlap COMMAND test_phase7_memory planner)
 set_tests_properties(test_checkpoint_grad_equal test_planner_no_overlap PROPERTIES TIMEOUT 300)
+
+# FAZ 8: veri hatti (BPE vs tiktoken / HF tokenizers, NXTK, ornekleyici).
+add_executable(test_phase8_data test_phase8_data.cpp)
+target_link_libraries(test_phase8_data PRIVATE nexus::nexus nexus_test_support)
+target_compile_definitions(test_phase8_data PRIVATE
+    NEXUS_PARITY_PYTHON="${_nexus_parity_python}"
+    NEXUS_PARITY_SCRIPTS="${CMAKE_CURRENT_SOURCE_DIR}"
+    NEXUS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+nexus_configure_target(test_phase8_data)
+if(WIN32)
+    target_link_libraries(test_phase8_data PRIVATE psapi)
+endif()
+add_test(NAME test_bpe_encode_matches_tiktoken COMMAND test_phase8_data tiktoken)
+add_test(NAME test_decode_roundtrip COMMAND test_phase8_data roundtrip)
+add_test(NAME test_bpe_train_matches_hf COMMAND test_phase8_data train)
+add_test(NAME test_shard_roundtrip COMMAND test_phase8_data shard)
+add_test(NAME test_sampler_resume_exact COMMAND test_phase8_data resume)
+add_test(NAME test_pack_mask COMMAND test_phase8_data pack)
+add_test(NAME test_no_overlap_across_ranks COMMAND test_phase8_data ranks)
+set_tests_properties(test_bpe_encode_matches_tiktoken test_decode_roundtrip test_bpe_train_matches_hf
+    test_shard_roundtrip test_sampler_resume_exact test_pack_mask test_no_overlap_across_ranks
+    PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)

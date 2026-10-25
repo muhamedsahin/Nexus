@@ -1,0 +1,18 @@
+# Oturum A (ilk olcum, yigin yolu YOK: uzun parcalar O(n^2)); tiktoken ayni oturumda
+bench_encode: gpt2 C:/Users/muham/AppData/Local/Temp/nexus_faz8_enc/docs.bin
+  info  nexus gpt2  1 is parcacigi: 11.75 MB/s (24598 belge, 200.0 MB, 90698916 token)
+  info  nexus gpt2  8 is parcacigi: 37.50 MB/s (24598 belge, 200.0 MB, 90698916 token)
+  info  nexus gpt2 16 is parcacigi: 37.28 MB/s (24598 belge, 200.0 MB, 90698916 token)
+{"bytes": 199999999, "docs": 24598, "tiktoken": {"1": 5.7103697262554505, "8": 32.1375774668292, "16": 39.05209150701668}}
+bench_encode: cl100k C:/Users/muham/AppData/Local/Temp/nexus_faz8_enc/docs.bin
+  info  nexus cl100k  1 is parcacigi: 27.85 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k  8 is parcacigi: 207.81 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k 16 is parcacigi: 320.37 MB/s (24598 belge, 200.0 MB, 64626389 token)
+{"bytes": 199999999, "docs": 24598, "tiktoken": {"1": 5.689201120212815, "8": 33.67520780507945, "16": 40.834527692228676}}
+{"threads": 1, "mbps": 0.783786281964878, "mismatch_docs_of_2000": 1991}
+
+[killed]
+# Oturum A, yigin yolu (kLongPiece=256) eklendikten sonra gpt2:
+  info  nexus gpt2  1 is parcacigi: 24.03 MB/s
+  info  nexus gpt2  8 is parcacigi: 175.42 MB/s
+  info  nexus gpt2 16 is parcacigi: 266.69 MB/s

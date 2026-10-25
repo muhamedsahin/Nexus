@@ -1,0 +1,20 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start 40: test_bpe_encode_matches_tiktoken
+1/7 Test #40: test_bpe_encode_matches_tiktoken ...   Passed   41.49 sec
+    Start 41: test_decode_roundtrip
+2/7 Test #41: test_decode_roundtrip ..............   Passed    2.87 sec
+    Start 42: test_bpe_train_matches_hf
+3/7 Test #42: test_bpe_train_matches_hf ..........   Passed    4.58 sec
+    Start 43: test_shard_roundtrip
+4/7 Test #43: test_shard_roundtrip ...............   Passed    3.59 sec
+    Start 44: test_sampler_resume_exact
+5/7 Test #44: test_sampler_resume_exact ..........   Passed    0.96 sec
+    Start 45: test_pack_mask
+6/7 Test #45: test_pack_mask .....................   Passed    1.06 sec
+    Start 46: test_no_overlap_across_ranks
+7/7 Test #46: test_no_overlap_across_ranks .......   Passed    1.90 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =  56.66 sec

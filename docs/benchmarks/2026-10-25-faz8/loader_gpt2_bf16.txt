@@ -1,0 +1,7 @@
+loader_wait_gpt: GPT-2 124M BF16 flash, B=4 T=1024
+  info  veri: 8 parca, 395.9 M token
+  info  senkron:     1071.16 ms/adim (uretim 0.070 ms/adim ana is parcaciginda), kayip 5.9032
+  info  TokenLoader: 1072.61 ms/adim, veri bekleme 0.0003 ms/adim (0.000%), kayip 4.8338
+  info  token/s: senkron 3824, loader 3819
+  PASS  veri bekleme adim suresinin %1'inden az
+faz8-loader: 1 gecti, 0 basarisiz

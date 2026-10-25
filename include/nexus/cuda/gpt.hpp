@@ -239,6 +239,8 @@ class GptTrainer {
   /// tokens: host [batch*time]. Adimi kuyruga koyar ve hemen doner. Kayip okuma
   /// araliginda bir senkron noktasi olusur; donus son okunan kayiptir (henuz yoksa NaN).
   float step(const std::int32_t* tokens);
+  /// d_tokens: aygitta [batch*time] (or. TokenLoader::next ile); kopya yapilmaz.
+  float step_device(const std::int32_t* d_tokens);
   /// Kuyruktaki tum isin bitmesini bekler ve son kaybi dondurur.
   float synchronize();
 

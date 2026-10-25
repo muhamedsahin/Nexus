@@ -103,3 +103,11 @@ add_test(NAME test_8bit_adam_converges COMMAND test_phase7_memory_cuda adam8)
 add_test(NAME test_fused_8bit_update COMMAND test_phase7_memory_cuda fused)
 set_tests_properties(test_checkpoint_grad_equal_cuda test_chunked_ce_equals_full test_zero_offload_equals_gpu_adam
     test_8bit_adam_converges test_fused_8bit_update PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+
+# FAZ 8.F: asenkron token yukleyici (pinned halka + kopya akisi).
+add_executable(test_phase8_loader test_phase8_loader.cpp)
+target_link_libraries(test_phase8_loader PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase8_loader)
+add_test(NAME test_loader_order COMMAND test_phase8_loader order)
+add_test(NAME test_loader_error COMMAND test_phase8_loader error)
+set_tests_properties(test_loader_order test_loader_error PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)

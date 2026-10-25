@@ -1,0 +1,8 @@
+  info  veri 0.79 GB (8 parca, 396 M token), 300000 ornek T=1024: 319731 ornek/s, 327.4 M token/s
+  info  ozel bellek: 0.7 -> 1.1 MB, tepe calisma kumesi 195.7 MB (kontrol 195)
+  info  veri 6.34 GB (64 parca, 3167 M token), 300000 ornek T=1024: 337427 ornek/s, 345.5 M token/s
+  info  ozel bellek: 0.7 -> 1.1 MB, tepe calisma kumesi 195.5 MB (kontrol 989)
+  info  veri 19.02 GB (192 parca, 9502 M token), 300000 ornek T=1024: 354419 ornek/s, 362.9 M token/s
+  info  ozel bellek: 0.8 -> 1.1 MB, tepe calisma kumesi 195.5 MB (kontrol 293)
+  info  veri 19.02 GB (192 parca, 9502 M token), 3000000 ornek T=1024: 285899 ornek/s, 292.8 M token/s
+  info  ozel bellek: 0.7 -> 1.1 MB, tepe calisma kumesi 196.1 MB (kontrol 615)

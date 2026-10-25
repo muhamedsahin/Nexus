@@ -1496,10 +1496,16 @@ float GptTrainer::step(const std::int32_t* tokens) {
   NEXUS_CUDA_CHECK(cudaMemcpyAsync(device_tokens_[slot_].data(), pinned_tokens_[slot_], count * sizeof(std::int32_t),
                                    cudaMemcpyHostToDevice, stream.handle()));
   copy_done_[slot_].record(stream);
-  model_->forward_backward(device_tokens_[slot_].as<std::int32_t>());
+  const std::int32_t* d_tokens = device_tokens_[slot_].as<std::int32_t>();
+  slot_ ^= 1;
+  return step_device(d_tokens);
+}
+
+float GptTrainer::step_device(const std::int32_t* d_tokens) {
+  const Stream& stream = model_->stream();
+  model_->forward_backward(d_tokens);
   model_->optimizer_step(optimizer_);
   steps_ += 1;
-  slot_ ^= 1;
   if (steps_ % interval_ == 0) {
     if (loss_pending_) {
       loss_ready_.synchronize();

@@ -1,0 +1,12 @@
+bench_encode: cl100k C:/Users/muham/AppData/Local/Temp/nexus_faz8_enc/docs.bin
+  info  nexus cl100k  1 is parcacigi: 14.39 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k  8 is parcacigi: 107.22 MB/s (24598 belge, 200.0 MB, 64626389 token)
+  info  nexus cl100k 16 is parcacigi: 169.43 MB/s (24598 belge, 200.0 MB, 64626389 token)
+hf wall 154 s, train 150.2733247999995
+bench_train: C:/Users/muham/AppData/Local/Temp/nexus_faz8_corpus vocab 32000
+  info  nexus egitim: 959.8 MB, 65009 belge, 1389402 farkli kelime, 31743 birlesim, 16 is parcacigi: 19.8 s
+  info  HF ile ortak birlesim oneki: 31743 / 31743 (nexus 31743)
+  PASS  gercek derlemde birlesim listesi HF ile birebir
+faz8-train-bench: 1 gecti, 0 basarisiz
+
+[exited with code 0]

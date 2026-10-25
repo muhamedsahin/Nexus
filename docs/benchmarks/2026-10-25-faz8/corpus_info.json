@@ -1,0 +1,14 @@
+{
+ "bytes": 959772914,
+ "docs": 65009,
+ "roots": {
+  "C:/Program Files/Go": 108913149,
+  "C:/Users/muham/AppData/Local/Python/pythoncore-3.14-64/Lib": 23091630,
+  "C:/Users/muham/Desktop/Nexus/.bench-venv-py314/Lib/site-packages": 158627284,
+  "C:/Program Files (x86)/Windows Kits/10/Include": 267379686,
+  "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.4/include": 34653048,
+  "C:/Program Files/Microsoft Visual Studio/2022/Preview/VC/Tools/MSVC/14.44.34823/include": 9213859,
+  "C:/Program Files/Git": 23055275,
+  "C:/Program Files/JetBrains": 334838983
+ }
+}
