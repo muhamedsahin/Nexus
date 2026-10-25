@@ -1,0 +1,31 @@
+      Start 76: bench_phase3_training
+76/77 Test #76: bench_phase3_training ..............   Passed   31.56 sec
+      Start 77: bench_attention_cpu
+77/77 Test #77: bench_attention_cpu ................   Passed   10.36 sec
+
+100% tests passed, 0 tests failed out of 77
+
+Total Test time (real) = 613.05 sec
+ M CMakeLists.txt
+ M docs/benchmarks/2026-10-23-faz0/bench_phase0.json
+ M docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json
+ M docs/benchmarks/2026-10-23-faz1/bench_phase1.json
+ M docs/benchmarks/2026-10-23-faz2/bench_phase2.json
+ M docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json
+ M docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json
+ M docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json
+ M include/nexus/cuda/gpt.hpp
+ M include/nexus/cuda/kernels.hpp
+ M include/nexus/nn/modules.hpp
+ M include/nexus/train/language.hpp
+ M include/nexus/train/trainer.hpp
+ m lib/MatrixFlash-Pro
+ m lib/NexusLoss
+ m lib/NexusOptim
+ M src/cuda/gpt.cpp
+ M src/cuda/kernels_elementwise.cu
+ M src/cuda/kernels_train.cu
+ M tests/cuda/CMakeLists.txt
+ M tests/parity/CMakeLists.txt
+
+[exited with code 0]

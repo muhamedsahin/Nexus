@@ -136,3 +136,21 @@ add_test(NAME test_no_overlap_across_ranks COMMAND test_phase8_data ranks)
 set_tests_properties(test_bpe_encode_matches_tiktoken test_decode_roundtrip test_bpe_train_matches_hf
     test_shard_roundtrip test_sampler_resume_exact test_pack_mask test_no_overlap_across_ranks
     PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
+
+# FAZ 9: dil modeli egitmeni v2 (CPU yolu).
+add_executable(test_phase9_trainer test_phase9_trainer.cpp)
+target_link_libraries(test_phase9_trainer PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase9_trainer)
+add_test(NAME test_old_api_still_works COMMAND test_phase9_trainer old_api)
+add_test(NAME test_accum_equivalence COMMAND test_phase9_trainer accum)
+add_test(NAME test_schedule_values COMMAND test_phase9_trainer schedule)
+add_test(NAME test_param_groups_wd COMMAND test_phase9_trainer groups)
+add_test(NAME test_nan_policy COMMAND test_phase9_trainer nan)
+add_test(NAME test_loss_spike COMMAND test_phase9_trainer spike)
+add_test(NAME test_trainer_resume COMMAND test_phase9_trainer resume)
+add_test(NAME test_eval_fixed_set COMMAND test_phase9_trainer eval)
+add_test(NAME test_trainer_loggers COMMAND test_phase9_trainer loggers)
+add_test(NAME test_classifier_shared_infra COMMAND test_phase9_trainer classifier)
+set_tests_properties(test_old_api_still_works test_accum_equivalence test_schedule_values test_param_groups_wd
+    test_nan_policy test_loss_spike test_trainer_resume test_eval_fixed_set test_trainer_loggers
+    test_classifier_shared_infra PROPERTIES TIMEOUT 300)

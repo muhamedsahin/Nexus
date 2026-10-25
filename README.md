@@ -17,7 +17,7 @@
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--8_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--9_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,17 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**25 Ekim 2026 — FAZ 9 dil modeli eğitmeni v2** ([rapor](docs/benchmarks/2026-10-25-faz9/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| GPT-2 124M BF16, T=1024, 32k token/adım: Nexus vs nanoGPT eager (B=4×8) | **22.2k vs 21.3k tok/s** (+%3.8), tepe 4.61 vs 7.20 GB |
+| Aynı, torch.compile (B=4×8) | 24.3k tok/s: Nexus **%8.7 geride** (FAZ 13) |
+| B=8×4 | Nexus 23.3k tok/s, MFU %46.4 (43 TFLOPS), 6.90 GB · nanoGPT sığmıyor (11.9 GB) |
+| Kayıp eğrisi, aynı ağırlık + aynı veri, 300 adım TinyStories | adım 30–299 hepsi **±%1** (en çok %0.68); ısınmada en çok %3.5 |
+| Eski `LanguageTrainer` API | FAZ 9 öncesi kayıplarla **bit bit aynı** |
+| Biriktirme / devam / NaN teşhisi | micro 2×4 ≡ 8×1 (rel 2e-5), kayıt-devam bit bit, ilk NaN katmanı adıyla (`h.1`, `h.1.fc_w`) |
+
 **25 Ekim 2026 — FAZ 8 veri hattı** ([rapor](docs/benchmarks/2026-10-25-faz8/README.md))
 
 | Ölçüm | Sonuç |
@@ -340,8 +351,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 6 | Modern LLM bloğu: DecoderBlock, RoPE ailesi, SwiGLU, GQA, µP, `lm::build` + 11 ön tanımlı | ✅ CPU (PyTorch parity tüm gradyanlar ≤1.3e-6) + GPU RoPE/SwiGLU çekirdekleri · 🟡 GPU LLaMA modeli, RoPE-flash füzyonu, Python API açık |
 | 7 | Bellek mühendisliği: recompute (selective/full/every_k), parçalı CE, 8-bit AdamW, ZeRO-Offload, planlayıcı | ✅ 1.31B parametre 8 GB'ta eğitiliyor (5.94 GiB, 1.14 s/adım) · 🟡 aktivasyon offload, DPU, Adafactor, 8-bit %2 ölçütü açık |
 | 8 | Veri hattı: byte BPE (kodlama + eğitim), NXTK parçaları, `nexus_tokenize`, Feistel örnekleyici, paketleme, karışım, devam, GPU yükleyici | ✅ tiktoken ile bayt-bayt aynı (GPT-2 + cl100k, 200 MB gerçek derlem), kodlama 5–8× tiktoken, 1 GB / 32k BPE eğitimi HF ile birebir ve 7.6× hızlı, devam birebir, GPU veri beklemesi ≈ 0 · 🟡 50 MB/s/çekirdek, o200k, Python, varlen GPU eğitimi, RAM'den büyük gerçek veri açık |
-| 9 | Dil modeli eğitmeni v2 | ⏭ sıradaki |
-| 10–22 | Dağıtık eğitim, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
+| 9 | Dil modeli eğitmeni v2: builder, token ağırlıklı biriktirme (ek tampon yok), zamanlayıcılar, gruplar/µP, değerlendirme, MFU, TensorBoard/W&B, NaN/sıçrama teşhisi, eski API yönlendirmesi | ✅ token/s ≥ nanoGPT eager (+%3–4, daha az bellek), ısınma sonrası eğri ±%1, eski API bit bit · 🟡 torch.compile'dan %4–9 geride, ısınmada %3.5, TF/XLA ölçülmedi, GPU kayıp maskesi açık |
+| 10 | Çok süreç / çok kart: başlatıcı, rendezvous, NCCL, DDP | ⏭ sıradaki |
+| 11–22 | FSDP/ZeRO, TP/PP, derleyici, MoE, çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

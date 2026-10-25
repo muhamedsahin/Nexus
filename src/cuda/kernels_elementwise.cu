@@ -132,6 +132,14 @@ __global__ void fill_kernel(float* __restrict__ out, float value, std::size_t n)
   NEXUS_GRID_STRIDE(i, n) { out[i] = value; }
 }
 
+__global__ void count_nonfinite_kernel(unsigned long long* __restrict__ out, const float* __restrict__ x, std::size_t n) {
+  unsigned long long local = 0;
+  NEXUS_GRID_STRIDE(i, n) { local += isfinite(x[i]) ? 0ull : 1ull; }
+  if (local != 0) {
+    atomicAdd(out, local);
+  }
+}
+
 // qkv [B,T,3,H,D] -> q/k/v [B,H,T,D]
 template <typename T>
 __global__ void split_qkv_kernel(T* __restrict__ q, T* __restrict__ k, T* __restrict__ v, const T* __restrict__ qkv,
@@ -298,6 +306,14 @@ void add_inplace(float* y, const float* x, std::size_t n, cudaStream_t stream) {
 void fill(float* out, float value, std::size_t n, cudaStream_t stream) {
   fill_kernel<<<detail::blocks_for(n, 256), 256, 0, stream>>>(out, value, n);
   detail::check_launch("fill_kernel");
+}
+
+void count_nonfinite(unsigned long long* out, const float* x, std::size_t n, cudaStream_t stream) {
+  if (n == 0) {
+    return;
+  }
+  count_nonfinite_kernel<<<detail::blocks_for(n, 256), 256, 0, stream>>>(out, x, n);
+  detail::check_launch("count_nonfinite_kernel");
 }
 
 void split_qkv_heads(float* q, float* k, float* v, const float* qkv, int batch, int time, int heads, int head_dim,

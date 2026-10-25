@@ -6,6 +6,12 @@
  * Ileri, kayip, geri, gradyan kirpma ve AdamW adimi ayni yerde biter.
  * Karisik hassasiyet bayragi kayip olcegi uygular; matmul FP32 kalir.
  * Hibrit politika Linear carpimini MatrixFlash zamanlayicisina baglar.
+ *
+ * FAZ 9.8: dil modeli egitmeni v2 ile ortak altyapi — gradyan biriktirme (.gradient_accumulation(k):
+ * k yigin ornek agirlikli toplanir, sonra tek optimizer adimi; epoch sonundaki eksik pencere de adim
+ * atar), adim bazli zamanlayici (.step_schedule(train::LrSchedule): LR = baslangic LR * carpan(adim)),
+ * global norm kirpma ve sonluluk denetimi train::clip_global_norm ile (torch katsayisi; inf/NaN
+ * gradyanda adim atlanir). CUDA ve BF16 bu sinifta yok: nn::Sequential katmanlari CPU'dadir.
  */
 
 #include "nexus_train/mixed_precision/loss_scale_policy.hpp"
@@ -18,12 +24,16 @@
 #include "nexus/optim/optimizers.hpp"
 #include "nexus/model/nxs_format.hpp"
 #include "nexus/train/callbacks.hpp"
+#include "nexus/train/grad_utils.hpp"
+#include "nexus/train/schedule.hpp"
 #include "nexus_model/core/execution_policy.hpp"
 
 #include <cmath>
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -123,13 +133,22 @@ class Trainer {
  public:
     Trainer(nn::Sequential model, std::unique_ptr<optim::Optimizer> optimizer, loss::CrossEntropy loss, ExecutionPolicy policy,
             bool mixed_precision, float clip_norm, std::vector<std::unique_ptr<detail::MetricBox>> metrics,
-            std::vector<std::unique_ptr<callbacks::Callback>> callbacks, std::function<float()> scheduler = {})
+            std::vector<std::unique_ptr<callbacks::Callback>> callbacks, std::function<float()> scheduler = {},
+            int accumulation = 1, std::optional<train::LrSchedule> step_schedule = std::nullopt)
         : model_(std::move(model)), optimizer_(std::move(optimizer)), loss_(std::move(loss)), policy_(policy),
           mixed_precision_(mixed_precision), clip_norm_(clip_norm), scaler_(mixed_precision), metrics_(std::move(metrics)),
-          callbacks_(std::move(callbacks)), scheduler_(std::move(scheduler)) {}
+          callbacks_(std::move(callbacks)), scheduler_(std::move(scheduler)), accumulation_(accumulation),
+          step_schedule_(std::move(step_schedule)), base_lr_(optimizer_->learning_rate()) {
+        if (accumulation_ < 1) {
+            throw std::invalid_argument("Trainer gradient accumulation must be >= 1");
+        }
+    }
 
     [[nodiscard]] const std::vector<EpochStats>& history() const noexcept { return history_; }
     [[nodiscard]] int epochs_ran() const noexcept { return static_cast<int>(history_.size()); }
+    /// FAZ 9.8: uygulanan optimizer adimi ve inf/NaN yuzunden atlanan adim sayisi.
+    [[nodiscard]] std::int64_t optimizer_steps() const noexcept { return optimizer_steps_; }
+    [[nodiscard]] std::int64_t skipped_steps() const noexcept { return skipped_steps_; }
     nn::Sequential& model() noexcept { return model_; }
 
     void save_nxs(const std::string& path) const {
@@ -275,13 +294,15 @@ class Trainer {
         data::Batch batch;
         double loss_sum = 0.0;
         int seen = 0;
+        int window_batches = 0;  // FAZ 9.8 biriktirme penceresi
+        int window_samples = 0;
+        if (update) {
+            model_.zero_grad();
+        }
         while (loader.next(batch)) {
             nexus_model::Tensor input = nexus_model::Tensor::zeros(
                 {static_cast<std::size_t>(batch.batch_size), static_cast<std::size_t>(batch.features_per_sample)});
             std::memcpy(input.data(), batch.features.data(), batch.features.size() * sizeof(float));
-            if (update) {
-                model_.zero_grad();
-            }
             nexus_model::Tensor logits = model_.forward(input);
             const int classes = static_cast<int>(logits.size(logits.rank() - 1));
             nexus_model::Tensor grad = nexus_model::Tensor::zeros(
@@ -293,19 +314,52 @@ class Trainer {
                 }
             }
             if (update) {
+                if (accumulation_ > 1) {
+                    // Ornek agirlikli toplam: ortalama gradyan * yigin boyu; adimda pencere ornek sayisina bolunur.
+                    const auto rows = static_cast<float>(batch.batch_size);
+                    for (std::size_t i = 0; i < grad.numel(); ++i) {
+                        grad[i] *= rows;
+                    }
+                }
                 scaler_.scale(grad.data(), static_cast<int>(grad.numel()));
                 model_.backward(grad);
-                if (scaler_.unscale(model_->parameters())) {
-                    if (clip_norm_ > 0.0f) {
-                        optim::clip_grad_norm(model_->parameters(), clip_norm_);
-                    }
-                    optimizer_->step();
+                window_batches += 1;
+                window_samples += batch.batch_size;
+                if (window_batches == accumulation_) {
+                    apply_step(window_samples);
+                    window_batches = 0;
+                    window_samples = 0;
+                    model_.zero_grad();
                 }
             }
             loss_sum += static_cast<double>(loss) * batch.batch_size;
             seen += batch.batch_size;
         }
+        if (update && window_batches > 0) {
+            apply_step(window_samples);  // epoch sonundaki eksik pencere
+            model_.zero_grad();
+        }
         return seen == 0 ? 0.0f : static_cast<float>(loss_sum / static_cast<double>(seen));
+    }
+
+    void apply_step(int window_samples) {
+        const std::vector<nexus_model::Parameter*> params = model_->parameters();
+        if (accumulation_ > 1) {
+            train::scale_gradients(params, 1.0f / static_cast<float>(window_samples));
+        }
+        if (!scaler_.unscale(params)) {
+            skipped_steps_ += 1;  // kayip olcegi tasmasi: olcek geri cekildi
+            return;
+        }
+        if (!train::clip_global_norm(params, clip_norm_).finite) {
+            skipped_steps_ += 1;  // inf/NaN gradyan: adim uygulanmaz
+            return;
+        }
+        if (step_schedule_) {
+            optimizer_->set_learning_rate(static_cast<float>(base_lr_ * step_schedule_->factor(optimizer_steps_)));
+        }
+        optimizer_->step();
+        optimizer_steps_ += 1;
     }
 
     nn::Sequential model_;
@@ -318,6 +372,11 @@ class Trainer {
     std::vector<std::unique_ptr<detail::MetricBox>> metrics_;
     std::vector<std::unique_ptr<callbacks::Callback>> callbacks_;
     std::function<float()> scheduler_;
+    int accumulation_ = 1;
+    std::optional<train::LrSchedule> step_schedule_;
+    double base_lr_ = 0.0;
+    std::int64_t optimizer_steps_ = 0;
+    std::int64_t skipped_steps_ = 0;
     std::vector<EpochStats> history_;
     int start_epoch_ = 0;
 };
@@ -380,6 +439,21 @@ class TrainerBuilder {
         return *this;
     }
 
+    /// FAZ 9.8: k yigin biriktirilip tek optimizer adimi (ornek agirlikli ortalama).
+    TrainerBuilder& gradient_accumulation(int steps) {
+        if (steps < 1) {
+            throw std::invalid_argument("TrainerBuilder gradient_accumulation must be >= 1");
+        }
+        accumulation_ = steps;
+        return *this;
+    }
+
+    /// FAZ 9.8: optimizer adimina bagli LR carpani (dil modeli egitmeniyle ayni zamanlayicilar).
+    TrainerBuilder& step_schedule(train::LrSchedule schedule) {
+        step_schedule_ = std::move(schedule);
+        return *this;
+    }
+
     template <typename Scheduler>
     TrainerBuilder& learning_rate_schedule(Scheduler scheduler) {
         scheduler_ = [scheduler]() mutable { return scheduler.step(); };
@@ -390,8 +464,12 @@ class TrainerBuilder {
         if (!optimizer_ || !has_loss_) {
             throw std::logic_error("TrainerBuilder requires an optimizer and a loss");
         }
+        if (scheduler_ && step_schedule_) {
+            throw std::logic_error("TrainerBuilder: epoch zamanlayicisi ve adim zamanlayicisi birlikte kullanilamaz");
+        }
         return Trainer(std::move(model_), std::move(optimizer_), std::move(loss_), policy_, mixed_precision_, clip_norm_,
-                       std::move(metrics_), std::move(callbacks_), std::move(scheduler_));
+                       std::move(metrics_), std::move(callbacks_), std::move(scheduler_), accumulation_,
+                       std::move(step_schedule_));
     }
 
  private:
@@ -405,6 +483,8 @@ class TrainerBuilder {
     std::vector<std::unique_ptr<detail::MetricBox>> metrics_;
     std::vector<std::unique_ptr<callbacks::Callback>> callbacks_;
     std::function<float()> scheduler_;
+    int accumulation_ = 1;
+    std::optional<train::LrSchedule> step_schedule_;
 };
 
 }  // namespace nexus

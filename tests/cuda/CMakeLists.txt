@@ -111,3 +111,15 @@ nexus_configure_target(test_phase8_loader)
 add_test(NAME test_loader_order COMMAND test_phase8_loader order)
 add_test(NAME test_loader_error COMMAND test_phase8_loader error)
 set_tests_properties(test_loader_order test_loader_error PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+
+# FAZ 9: dil modeli egitmeni v2, GPU arka ucu (+ uctan uca egitim ve benchmark modlari).
+add_executable(test_phase9_trainer_cuda test_phase9_trainer_cuda.cpp)
+target_link_libraries(test_phase9_trainer_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase9_trainer_cuda)
+add_test(NAME test_accum_equivalence_cuda COMMAND test_phase9_trainer_cuda accum)
+add_test(NAME test_param_groups_wd_cuda COMMAND test_phase9_trainer_cuda groups)
+add_test(NAME test_nan_policy_cuda COMMAND test_phase9_trainer_cuda nan)
+add_test(NAME test_eval_no_grad_memory COMMAND test_phase9_trainer_cuda eval_mem)
+add_test(NAME test_trainer_resume_cuda COMMAND test_phase9_trainer_cuda resume)
+set_tests_properties(test_accum_equivalence_cuda test_param_groups_wd_cuda test_nan_policy_cuda
+    test_eval_no_grad_memory test_trainer_resume_cuda PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)

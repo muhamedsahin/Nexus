@@ -135,6 +135,7 @@ struct DeviceParamSlot {
   std::uint64_t numel = 0;
   /// Agirlik sonumu carpani: 1 = tam, 0 = yok (GPT-2: bias ve LayerNorm'da sonum yok).
   float weight_decay_scale = 1.0f;
+  float lr_scale = 1.0f;  ///< FAZ 9.3: grup ogrenme hizi carpani (muP)
   /// FAZ 4.2: dar (BF16/F16) golge kopya. param != nullptr ise FP32 ana kopya guncellenir ve
   /// golgeye RN ile yazilir; param == nullptr ise parametre yalniz golgede yasar (ana kopyasiz mod).
   void* shadow = nullptr;
@@ -174,6 +175,9 @@ struct DeviceLossScaleState {
 void loss_scale_init(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream);
 /// state->found_inf'e gore olcegi gunceller; nexus_train::LossScaleState::update ile ayni kurallar.
 void loss_scale_update(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream);
+/// FAZ 9.7: kayip olceksiz NaN korumasi. steps += 1; found_inf != 0 ise skipped_steps += 1
+/// (AdamW cekirdegi found_inf'te adimi atlar, bias duzeltmesi skipped_steps'i cikarir).
+void nonfinite_guard_update(DeviceLossScaleState* state, cudaStream_t stream);
 
 [[nodiscard]] std::size_t adamw_scratch_bytes(int num_slots, std::uint64_t total_numel);
 
@@ -189,6 +193,7 @@ struct Device8bitSlot {
   float* absmax_v = nullptr;
   std::uint64_t numel = 0;
   float weight_decay_scale = 1.0f;
+  float lr_scale = 1.0f;  ///< FAZ 9.3: grup ogrenme hizi carpani (muP)
 };
 [[nodiscard]] std::size_t adamw8bit_scratch_bytes(int n32, int n8, std::uint64_t total32, std::uint64_t total8);
 /// 32-bit ve 8-bit slotlar tek adimda: global norm/kirpma hepsi uzerinde. Momentler sifirla
@@ -222,6 +227,8 @@ void add(float* out, const float* a, const float* b, std::size_t n, cudaStream_t
 /// y += x.
 void add_inplace(float* y, const float* x, std::size_t n, cudaStream_t stream);
 void fill(float* out, float value, std::size_t n, cudaStream_t stream);
+/// FAZ 9.7: x[0..n) icindeki sonlu olmayan eleman sayisini *out'a ekler (atomik; *out once sifirlanmali).
+void count_nonfinite(unsigned long long* out, const float* x, std::size_t n, cudaStream_t stream);
 /// qkv [B, T, 3, H, D] -> q, k, v [B, H, T, D].
 void split_qkv_heads(float* q, float* k, float* v, const float* qkv, int batch, int time, int heads, int head_dim,
                      cudaStream_t stream);

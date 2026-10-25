@@ -352,7 +352,7 @@ __global__ void adamw_update_kernel(const DeviceParamSlot* __restrict__ slots, c
     const std::uint64_t i = chunk.start + k;
     float p = slot.param != nullptr ? slot.param[i] : detail::Num<S>::load(shadow[i]);
     const float g = __fmul_rn(slot.grad[i], clip);
-    const float lr_wd = __fmul_rn(c.lr_wd, slot.weight_decay_scale);
+    const float lr_wd = __fmul_rn(__fmul_rn(c.lr_wd, slot.weight_decay_scale), slot.lr_scale);
     if (lr_wd != 0.0f) {
       p = __fsub_rn(p, __fmul_rn(lr_wd, p));
     }
@@ -361,7 +361,7 @@ __global__ void adamw_update_kernel(const DeviceParamSlot* __restrict__ slots, c
     slot.exp_avg[i] = mt;
     slot.exp_avg_sq[i] = vt;
     const float denom = __fadd_rn(__fsqrt_rn(__fmul_rn(vt, inv2)), c.eps);
-    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(c.lr, __fmul_rn(mt, inv1)), denom));
+    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(__fmul_rn(c.lr, slot.lr_scale), __fmul_rn(mt, inv1)), denom));
     if (slot.param != nullptr) {
       slot.param[i] = p;  // FP32 ana kopya
     }
@@ -399,6 +399,13 @@ __global__ void loss_scale_update_kernel(DeviceLossScaleState* __restrict__ stat
   }
   st.scale_history[(st.steps - 1) % kLossScaleHistorySize] = st.scale;
   *state = st;
+}
+
+__global__ void nonfinite_guard_kernel(DeviceLossScaleState* __restrict__ state) {
+  state->steps += 1;
+  if (state->found_inf != 0) {
+    state->skipped_steps += 1;
+  }
 }
 
 std::vector<Chunk> make_chunks(const DeviceParamSlot* slots, int num_slots) {
@@ -782,7 +789,7 @@ __global__ void adamw8bit_kernel(const Device8bitSlot* __restrict__ slots, const
     }
     float p = slot.param != nullptr ? slot.param[i] : detail::Num<S>::load(shadow[i]);
     const float g = __fmul_rn(slot.grad[i], clip);
-    const float lr_wd = __fmul_rn(c.lr_wd, slot.weight_decay_scale);
+    const float lr_wd = __fmul_rn(__fmul_rn(c.lr_wd, slot.weight_decay_scale), slot.lr_scale);
     if (lr_wd != 0.0f) {
       p = __fsub_rn(p, __fmul_rn(lr_wd, p));
     }
@@ -791,7 +798,7 @@ __global__ void adamw8bit_kernel(const Device8bitSlot* __restrict__ slots, const
     mt[k] = __fadd_rn(__fmul_rn(c.b1, m0), __fmul_rn(c.ob1, g));
     vt[k] = __fadd_rn(__fmul_rn(c.b2, v0), __fmul_rn(__fmul_rn(c.ob2, g), g));
     const float denom = __fadd_rn(__fsqrt_rn(__fmul_rn(vt[k], c.inv2)), c.eps);
-    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(c.lr, __fmul_rn(mt[k], c.inv1)), denom));
+    p = __fsub_rn(p, __fdiv_rn(__fmul_rn(__fmul_rn(c.lr, slot.lr_scale), __fmul_rn(mt[k], c.inv1)), denom));
     if (slot.param != nullptr) {
       slot.param[i] = p;
     }
@@ -1070,6 +1077,11 @@ void adamw_mixed_multi_tensor(const DeviceParamSlot* slots32, int n32, const Dev
       detail::check_launch("adamw8bit_kernel");
     }
   });
+}
+
+void nonfinite_guard_update(DeviceLossScaleState* state, cudaStream_t stream) {
+  nonfinite_guard_kernel<<<1, 1, 0, stream>>>(state);
+  detail::check_launch("nonfinite_guard_kernel");
 }
 
 void loss_scale_update(DeviceLossScaleState* state, const nexus_train::LossScalePolicy& policy, cudaStream_t stream) {

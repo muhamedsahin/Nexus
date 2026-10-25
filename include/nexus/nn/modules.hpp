@@ -684,6 +684,8 @@ class Sequential : public Module {
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return layers_->size(); }
+    /// FAZ 9: katman katman teshis ve parametre adlandirma icin.
+    [[nodiscard]] const std::shared_ptr<Module>& layer(std::size_t index) const { return layers_->at(index); }
 
     [[nodiscard]] nxs::LayerSpec nxs_spec() const override {
         nxs::LayerSpec spec = nxs::spec_of(nxs::LayerKind::Sequential, "Sequential");

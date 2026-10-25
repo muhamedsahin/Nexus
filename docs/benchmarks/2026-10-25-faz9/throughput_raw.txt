@@ -1,0 +1,21 @@
+# FAZ 9 throughput, GPT-2 124M BF16, T=1024, global yigin 32768 token, fiste (BatteryStatus 2), 2026-10-25.
+# Nexus: test_phase9_trainer_cuda bench (flash + selective recompute + foreach AdamW + kirpma 1.0).
+# nanoGPT: benchmarks/runner/faz9_nanogpt.py bench (karpathy/nanoGPT 3adf61e model.py, PyTorch 2.14.1+cu132,
+#          SDPA flash, fused AdamW, autocast bf16). MFU tepesi her ikisinde 43.0 TFLOPS (40 SM x 512 x 2100 MHz).
+# Nexus B=8 accum=4 (dogrudan += biriktirme)
+{"B":8,"T":1024,"accum":4,"peak_tflops":43.01,"clock_mhz":2100,"raw_ms_per_micro":356.33,"raw_tps":22990,"raw_peak_gb":6.904,"v2_a1_ms":358.09,"v2_a1_tps":22877,"v2_a1_mfu":0.4549,"v2_a1_peak_gb":6.904,"v2_aN_ms":1405.41,"v2_aN_tps":23316,"v2_aN_mfu":0.4636,"v2_aN_peak_gb":6.904}
+# Nexus B=4 accum=8
+{"B":4,"T":1024,"accum":8,"peak_tflops":43.01,"clock_mhz":2100,"raw_ms_per_micro":194.50,"raw_tps":21059,"raw_peak_gb":4.607,"v2_a1_ms":195.04,"v2_a1_tps":21001,"v2_a1_mfu":0.4176,"v2_a1_peak_gb":4.607,"v2_aN_ms":1478.45,"v2_aN_tps":22164,"v2_aN_mfu":0.4407,"v2_aN_peak_gb":4.607}
+# Nexus B=2 accum=16
+{"B":2,"T":1024,"accum":16,"peak_tflops":43.01,"clock_mhz":2100,"raw_ms_per_micro":108.76,"raw_tps":18831,"raw_peak_gb":3.458,"v2_a1_ms":112.86,"v2_a1_tps":18146,"v2_a1_mfu":0.3608,"v2_a1_peak_gb":3.458,"v2_aN_ms":1587.64,"v2_aN_tps":20639,"v2_aN_mfu":0.4104,"v2_aN_peak_gb":3.458}
+# Nexus B=8 accum=4, ILK SURUM (ayri FP32 biriktirme tamponu, sonra kaldirildi): v2 accum=4 21841 tok/s, tepe 7.40 GB
+# nanoGPT eager
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": false, "B": 8, "T": 1024, "accum": 4, "vocab": 50257, "ms_per_step": 15484.04, "tokens_per_s": 2116.2, "mfu": 0.0421, "peak_allocated_gb": 9.995, "peak_reserved_gb": 11.874, "sdpa_flash": true}
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": false, "B": 4, "T": 1024, "accum": 8, "vocab": 50257, "ms_per_step": 1534.99, "tokens_per_s": 21347.4, "mfu": 0.4245, "peak_allocated_gb": 6.140, "peak_reserved_gb": 7.195, "sdpa_flash": true}
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": false, "B": 2, "T": 1024, "accum": 16, "vocab": 50257, "ms_per_step": 1640.62, "tokens_per_s": 19972.9, "mfu": 0.3972, "peak_allocated_gb": 4.212, "peak_reserved_gb": 4.832, "sdpa_flash": true}
+# nanoGPT torch.compile (tc_b8)
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": true, "B": 8, "T": 1024, "accum": 4, "vocab": 50257, "ms_per_step": 26736.573599999854, "tokens_per_s": 1225.5871111323022, "mfu": 0.02437397665467409, "peak_allocated_gb": 7.579161088, "peak_reserved_gb": 7.782531072, "first_step_ms": 62629.82699999702, "flops_per_token": 855166464, "sdpa_flash": true, "last_loss": 9.837122917175293}
+# nanoGPT torch.compile (tc_b4)
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": true, "B": 4, "T": 1024, "accum": 8, "vocab": 50257, "ms_per_step": 1350.122183333345, "tokens_per_s": 24270.395971939663, "mfu": 0.482679737283802, "peak_allocated_gb": 4.96467456, "peak_reserved_gb": 5.51550976, "first_step_ms": 65445.042499999545, "flops_per_token": 855166464, "sdpa_flash": true, "last_loss": 9.582374572753906}
+# nanoGPT torch.compile (tc_b2)
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": true, "B": 2, "T": 1024, "accum": 16, "vocab": 50257, "ms_per_step": 1548.6716666667537, "tokens_per_s": 21158.778006526987, "mfu": 0.4207971481488989, "peak_allocated_gb": 3.666393088, "peak_reserved_gb": 4.01604608, "first_step_ms": 56580.74110000234, "flops_per_token": 855166464, "sdpa_flash": true, "last_loss": 9.176351547241211}

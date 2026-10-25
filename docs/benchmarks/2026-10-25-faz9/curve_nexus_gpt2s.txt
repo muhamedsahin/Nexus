@@ -1,0 +1,32 @@
+baslangic dogrulama kaybi 11.0157 (ppl 60822.7), 32768 token/adim, accum 8
+adim     10 | kayip 8.3330 | lr 1.935e-04 | norm 23.542 | 21080 tok/s | MFU 41.9% | bellek 4.61 GB | 1554 ms
+adim     20 | kayip 6.0972 | lr 3.871e-04 | norm 1.975 | 20854 tok/s | MFU 41.5% | bellek 4.61 GB | 1571 ms
+adim     30 | kayip 5.0025 | lr 5.806e-04 | norm 1.220 | 20890 tok/s | MFU 41.5% | bellek 4.61 GB | 1569 ms
+adim     40 | kayip 4.4705 | lr 5.985e-04 | norm 1.369 | 20825 tok/s | MFU 41.4% | bellek 4.61 GB | 1574 ms
+adim     50 | kayip 4.1843 | lr 5.934e-04 | norm 0.790 | 20794 tok/s | MFU 41.3% | bellek 4.61 GB | 1576 ms | dogrulama 4.2269 (ppl 68.50)
+adim     60 | kayip 4.0338 | lr 5.848e-04 | norm 0.575 | 20760 tok/s | MFU 41.3% | bellek 4.61 GB | 1578 ms
+adim     70 | kayip 3.9816 | lr 5.727e-04 | norm 0.908 | 20718 tok/s | MFU 41.2% | bellek 4.61 GB | 1582 ms
+adim     80 | kayip 3.9433 | lr 5.573e-04 | norm 0.580 | 20619 tok/s | MFU 41.0% | bellek 4.61 GB | 1589 ms
+adim     90 | kayip 3.8819 | lr 5.388e-04 | norm 0.707 | 20345 tok/s | MFU 40.5% | bellek 4.61 GB | 1611 ms
+adim    100 | kayip 3.7609 | lr 5.176e-04 | norm 0.534 | 20414 tok/s | MFU 40.6% | bellek 4.61 GB | 1605 ms | dogrulama 3.8171 (ppl 45.47)
+adim    110 | kayip 3.7890 | lr 4.937e-04 | norm 0.681 | 20454 tok/s | MFU 40.7% | bellek 4.61 GB | 1602 ms
+adim    120 | kayip 3.6912 | lr 4.677e-04 | norm 0.537 | 20524 tok/s | MFU 40.8% | bellek 4.61 GB | 1597 ms
+adim    130 | kayip 3.6465 | lr 4.398e-04 | norm 0.524 | 20540 tok/s | MFU 40.8% | bellek 4.61 GB | 1595 ms
+adim    140 | kayip 3.6183 | lr 4.104e-04 | norm 0.581 | 20517 tok/s | MFU 40.8% | bellek 4.61 GB | 1597 ms
+adim    150 | kayip 3.5626 | lr 3.800e-04 | norm 0.601 | 20495 tok/s | MFU 40.8% | bellek 4.61 GB | 1599 ms | dogrulama 3.5912 (ppl 36.28)
+adim    160 | kayip 3.5334 | lr 3.488e-04 | norm 0.582 | 20473 tok/s | MFU 40.7% | bellek 4.61 GB | 1601 ms
+adim    170 | kayip 3.4465 | lr 3.174e-04 | norm 0.550 | 20186 tok/s | MFU 40.1% | bellek 4.61 GB | 1623 ms
+adim    180 | kayip 3.4555 | lr 2.862e-04 | norm 0.597 | 19995 tok/s | MFU 39.8% | bellek 4.61 GB | 1639 ms
+adim    190 | kayip 3.3076 | lr 2.556e-04 | norm 0.513 | 20338 tok/s | MFU 40.4% | bellek 4.61 GB | 1611 ms
+adim    200 | kayip 3.2644 | lr 2.260e-04 | norm 0.477 | 20412 tok/s | MFU 40.6% | bellek 4.61 GB | 1605 ms | dogrulama 3.2998 (ppl 27.11)
+adim    210 | kayip 3.2781 | lr 1.977e-04 | norm 0.608 | 20448 tok/s | MFU 40.7% | bellek 4.61 GB | 1602 ms
+adim    220 | kayip 3.2152 | lr 1.713e-04 | norm 0.523 | 20463 tok/s | MFU 40.7% | bellek 4.61 GB | 1601 ms
+adim    230 | kayip 3.2176 | lr 1.470e-04 | norm 0.528 | 20346 tok/s | MFU 40.5% | bellek 4.61 GB | 1611 ms
+adim    240 | kayip 3.1559 | lr 1.252e-04 | norm 0.560 | 20469 tok/s | MFU 40.7% | bellek 4.61 GB | 1601 ms
+adim    250 | kayip 3.0400 | lr 1.062e-04 | norm 0.517 | 20511 tok/s | MFU 40.8% | bellek 4.61 GB | 1598 ms | dogrulama 3.1162 (ppl 22.56)
+adim    260 | kayip 3.0733 | lr 9.015e-05 | norm 0.552 | 20447 tok/s | MFU 40.7% | bellek 4.61 GB | 1603 ms
+adim    270 | kayip 3.0528 | lr 7.737e-05 | norm 0.517 | 20412 tok/s | MFU 40.6% | bellek 4.61 GB | 1605 ms
+adim    280 | kayip 2.9934 | lr 6.802e-05 | norm 0.523 | 20418 tok/s | MFU 40.6% | bellek 4.61 GB | 1605 ms
+adim    290 | kayip 2.9830 | lr 6.221e-05 | norm 0.529 | 20449 tok/s | MFU 40.7% | bellek 4.61 GB | 1602 ms
+adim    300 | kayip 2.9643 | lr 6.002e-05 | norm 0.607 | 20382 tok/s | MFU 40.5% | bellek 4.61 GB | 1608 ms | dogrulama 2.9996 (ppl 20.08)
+{"model":"gpt2s","steps":300,"stopped":false,"tokens_per_step":32768,"accum":8,"wall_s":487.6,"mean_step_ms":1598.12,"tokens_per_s":20504,"mfu":0.4077,"peak_flops":4.301e+13,"peak_reserved_gb":4.607,"val_loss_start":11.0157,"val_loss_end":2.9996,"val_ppl_end":20.078,"last_train_loss":2.9643,"nan_events":0,"spikes":0}

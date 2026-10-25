@@ -54,7 +54,9 @@ add_library(nexus STATIC
     src/lm/ops.cpp
     src/lm/model.cpp
     src/prof/prof.cpp
-    src/model/nxs.cpp)
+    src/model/nxs.cpp
+    src/train/lm_trainer.cpp
+    src/train/loggers.cpp)
 add_library(nexus::nexus ALIAS nexus)
 
 target_compile_features(nexus PUBLIC cxx_std_20)
@@ -126,7 +128,8 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/fp8_native.cpp
         src/cuda/cast_cache.cpp
         src/cuda/gpt.cpp
-        src/cuda/token_loader.cpp)
+        src/cuda/token_loader.cpp
+        src/cuda/lm_backend.cpp)
     add_library(nexus::cuda ALIAS nexus_cuda)
     # nexus'un kullanim gereksinimleri (or. NexusLoss'un INTERFACE /W4) nvcc'ye gecmesin:
     # yalniz baglama icin nexus, basliklar ve tanimlar acikca verilir.

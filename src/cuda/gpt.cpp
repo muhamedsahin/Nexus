@@ -35,6 +35,9 @@
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <iterator>
+#include <string>
+#include <utility>
 #include <span>
 #include <thread>
 #include <vector>
@@ -257,6 +260,7 @@ struct GptModel::Buffers {
   DeviceBuffer dres_t, dlogits_t;                              // (t) yalniz dar modda
   DeviceBuffer dqkv, dq, dk, dv, datty, datt, dfc;              // (t)
   DeviceBuffer norm_scratch, emb_scratch, ce_scratch, adam_scratch;
+  DeviceBuffer bias_grad;  // FAZ 9.2: biriktirmede BGRAD epilogu ciktisi (sonra += ile eklenir), [4C]
   // Yuva eslemesi: slot[tur][katman] -> yuva indeksi; recompute[katman]: geri geciste yeniden ileri.
   std::vector<int> slot[kActCount];
   std::vector<char> recompute;
@@ -362,6 +366,9 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
   // F16'nin dar us araligi gradyani sifira dusurur: dinamik kayip olcegi zorunlu.
   use_loss_scale_ = config_.dynamic_loss_scale || ct == DType::F16;
   build_layout();
+  for (const GptParamInfo& p : params_info_) {
+    scales_.push_back(GptParamScale{p.decay ? 1.0f : 0.0f, 1.0f});
+  }
   rest_count_ = matrices_begin_ + (num_params_ - small_begin_);
   {
     const int D = config_.dim / config_.heads;
@@ -624,6 +631,7 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
   alloc(b.datt, BT * C, et);
   alloc(b.dfc, BT * 4 * C, et);
   b.norm_scratch = DeviceBuffer(layernorm_backward_scratch_bytes(static_cast<int>(BT), static_cast<int>(C)), stream_);
+  b.bias_grad = DeviceBuffer(4 * C * sizeof(float), stream_);
   b.emb_scratch = DeviceBuffer(embedding_backward_scratch_bytes(batch, time), stream_);
   b.ce_scratch = DeviceBuffer(cross_entropy_scratch_bytes(batch, time), stream_);
   if (config_.optimizer == OptimizerKind::AdamW8bit || fused()) {
@@ -851,7 +859,7 @@ void GptModel::head_forward(const std::int32_t* d_tokens, bool for_backward) {
     // Logit FP32'ye yukseltilmis cikti (4.6) -> CE FP32.
     mm(s, false, true, BT, V, C, Mat{b.lnf.data(), mt}, wte, OutBuf{b.logits.data(), DType::F32});
     cross_entropy_shifted(for_backward ? b.logits.as<float>() : nullptr, loss_.as<float>(), nullptr,
-                          b.logits.as<float>(), d_tokens, B, T, V, options, 1.0f, device_scale, b.ce_scratch.data(), s);
+                          b.logits.as<float>(), d_tokens, B, T, V, options, grad_scale_, device_scale, b.ce_scratch.data(), s);
     return;
   }
   float* dwte = grads_.as<float>() + (offload() ? rest_index(wte_off) : wte_off);
@@ -862,7 +870,7 @@ void GptModel::head_forward(const std::int32_t* d_tokens, bool for_backward) {
     const void* lnf = at(b.lnf, static_cast<std::size_t>(r0) * C, mt);
     mm(s, false, true, rows, V, C, Mat{lnf, mt}, wte, OutBuf{b.logits.data(), DType::F32});
     cross_entropy_chunk(for_backward ? b.logits.as<float>() : nullptr, b.logits.as<float>(), d_tokens, B, T, V, options,
-                        1.0f, device_scale, r0, rows, b.ce_scratch.data(), s);
+                        grad_scale_, device_scale, r0, rows, b.ce_scratch.data(), s);
     if (!for_backward) {
       continue;
     }
@@ -873,7 +881,7 @@ void GptModel::head_forward(const std::int32_t* d_tokens, bool for_backward) {
     }
     mm(s, false, false, rows, C, V, dlogits, wte, OutBuf{dln + static_cast<std::size_t>(r0) * C, DType::F32});
     mm(s, true, false, V, C, rows, dlogits, Mat{lnf, mt}, OutBuf{dwte, DType::F32}, Epilogue::None, nullptr, nullptr,
-       nullptr, r0 > 0 ? 1.0f : 0.0f);  // dwte: ilk parca yazar, sonrakiler biriktirir
+       nullptr, (r0 > 0 || accumulate_) ? 1.0f : 0.0f);  // dwte: ilk parca yazar, sonrakiler (ve biriktirme) ekler
   }
   cross_entropy_chunked_end(loss_.as<float>(), nullptr, B, T, b.ce_scratch.data(), s);
 }
@@ -926,6 +934,17 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
     return Mat{b.dres_t.data(), mt};
   };
 
+  // Agirlik gradyani GEMM'i + BGRADB epilogunda bias gradyani. FAZ 9.2 biriktirme: agirlik beta = 1 ile
+  // eklenir; epilog bias gradyanini uzerine yazdigi icin ara tampona yazilip += ile eklenir.
+  auto wgrad = [&](int m, int n, Mat a, Mat bm, int wid, std::size_t woff, int bid, std::size_t boff, int bn) {
+    if (!accumulate_) {
+      mm(s, true, false, m, n, BT, a, bm, gout(wid, woff), Epilogue::BGradB, nullptr, nullptr, grad(bid, boff));
+      return;
+    }
+    mm(s, true, false, m, n, BT, a, bm, gout(wid, woff), Epilogue::BGradB, nullptr, nullptr, b.bias_grad.data(), 1.0f);
+    add_inplace(grad(bid, boff), b.bias_grad.as<float>(), static_cast<std::size_t>(bn), s);
+  };
+
   if (config_.ce_chunk_rows <= 0) {
     // Kafa: dlogits FP32 (CE yerinde yazdi); dar modda GEMM icin dar kopya.
     Mat dlogits{b.logits.data(), DType::F32};
@@ -934,7 +953,8 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
       dlogits = Mat{b.dlogits_t.data(), mt};
     }
     mm(s, false, false, BT, C, V, dlogits, w(kWte), OutBuf{dln, DType::F32});              // dlnf = dlogits wte
-    mm(s, true, false, V, C, BT, dlogits, Mat{b.lnf.data(), mt}, gout(kWte));             // dwte (ilk yazim, FP32)
+    mm(s, true, false, V, C, BT, dlogits, Mat{b.lnf.data(), mt}, gout(kWte), Epilogue::None, nullptr, nullptr, nullptr,
+       accumulate_ ? 1.0f : 0.0f);  // dwte (ilk yazim; biriktirmede +=), FP32
   }  // parcali modda dln ve dwte head_forward'da yazildi
   float* res = b.res.as<float>();
   layernorm_backward(dres, grad(kLnfW), grad(kLnfB), dln, res + static_cast<std::size_t>(L) * btc, f32(kLnfW),
@@ -976,19 +996,16 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
     Mat dres_in = dres_as_input();
     mm(s, false, true, BT, 4 * C, C, dres_in, w(kFcProjW, lc * 4 * C), OutBuf{b.dfc.data(), mt}, Epilogue::DGelu,
        nullptr, fc_pre);
-    mm(s, true, false, 4 * C, C, BT, Mat{fc_act, mt}, dres_in, gout(kFcProjW, lc * 4 * C), Epilogue::BGradB, nullptr,
-       nullptr, grad(kFcProjB, lc));
+    wgrad(4 * C, C, Mat{fc_act, mt}, dres_in, kFcProjW, lc * 4 * C, kFcProjB, lc, C);
     mm(s, false, true, BT, C, 4 * C, Mat{b.dfc.data(), mt}, w(kFcW, lc * 4 * C), OutBuf{dln, DType::F32});
-    mm(s, true, false, C, 4 * C, BT, Mat{ln2, mt}, Mat{b.dfc.data(), mt}, gout(kFcW, lc * 4 * C), Epilogue::BGradB,
-       nullptr, nullptr, grad(kFcB, lc * 4));
+    wgrad(C, 4 * C, Mat{ln2, mt}, Mat{b.dfc.data(), mt}, kFcW, lc * 4 * C, kFcB, lc * 4, 4 * C);
     layernorm_backward(dres, grad(kLn2W, lc), grad(kLn2B, lc), dln, xmid, f32(kLn2W, lc),
                        b.ln2_mean.as<float>() + static_cast<std::size_t>(l) * BT,
                        b.ln2_rstd.as<float>() + static_cast<std::size_t>(l) * BT, BT, C, true, scratch, s);
     // --- Dikkat --- dres = d xmid
     dres_in = dres_as_input();
     mm(s, false, true, BT, C, C, dres_in, w(kAttProjW, lc * C), OutBuf{b.datt.data(), mt});
-    mm(s, true, false, C, C, BT, Mat{att, mt}, dres_in, gout(kAttProjW, lc * C), Epilogue::BGradB, nullptr, nullptr,
-       grad(kAttProjB, lc));
+    wgrad(C, C, Mat{att, mt}, dres_in, kAttProjW, lc * C, kAttProjB, lc, C);
     if (flash_) {
       // dO = datt ([B,T,C]); dQ/dK/dV dogrudan dqkv'nin [B,T,3,H,D] dilimlerine yazilir.
       const AttentionParams ap = gpt_attention_params(B, T, H, D, mt, config_.deterministic_attention);
@@ -1015,8 +1032,7 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
       merge_qkv_heads(b.dqkv.data(), b.dq.data(), b.dk.data(), b.dv.data(), mt, B, T, H, D, s);
     }
     mm(s, false, true, BT, C, 3 * C, Mat{b.dqkv.data(), mt}, w(kQkvW, lc * 3 * C), OutBuf{dln, DType::F32});
-    mm(s, true, false, C, 3 * C, BT, Mat{ln1, mt}, Mat{b.dqkv.data(), mt}, gout(kQkvW, lc * 3 * C), Epilogue::BGradB,
-       nullptr, nullptr, grad(kQkvB, static_cast<std::size_t>(l) * 3 * C));
+    wgrad(C, 3 * C, Mat{ln1, mt}, Mat{b.dqkv.data(), mt}, kQkvW, lc * 3 * C, kQkvB, static_cast<std::size_t>(l) * 3 * C, 3 * C);
     layernorm_backward(dres, grad(kLn1W, lc), grad(kLn1B, lc), dln, x_in, f32(kLn1W, lc),
                        b.ln1_mean.as<float>() + static_cast<std::size_t>(l) * BT,
                        b.ln1_rstd.as<float>() + static_cast<std::size_t>(l) * BT, BT, C, true, scratch, s);
@@ -1074,10 +1090,20 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
 
 void GptModel::forward(const std::int32_t* d_tokens) { run_forward(d_tokens, false); }
 
-void GptModel::forward_backward(const std::int32_t* d_tokens) {
-  // LN agirlik/bias ve wpe gradyanlari "+=" ile yazilir; tumu her adimda sifirlanir.
-  const std::size_t count = layer_grad_stream() ? rest_count_ : num_params_;
-  NEXUS_CUDA_CHECK(cudaMemsetAsync(grads_.data(), 0, count * sizeof(float), stream_.handle()));
+void GptModel::forward_backward(const std::int32_t* d_tokens, float grad_scale, bool accumulate) {
+  if (!std::isfinite(grad_scale)) {
+    throw TensorError("Nexus GPT: grad_scale sonlu olmali");
+  }
+  if (accumulate && layer_grad_stream()) {
+    throw TensorError("Nexus GPT: gradyan biriktirme ZeroOffload/AdamW8bitFused ile desteklenmez (tam gradyan tamponu yok)");
+  }
+  grad_scale_ = grad_scale;
+  accumulate_ = accumulate;
+  // LN agirlik/bias, wte/wpe (gomme geri) gradyanlari "+=" ile yazilir; biriktirme yoksa her adimda sifirlanir.
+  if (!accumulate) {
+    const std::size_t count = layer_grad_stream() ? rest_count_ : num_params_;
+    NEXUS_CUDA_CHECK(cudaMemsetAsync(grads_.data(), 0, count * sizeof(float), stream_.handle()));
+  }
   if (fused()) {
     if (!fused_ready_) {
       throw TensorError("Nexus GPT: AdamW8bitFused icin once set_fused_optimizer cagirin");
@@ -1086,6 +1112,186 @@ void GptModel::forward_backward(const std::int32_t* d_tokens) {
   }
   run_forward(d_tokens, true);
   run_backward(d_tokens);
+}
+
+void GptModel::set_nonfinite_guard(bool enabled) {
+  if (enabled && layer_grad_stream()) {
+    throw TensorError("Nexus GPT: NaN korumasi ZeroOffload/AdamW8bitFused ile desteklenmez");
+  }
+  guard_ = enabled;
+}
+
+void GptModel::set_param_scales(const std::vector<GptParamScale>& scales) {
+  if (scales.empty()) {
+    scales_.clear();
+    for (const GptParamInfo& p : params_info_) {
+      scales_.push_back(GptParamScale{p.decay ? 1.0f : 0.0f, 1.0f});
+    }
+    return;
+  }
+  if (scales.size() != params_info_.size()) {
+    throw TensorError("Nexus GPT: set_param_scales parametre sayisi kadar giris ister");
+  }
+  for (std::size_t i = 0; i < scales.size(); ++i) {
+    if (!(scales[i].weight_decay >= 0.0f) || !(scales[i].lr >= 0.0f) || !std::isfinite(scales[i].lr) ||
+        !std::isfinite(scales[i].weight_decay)) {
+      throw TensorError("Nexus GPT: parametre carpanlari sonlu ve >= 0 olmali");
+    }
+    // ZeroOffload'in CPU AdamW'i yalniz decay bayragini bilir: farkli carpan sessizce yok sayilmasin.
+    if (offload() && (scales[i].lr != 1.0f || scales[i].weight_decay != (params_info_[i].decay ? 1.0f : 0.0f))) {
+      throw TensorError("Nexus GPT: ZeroOffload parametre grubu carpanlarini desteklemez");
+    }
+  }
+  scales_ = scales;
+}
+
+GptStateSnapshot GptModel::save_state() const {
+  if (offload()) {
+    throw TensorError("Nexus GPT: save_state ZeroOffload'da desteklenmez (durum host'ta)");
+  }
+  GptStateSnapshot snap;
+  snap.step = step_;
+  const DeviceBuffer* buffers[] = {&params_, &shadow_, &exp_avg_, &exp_avg_sq_, &q8_m_, &q8_v_,
+                                   &q8_absmax_m_, &q8_absmax_v_, &loss_scale_state_, &fused_clip_, &fused_norm_accum_};
+  for (const DeviceBuffer* buf : buffers) {
+    std::vector<unsigned char> host(buf->bytes());
+    if (!host.empty()) {
+      NEXUS_CUDA_CHECK(cudaMemcpyAsync(host.data(), buf->data(), host.size(), cudaMemcpyDeviceToHost, stream_.handle()));
+    }
+    snap.blobs.push_back(std::move(host));
+  }
+  stream_.synchronize();
+  return snap;
+}
+
+void GptModel::load_state(const GptStateSnapshot& snap) {
+  if (offload()) {
+    throw TensorError("Nexus GPT: load_state ZeroOffload'da desteklenmez");
+  }
+  DeviceBuffer* buffers[] = {&params_, &shadow_, &exp_avg_, &exp_avg_sq_, &q8_m_, &q8_v_,
+                             &q8_absmax_m_, &q8_absmax_v_, &loss_scale_state_, &fused_clip_, &fused_norm_accum_};
+  if (snap.blobs.size() != std::size(buffers)) {
+    throw TensorError("Nexus GPT: durum kopyasi bicimi uyusmuyor");
+  }
+  for (std::size_t i = 0; i < snap.blobs.size(); ++i) {
+    if (snap.blobs[i].size() != buffers[i]->bytes()) {
+      throw TensorError("Nexus GPT: durum kopyasi baska bir yapilandirmadan (tampon boyutu uyusmuyor)");
+    }
+  }
+  for (std::size_t i = 0; i < snap.blobs.size(); ++i) {
+    if (!snap.blobs[i].empty()) {
+      NEXUS_CUDA_CHECK(cudaMemcpyAsync(buffers[i]->data(), snap.blobs[i].data(), snap.blobs[i].size(),
+                                       cudaMemcpyHostToDevice, stream_.handle()));
+    }
+  }
+  step_ = snap.step;
+  stream_.synchronize();
+}
+
+const float* GptModel::device_token_losses() const noexcept {
+  // CE scratch'in ilk B*T float'i konum basina kayiptir (ce_scratch duzeni, kernels_train.cu).
+  return buffers_->ce_scratch.as<float>();
+}
+
+namespace {
+// Katmanli tensorlerde (ilk boyut L) dilim adlari "h.<l>.<ad>"; digerleri ad olarak.
+template <typename Fn>
+void for_each_slice(const std::vector<GptParamInfo>& info, int layers, Fn&& fn) {
+  for (const GptParamInfo& p : info) {
+    const bool layered = p.shape.size() >= 2 && p.shape.front() == layers && p.name != "wte" && p.name != "wpe";
+    if (!layered) {
+      fn(p.name, p.offset, p.numel);
+      continue;
+    }
+    const std::size_t per = p.numel / static_cast<std::size_t>(layers);
+    for (int l = 0; l < layers; ++l) {
+      fn("h." + std::to_string(l) + "." + p.name, p.offset + static_cast<std::size_t>(l) * per, per);
+    }
+  }
+}
+
+double l2_norm(const float* x, std::size_t n) {
+  double acc = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    acc += static_cast<double>(x[i]) * x[i];
+  }
+  return std::sqrt(acc);
+}
+
+bool all_finite(const float* x, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i) {
+    if (!std::isfinite(x[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+}  // namespace
+
+std::vector<GptModel::NormEntry> GptModel::layer_norms() const {
+  const std::vector<float> w = download_parameters();
+  const std::vector<float> g = download_gradients();
+  std::vector<NormEntry> out;
+  for_each_slice(params_info_, config_.layers, [&](const std::string& name, std::size_t offset, std::size_t n) {
+    out.push_back(NormEntry{name, l2_norm(w.data() + offset, n), l2_norm(g.data() + offset, n)});
+  });
+  return out;
+}
+
+GptNonFiniteReport GptModel::diagnose_nonfinite(const std::int32_t* d_tokens) {
+  GptNonFiniteReport report;
+  {
+    const std::vector<float> w = download_parameters();
+    for_each_slice(params_info_, config_.layers, [&](const std::string& name, std::size_t offset, std::size_t n) {
+      if (!all_finite(w.data() + offset, n)) {
+        report.parameters.push_back(name);
+      }
+    });
+  }
+  // Ileri: res[0] = gomme ciktisi, res[l + 1] = katman l ciktisi (her modda (L+1) dilim saklanir).
+  run_forward(d_tokens, false);
+  const int L = config_.layers;
+  const std::size_t btc = static_cast<std::size_t>(batch_) * time_ * config_.dim;
+  DeviceBuffer counts((static_cast<std::size_t>(L) + 1) * sizeof(unsigned long long), stream_);
+  NEXUS_CUDA_CHECK(cudaMemsetAsync(counts.data(), 0, counts.bytes(), stream_.handle()));
+  for (int k = 0; k <= L; ++k) {
+    count_nonfinite(counts.as<unsigned long long>() + k, buffers_->res.as<float>() + static_cast<std::size_t>(k) * btc, btc,
+                    stream_.handle());
+  }
+  std::vector<unsigned long long> host(static_cast<std::size_t>(L) + 1);
+  NEXUS_CUDA_CHECK(cudaMemcpyAsync(host.data(), counts.data(), counts.bytes(), cudaMemcpyDeviceToHost, stream_.handle()));
+  report.loss = read_loss();  // senkron
+  for (int k = 0; k <= L && report.first_activation.empty(); ++k) {
+    if (host[static_cast<std::size_t>(k)] != 0) {
+      report.first_activation = k == 0 ? std::string("embedding") : "h." + std::to_string(k - 1);
+    }
+  }
+  if (report.first_activation.empty() && !std::isfinite(report.loss)) {
+    report.first_activation = "lm_head";  // son LN, bagli kafa veya CE (ya da sozluk disi hedef token)
+  }
+  // Geri: gradyanlar, geri gecis sirasiyla (kafa ve son katman once).
+  if (!layer_grad_stream()) {
+    forward_backward(d_tokens, grad_scale_, false);
+    const std::vector<float> g = download_gradients();
+    std::vector<std::pair<int, std::string>> bad;
+    for_each_slice(params_info_, L, [&](const std::string& name, std::size_t offset, std::size_t n) {
+      if (all_finite(g.data() + offset, n)) {
+        return;
+      }
+      int order = -1;  // lnf: en once
+      if (name.rfind("h.", 0) == 0) {
+        order = L - std::stoi(name.substr(2));
+      } else if (name == "wte" || name == "wpe") {
+        order = L + 1;
+      }
+      bad.emplace_back(order, name);
+    });
+    std::stable_sort(bad.begin(), bad.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (auto& entry : bad) {
+      report.gradients.push_back(std::move(entry.second));
+    }
+  }
+  return report;
 }
 
 void GptModel::set_fused_optimizer(const DeviceAdamWConfig& config) {
@@ -1131,7 +1337,8 @@ void GptModel::fused_update_layer(int l, const float* layer_grads) {
     q.absmax_m = q8_absmax_m_.as<float>() + blk;
     q.absmax_v = q8_absmax_v_.as<float>() + blk;
     q.numel = per;
-    q.weight_decay_scale = 1.0f;
+    q.weight_decay_scale = scale_of(p).weight_decay;
+    q.lr_scale = scale_of(p).lr;
     slots.push_back(q);
   }
   DeviceAdamWConfig c = fused_config_;
@@ -1159,7 +1366,8 @@ void GptModel::fused_update_rest() {
       q.absmax_m = q8_absmax_m_.as<float>() + blk;
       q.absmax_v = q8_absmax_v_.as<float>() + blk;
       q.numel = p.numel;
-      q.weight_decay_scale = p.decay ? 1.0f : 0.0f;
+      q.weight_decay_scale = scale_of(p).weight_decay;
+      q.lr_scale = scale_of(p).lr;
       slots8.push_back(q);
       continue;
     }
@@ -1170,7 +1378,8 @@ void GptModel::fused_update_rest() {
     slot.exp_avg = exp_avg_.as<float>() + state32_index(p.offset);
     slot.exp_avg_sq = exp_avg_sq_.as<float>() + state32_index(p.offset);
     slot.numel = p.numel;
-    slot.weight_decay_scale = p.decay ? 1.0f : 0.0f;
+    slot.weight_decay_scale = scale_of(p).weight_decay;
+    slot.lr_scale = scale_of(p).lr;
     slots32.push_back(slot);
   }
   DeviceAdamWConfig c = fused_config_;
@@ -1200,6 +1409,9 @@ void GptModel::optimizer_step(const DeviceAdamWConfig& base) {
     config.loss_scale = &scale_state->scale;
     config.found_inf = &scale_state->found_inf;
     config.skipped_steps = &scale_state->skipped_steps;
+  } else if (guard_) {
+    config.found_inf = &scale_state->found_inf;  // olcek 1 kalir; yalniz bayrak ve sayaclar
+    config.skipped_steps = &scale_state->skipped_steps;
   }
   const bool write_shadow = narrow() && config_.master != MasterWeights::CastPerForward;
   config.shadow_type = write_shadow ? config_.compute_dtype : DType::F32;
@@ -1220,7 +1432,8 @@ void GptModel::optimizer_step(const DeviceAdamWConfig& base) {
         q.absmax_m = q8_absmax_m_.as<float>() + block;
         q.absmax_v = q8_absmax_v_.as<float>() + block;
         q.numel = p.numel;
-        q.weight_decay_scale = p.decay ? 1.0f : 0.0f;
+        q.weight_decay_scale = scale_of(p).weight_decay;
+        q.lr_scale = scale_of(p).lr;
         block += (p.numel + kQ8Block - 1) / kQ8Block;
         slots8.push_back(q);
       } else {
@@ -1231,13 +1444,19 @@ void GptModel::optimizer_step(const DeviceAdamWConfig& base) {
         slot.exp_avg = exp_avg_.as<float>() + state32_index(p.offset);
         slot.exp_avg_sq = exp_avg_sq_.as<float>() + state32_index(p.offset);
         slot.numel = p.numel;
-        slot.weight_decay_scale = p.decay ? 1.0f : 0.0f;
+        slot.weight_decay_scale = scale_of(p).weight_decay;
+        slot.lr_scale = scale_of(p).lr;
         slots32.push_back(slot);
       }
     }
     adamw_mixed_multi_tensor(slots32.data(), static_cast<int>(slots32.size()), slots8.data(),
                              static_cast<int>(slots8.size()), config, step_, grad_norm_.as<float>(),
                              buffers_->adam_scratch.data(), stream_.handle());
+    if (use_loss_scale_) {
+      loss_scale_update(scale_state, config_.loss_scale, stream_.handle());
+    } else if (guard_) {
+      nonfinite_guard_update(scale_state, stream_.handle());
+    }
     return;
   }
   std::vector<DeviceParamSlot> slots;
@@ -1250,13 +1469,16 @@ void GptModel::optimizer_step(const DeviceAdamWConfig& base) {
     slot.exp_avg = exp_avg_.as<float>() + p.offset;
     slot.exp_avg_sq = exp_avg_sq_.as<float>() + p.offset;
     slot.numel = p.numel;
-    slot.weight_decay_scale = p.decay ? 1.0f : 0.0f;
+    slot.weight_decay_scale = scale_of(p).weight_decay;
+    slot.lr_scale = scale_of(p).lr;
     slots.push_back(slot);
   }
   adamw_multi_tensor(slots.data(), static_cast<int>(slots.size()), config, step_, grad_norm_.as<float>(),
                      buffers_->adam_scratch.data(), stream_.handle());
   if (use_loss_scale_) {
     loss_scale_update(scale_state, config_.loss_scale, stream_.handle());
+  } else if (guard_) {
+    nonfinite_guard_update(scale_state, stream_.handle());
   }
 }
 

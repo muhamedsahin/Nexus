@@ -1,0 +1,12 @@
+baslangic dogrulama kaybi 10.8799 (ppl 53100.5), 16384 token/adim, accum 4
+adim     50 | kayip 5.0878 | lr 9.804e-04 | norm 5.007 | 108794 tok/s | MFU 25.1% | bellek 1.79 GB | 151 ms
+adim    100 | kayip 3.9410 | lr 9.739e-04 | norm 0.772 | 108797 tok/s | MFU 25.1% | bellek 1.79 GB | 151 ms | dogrulama 3.9412 (ppl 51.48)
+adim    150 | kayip 3.6306 | lr 8.967e-04 | norm 0.680 | 108476 tok/s | MFU 25.0% | bellek 1.79 GB | 151 ms
+adim    200 | kayip 3.2699 | lr 7.777e-04 | norm 0.733 | 108292 tok/s | MFU 25.0% | bellek 1.79 GB | 151 ms | dogrulama 3.3270 (ppl 27.85)
+adim    250 | kayip 3.1389 | lr 6.312e-04 | norm 0.764 | 107590 tok/s | MFU 24.8% | bellek 1.79 GB | 152 ms
+adim    300 | kayip 3.0320 | lr 4.750e-04 | norm 0.804 | 106924 tok/s | MFU 24.7% | bellek 1.79 GB | 153 ms | dogrulama 3.0105 (ppl 20.30)
+adim    350 | kayip 2.9562 | lr 3.277e-04 | norm 0.750 | 107608 tok/s | MFU 24.8% | bellek 1.79 GB | 152 ms
+adim    400 | kayip 2.7415 | lr 2.073e-04 | norm 0.792 | 107022 tok/s | MFU 24.7% | bellek 1.79 GB | 153 ms | dogrulama 2.8432 (ppl 17.17)
+adim    450 | kayip 2.7965 | lr 1.282e-04 | norm 0.699 | 107430 tok/s | MFU 24.8% | bellek 1.79 GB | 153 ms
+adim    500 | kayip 2.7678 | lr 1.000e-04 | norm 0.738 | 107516 tok/s | MFU 24.8% | bellek 1.79 GB | 152 ms | dogrulama 2.7702 (ppl 15.96)
+{"model":"tiny","steps":500,"stopped":false,"tokens_per_step":16384,"accum":4,"wall_s":78.1,"mean_step_ms":151.61,"tokens_per_s":108065,"mfu":0.2495,"peak_flops":4.301e+13,"peak_reserved_gb":1.789,"val_loss_start":10.8799,"val_loss_end":2.7702,"val_ppl_end":15.961,"last_train_loss":2.7678,"nan_events":0,"spikes":0}

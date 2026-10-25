@@ -30,9 +30,8 @@
  * F16'da dinamik kayip olcegi aygitta tutulur; unscale + isfinite AdamW'in norm gecisinde
  * tek bayrakla yapilir, inf/NaN adimi atlanir (host senkronu yok).
  *
- * Kapsam disi (sonraki fazlar): FlashAttention (FAZ 5; burada
- * dikkat skoru [B,H,T,T] yazilir), aktivasyon yeniden hesaplama (FAZ 7), gradyan
- * biriktirme (FAZ 9).
+ * FAZ 5 FlashAttention, FAZ 7 yeniden hesaplama, FAZ 9 gradyan biriktirme / NaN korumasi /
+ * parametre grubu carpanlari / durum kopyasi bu sinifa eklendi (asagidaki API).
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -114,6 +113,26 @@ struct GptParamInfo {
   bool decay = false;      // agirlik sonumu (2B matrisler)
 };
 
+/// FAZ 9.3: parametre basina optimizer carpanlari (parameter_info sirasiyla).
+struct GptParamScale {
+  float weight_decay = 1.0f;  // DeviceAdamWConfig::weight_decay carpani (0: sonum yok)
+  float lr = 1.0f;            // ogrenme hizi carpani (muP gruplari)
+};
+
+/// FAZ 9.7: sonlu olmayan deger teshisi (ileri: katman ciktilari, geri: gradyanlar).
+struct GptNonFiniteReport {
+  std::string first_activation;              // ilk sonlu olmayan cikti: "embedding", "h.3", "lm_head"; bos: hepsi sonlu
+  std::vector<std::string> parameters;       // sonlu olmayan agirliklar ("h.3.fc_w", "wte" ...)
+  std::vector<std::string> gradients;        // sonlu olmayan gradyanlar, geri gecis sirasiyla (son katman once)
+  float loss = 0.0f;
+};
+
+/// FAZ 9.7: geri donus (rollback) icin aygit durumunun host kopyasi.
+struct GptStateSnapshot {
+  std::vector<std::vector<unsigned char>> blobs;
+  std::int64_t step = 0;
+};
+
 class GptModel {
  public:
   /// batch x time mikro-batch icin tum tamponlari ayirir. Agirliklar GPT-2 baslatmasiyla
@@ -140,8 +159,33 @@ class GptModel {
   [[nodiscard]] double last_cpu_update_ms() const noexcept { return last_cpu_update_ms_; }
 
   /// d_tokens: aygitta [batch*time]. Kayip aygitta yazilir (host senkronu yok).
-  /// Gradyanlar sifirlanip yeniden hesaplanir.
-  void forward_backward(const std::int32_t* d_tokens);
+  /// `grad_scale` dlogits'e ek carpandir (FAZ 9.2: mikro adim agirligi, gecerli_token_i / toplam).
+  /// accumulate = false: gradyanlar sifirlanip yeniden hesaplanir. true (FAZ 9.2 biriktirme): mevcut
+  /// gradyana EKLENIR — agirlik GEMM'leri beta = 1, BGRAD epilogunun bias gradyani [4C] ara tampondan
+  /// +=, LN ve gomme gradyanlari zaten +=. Ek gradyan tamponu yoktur. ZeroOffload/AdamW8bitFused'da yok.
+  void forward_backward(const std::int32_t* d_tokens, float grad_scale = 1.0f, bool accumulate = false);
+  /// FAZ 9.7: kayip olcegi yokken de inf/NaN gradyanli adimi atla (parametre/moment degismez,
+  /// read_loss_scale().skipped_steps artar). Varsayilan kapali (eski davranis).
+  void set_nonfinite_guard(bool enabled);
+  /// FAZ 9.3: parametre basina sonum/LR carpanlari (bos: GptParamInfo::decay'dan).
+  void set_param_scales(const std::vector<GptParamScale>& scales);
+  [[nodiscard]] const std::vector<GptParamScale>& param_scales() const noexcept { return scales_; }
+  /// FAZ 9.7: parametre + optimizer + kayip olcegi durumunun host kopyasi / geri yuklenmesi.
+  [[nodiscard]] GptStateSnapshot save_state() const;
+  void load_state(const GptStateSnapshot& snapshot);
+  /// FAZ 9.7: d_tokens ile ileri gecisi yeniden calistirip ilk sonlu olmayan katman ciktisini,
+  /// sonra geri gecisi calistirip sonlu olmayan gradyanlari adlariyla bulur (senkron, yavas).
+  /// Gradyan tamponunu degistirir; optimizer adimi yapmaz.
+  [[nodiscard]] GptNonFiniteReport diagnose_nonfinite(const std::int32_t* d_tokens);
+  /// FAZ 9.5: son ileri gecisin konum basina kaybi [batch*time] (hedef tokens[b, t+1]; son konum 0).
+  [[nodiscard]] const float* device_token_losses() const noexcept;
+  /// Parametre (katmanli tensorlerde "h.<l>.<ad>") basina gradyan ve agirlik L2 normu (senkron).
+  struct NormEntry {
+    std::string name;
+    double weight = 0.0;
+    double grad = 0.0;
+  };
+  [[nodiscard]] std::vector<NormEntry> layer_norms() const;
   /// Yalniz ileri + kayip (degerlendirme).
   void forward(const std::int32_t* d_tokens);
   /// Foreach AdamW; agirlik sonumu yalniz 2B matrislere. grad norm aygitta.
@@ -189,6 +233,9 @@ class GptModel {
   void run_forward(const std::int32_t* d_tokens, bool for_backward);
   void run_backward(const std::int32_t* d_tokens);
   [[nodiscard]] bool narrow() const noexcept { return config_.compute_dtype != DType::F32; }
+  [[nodiscard]] const GptParamScale& scale_of(const GptParamInfo& p) const noexcept {
+    return scales_[static_cast<std::size_t>(&p - params_info_.data())];
+  }
   [[nodiscard]] float* master(std::size_t offset) const;      // FP32 ana kopya (yoksa nullptr)
   [[nodiscard]] void* shadow(std::size_t offset) const;       // dar kopya (yoksa nullptr)
   [[nodiscard]] const void* weight(std::size_t offset) const;  // GEMM girisi (compute_dtype)
@@ -211,6 +258,10 @@ class GptModel {
   double last_cpu_update_ms_ = 0.0;
   bool use_loss_scale_ = false;
   bool flash_ = false;
+  bool guard_ = false;       // FAZ 9.7: kayip olceksiz inf/NaN adim atlama
+  float grad_scale_ = 1.0f;  // FAZ 9.2: forward_backward mikro adim agirligi
+  bool accumulate_ = false;  // FAZ 9.2: bu geri geciste gradyana ekle
+  std::vector<GptParamScale> scales_;
   std::int64_t step_ = 0;
   DeviceBuffer params_, shadow_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_, loss_scale_state_;
   // 8-bit AdamW durumu (katman matrisleri [+ gomme]): kodlar ve blok absmax'lari.
