@@ -1,0 +1,65 @@
+  info  istem 50 token
+  info  FP32: artimli (8 + 42 decode) vs tam ileri goreli max 6.36e-06
+  PASS  test_kv_cache_matches_full: artimli cozme == tam ileri (FP32, <= 1e-4)
+{"tokens": 50, "argmax_last": 198}
+  info  PyTorch FP64 referansina gore: tam 6.29e-06, artimli 2.98e-07
+  PASS  GPT-2 124M logitleri PyTorch FP64 referansiyla <= 1e-4 (FP32 kip)
+  info  FP16 kip: tam vs ref 3.85e-04, artimli vs ref 5.54e-04, artimli vs tam 4.19e-04; argmax uyusmasi 50/50
+test_phase16_infer_cuda: 2 gecti, 0 basarisiz
+  info  sayfali (16'lik bloklar, 2 sira dagitik) vs bitisik (tek blok): bit bit (goreli 0.0e+00 / 0.0e+00)
+  PASS  test_paged_cache_equivalence: sayfali == bitisik KV (bit bit)
+  info  CoW dal: paylasilan son blok kopyalandi (1 blok kullanildi), dallar bagimsiz sirayla bit bit
+  PASS  copy-on-write dal: iki dal, bagimsiz siralarla bit bit ayni
+  PASS  tum bloklar serbest listeye dondu
+test_phase16_infer_cuda: 3 gecti, 0 basarisiz
+  info  T=1.0              destek 50257 token; destek disi ornek 0; ki-kare/df 0.838 (z -0.66)
+  PASS  test_sampling_distribution: T=1.0 (z < 4, destek disi 0)
+  info  T=0.7              destek 50257 token; destek disi ornek 0; ki-kare/df 1.008 (z 0.14)
+  PASS  test_sampling_distribution: T=0.7 (z < 4, destek disi 0)
+  info  top_k=40           destek    40 token; destek disi ornek 0; ki-kare/df 1.073 (z 0.39)
+  PASS  test_sampling_distribution: top_k=40 (z < 4, destek disi 0)
+  info  top_p=0.9          destek    72 token; destek disi ornek 0; ki-kare/df 0.998 (z 0.06)
+  PASS  test_sampling_distribution: top_p=0.9 (z < 4, destek disi 0)
+  info  min_p=0.05         destek    15 token; destek disi ornek 0; ki-kare/df 0.900 (z -0.15)
+  PASS  test_sampling_distribution: min_p=0.05 (z < 4, destek disi 0)
+  info  T=0.8,k=50,p=0.8   destek     6 token; destek disi ornek 0; ki-kare/df 2.188 (z 1.63)
+  PASS  test_sampling_distribution: T=0.8,k=50,p=0.8 (z < 4, destek disi 0)
+  info  rep=1.3,T=1.2      destek 50257 token; destek disi ornek 0; ki-kare/df 0.794 (z -1.10)
+  PASS  test_sampling_distribution: rep=1.3,T=1.2 (z < 4, destek disi 0)
+  PASS  greedy = argmax
+test_phase16_infer_cuda: 8 gecti, 0 basarisiz
+  info  taslak 4 katman, gamma 2: kabul 22/209 (11%), adim basina 1.21 token, 438.9 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=4 gamma=2 spekulatif == greedy (128 token)
+  info  taslak 4 katman, gamma 4: kabul 22/415 (5%), adim basina 1.21 token, 700.7 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=4 gamma=4 spekulatif == greedy (128 token)
+  info  taslak 4 katman, gamma 6: kabul 22/618 (4%), adim basina 1.21 token, 896.7 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=4 gamma=6 spekulatif == greedy (128 token)
+  info  taslak 6 katman, gamma 2: kabul 58/139 (42%), adim basina 1.81 token, 322.6 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=6 gamma=2 spekulatif == greedy (128 token)
+  info  taslak 6 katman, gamma 4: kabul 81/185 (44%), adim basina 2.70 token, 332.7 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=6 gamma=4 spekulatif == greedy (128 token)
+  info  taslak 6 katman, gamma 6: kabul 83/264 (31%), adim basina 2.82 token, 434.2 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=6 gamma=6 spekulatif == greedy (128 token)
+  info  taslak 8 katman, gamma 2: kabul 73/109 (67%), adim basina 2.31 token, 286.8 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=8 gamma=2 spekulatif == greedy (128 token)
+  info  taslak 8 katman, gamma 4: kabul 86/165 (52%), adim basina 3.02 token, 341.0 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=8 gamma=4 spekulatif == greedy (128 token)
+  info  taslak 8 katman, gamma 6: kabul 92/210 (44%), adim basina 3.63 token, 414.8 ms (greedy 376.4 ms)
+  PASS  test_speculative_exact: k=8 gamma=6 spekulatif == greedy (128 token)
+  info  ornek cikti: 
+
+"Mom, I'm sorry," Lily said. "I didn't mean to hurt you."
+
+"I'm sorry," Lily said. "I'm sorry. I'm sorry.
+test_phase16_infer_cuda: 9 gecti, 0 basarisiz
+  info  decode CUDA Graph: 1 kova yakalandi; TPOT 1.517 ms (graph'siz 2.115 ms)
+  PASS  decode CUDA Graph == eager (ayni 96 token)
+  PASS  5 siralik decode kova 8 graph'iyla (dolgulu satirlar donmez)
+test_phase16_infer_cuda: 2 gecti, 0 basarisiz
+  info  16 istek x 48 token: sirali 1439 ms (534 tok/s), surekli batch 205 ms (3738 tok/s, 7.00x); adim 48, esanli en cok 16, ortalama satir 16.0; TTFT ort 41.0 ms, TPOT ort 3.50 ms
+  info  greedy cikti tek tek uretimle ayni: 16/16
+  PASS  surekli batch toplam token/s > ayri isteklerin toplami
+  PASS  greedy ciktilarin en az %75'i tek tek uretimle birebir
+  info  39 blokluk havuz: 8 istek, 1 onceden bosaltma (recompute), 8/8 tamamlandi; serbest blok 39/39
+  PASS  KV havuzu yetmeyince preempt + yeniden prefill ile tum istekler tamamlanir, bloklar geri doner
+test_phase16_infer_cuda: 3 gecti, 0 basarisiz

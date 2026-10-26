@@ -1,0 +1,12 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start 103: test_save_load_exact
+1/3 Test #103: test_save_load_exact .............   Passed    1.42 sec
+    Start 110: test_kv_cache_matches_full_cpu
+2/3 Test #110: test_kv_cache_matches_full_cpu ...   Passed    1.34 sec
+    Start 111: test_kv_cache_generate_cpu
+3/3 Test #111: test_kv_cache_generate_cpu .......   Passed    3.55 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   6.44 sec

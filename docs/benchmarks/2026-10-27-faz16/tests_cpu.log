@@ -1,0 +1,18 @@
+  info  gpt2 tipi                artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 18432 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: gpt2 tipi (<= 1e-4)
+  info  llama tipi (GQA 4/2)     artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: llama tipi (GQA 4/2) (<= 1e-4)
+  info  ALiBi + pencere 9        artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: ALiBi + pencere 9 (<= 1e-4)
+  info  qk_norm + paralel blok   artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: qk_norm + paralel blok (<= 1e-4)
+  info  sinuzoidal               artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 18432 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: sinuzoidal (<= 1e-4)
+  info  kismi RoPE + softcap     artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: kismi RoPE + softcap (<= 1e-4)
+  info  MoE (E=4, k=2)           artimli (5 + 7 + 12 x 1) vs tam: goreli 0.0e+00; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: MoE (E=4, k=2) (<= 1e-4)
+test_phase16_infer: 7 gecti, 0 basarisiz
+  info  48 token greedy: onbellekli 0.54 ms/token, her adimda tam yeniden hesap 1.62 ms/token (3.0x)
+  PASS  onbellekli greedy == tam yeniden hesapli greedy (48 token)
+test_phase16_infer: 1 gecti, 0 basarisiz

@@ -51,10 +51,29 @@ struct NamedParam {
   float lr_mult = 1.0f;  // muP
 };
 
+/// FAZ 16: artimli cozme icin KV onbellegi (CPU, bitisik, batch 1). Katman basina [uzunluk, Hkv*D] K ve V
+/// (RoPE ve qk_norm SONRASI). forward(options.cache) yeni tokenlari ekler; konum ofseti = onceki uzunluk.
+struct KvCache {
+  std::vector<std::vector<float>> k, v;
+  int length = 0;
+  void reset() {
+    for (auto& x : k) x.clear();
+    for (auto& x : v) x.clear();
+    length = 0;
+  }
+  [[nodiscard]] std::size_t bytes() const noexcept {
+    std::size_t n = 0;
+    for (const auto& x : k) n += x.size() * 4;
+    for (const auto& x : v) n += x.size() * 4;
+    return n;
+  }
+};
+
 struct ForwardOptions {
   bool training = false;
   std::uint64_t dropout_seed = 0;
   int position_offset = 0;
+  KvCache* cache = nullptr;  // FAZ 16: verilirse batch 1; position_offset yok sayilir (cache->length)
 };
 
 /// Blok ileri gecisinin ortak baglami (tum katmanlar paylasir).
@@ -68,6 +87,7 @@ struct BlockContext {
   std::shared_ptr<const std::vector<float>> alibi;
   std::vector<autograd::Variable>* router_losses = nullptr;  // FAZ 14: MoE aux + z dugumleri
   std::vector<MoeLayerStats>* moe_stats = nullptr;
+  KvCache* cache = nullptr;  // FAZ 16
 };
 
 class ParamFactory;
@@ -106,6 +126,8 @@ class LanguageModel {
   /// logits [B*T, padded_vocab]; dolgu sutunlari -inf.
   [[nodiscard]] autograd::Variable logits(const std::vector<std::int32_t>& tokens, int batch, int time,
                                           const ForwardOptions& options = {}) const;
+  /// FAZ 16: bos KV onbellegi (katman sayisi kadar).
+  [[nodiscard]] KvCache make_cache() const;
   /// Kaydirilmis CE (fused::cross_entropy_shifted).
   [[nodiscard]] autograd::Variable loss(const std::vector<std::int32_t>& tokens, int batch, int time,
                                         const ForwardOptions& options = {}) const;

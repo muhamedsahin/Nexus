@@ -13,11 +13,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest-130%2F130_ge%C3%A7ti-2EA44F?style=flat-square)
+![Testler](https://img.shields.io/badge/ctest-132%2F132_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
-![CUDA tests](https://img.shields.io/badge/CUDA_testleri-153%2F153_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
+![CUDA tests](https://img.shields.io/badge/CUDA_testleri-160%2F160_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--15_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--16_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,18 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**27 Ekim 2026 — FAZ 16 çıkarım: sayfalı KV, CUDA Graph decode, spekülatif, nicemleme, sürekli batch** ([rapor](docs/benchmarks/2026-10-27-faz16/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| Artımlı çözme vs tam ileri | GPU FP32 **6.4e-6** (PyTorch FP64'e göre 6e-6) · CPU 7 mimari varyantı **fark 0** |
+| Sayfalı vs bitişik KV, copy-on-write dal | **bit bit aynı** |
+| Spekülatif (ilk-k katman taslak) vs greedy, 9 ayar | **birebir aynı**; ama greedy'den yavaş (339 vs 201 ms) |
+| GPT-2 124M FP16 TPOT (istem 32 / 128 / 512) | **1.51 / 1.70 / 2.32 ms** · torch.compile(reduce-overhead) 2.00 / 2.17 / 3.77 ms (%25–38 önde) |
+| Nicemleme ppl (TinyStories) | W8A8 SmoothQuant +%0.41 · W4A16 AWQ +%6.33 (RTN +%9.96) · KV INT8 −%0.01 |
+| Sürekli batch, 64 eşzamanlı istek | **14 448 tok/s** (tek istek 601); 16 istek tek tek üretimle 16/16 aynı |
+| Eksik | ⛔ 7B / llama.cpp / vLLM kıyası, FP8, GPU LLaMA yolu |
+
 **26 Ekim 2026 — FAZ 15 dayanıklılık: tam durum kaydı, elastik yeniden başlatma** ([rapor](docs/benchmarks/2026-10-26-faz15/README.md))
 
 | Ölçüm | Sonuç |
@@ -430,8 +442,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 13 | IR (SSA, sembolik şekil), meta izleme + autodiff, desen/epilog/eleman eleman füzyon, min-cut, statik arena, iletişim sıralama, CPU (cl.exe) + CUDA (NVRTC) kod üretimi + disk önbelleği, StableHLO, `nexus::compile`, `trainer.compile` (GEMM dolgusu + tüm adım CUDA Graph + autotune) | ✅ gpt2s torch.compile(max-autotune)'dan %5.6 hızlı, soğuk başlangıç ~4 s · 🟡 çekirdek sayısı 2.07× (3× değil), CPU yürütücüsü eager'dan yavaş, GPU'da IR yürütücüsü yok |
 | 14 | MoE: FP32 yönlendirici, gürültülü top-k, GShard kapasitesi (drop/reroute), sayım sıralı permütasyon, paralel gruplu GEMM, aux + z kaybı, paylaşımlı uzman, BF16/FP8 uzman ağırlığı, `moe-124m`, NXS `MoEFFN`; all-to-all(v) uzman paralelliği (CPU) | ✅ k=1/E=1 = yoğun bit bit, referans ≤ 2.9e-7, EP 1↔8 rank bit bit, aux ile ölü uzman yok, aynı aktif FLOP'ta kayıp 1.93 vs 2.04 · ⛔ GPU MoE eğitimi, CUTLASS grouped, Mixtral ölçeği yok · 🟡 a2a örtüşmesi, EP+TP+DP, uzman offload açık |
 | 15 | Dayanıklılık: NXS3 arşivi + atomik kayıt dizini + manifest/SHA-256 (SHA-NI), son-N, TrainerState + sayaç tabanlı RNG, parçalı (rank başına) kayıt, yeniden parçalama, eşzamansız çift tampon, bekçi (takılma + straggler), `nexus-run --max-restarts` elastik yeniden başlatma | ✅ yeni süreçte devam bit bit (dropout dahil), 8 rank parçalı kayıt toplamasız, 3 noktada çökme sonrası son kayıt sağlam, 4→2 süreç elastik devam 1 adım kayıp · ⛔ süreç içi iletişim yeniden kurma, sıkıştırma · 🟡 eşzamansız kayıt CPU'da +%20 (≈0 değil), GPU arka ucu sınanmadı |
-| 16 | Çıkarım: sayfalı KV önbelleği, artımlı çözme, örnekleme, spekülatif çözme, nicemleme, sürekli batch sunucu | ⏭ sıradaki |
-| 17–22 | 1.0 | 📋 planlı |
+| 16 | Çıkarım (GPU GPT-2 + CPU `lm`): sayfalı KV + CoW, prefill (flash varlen) / decode (sayfalı dikkat), decode CUDA Graph, tek çekirdek örnekleme + cezalar, spekülatif (ilk-k katman taslak), W8A8 SmoothQuant / W4A16 AWQ / KV INT8, `nexus::serve` sürekli batch | ✅ artımlı = tam (FP32 6e-6, CPU 7 varyant fark 0), sayfalı = bitişik bit bit, spekülatif = greedy birebir, TPOT torch.compile'dan %25–38 hızlı, 64 eşzamanlı istek 14.4k tok/s · ⛔ 7B / llama.cpp / vLLM kıyası, FP8 (sm_86), GPU LLaMA · 🟡 spekülatif greedy'den yavaş, W8A8 decode kazancı yok |
+| 17 | Birlikte çalışabilirlik: safetensors/HF içe aktarma, GGUF/ONNX dışa aktarma | ⏭ sıradaki |
+| 18–22 | 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

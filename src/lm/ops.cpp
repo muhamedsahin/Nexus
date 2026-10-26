@@ -189,18 +189,20 @@ Variable geglu(const Variable& x) { return gated<false>(x, "lm_geglu"); }
 
 Variable attention(const Variable& q, const Variable& k, const Variable& v, const AttentionSpec& a) {
   const std::int64_t rows = static_cast<std::int64_t>(a.batch) * a.time;
+  const int tk = a.kv_time > 0 ? a.kv_time : a.time;
+  const std::int64_t krows = static_cast<std::int64_t>(a.batch) * tk;
   if (q.shape().rank() != 2 || q.shape().dims[0] != rows ||
       q.shape().dims[1] != static_cast<std::int64_t>(a.heads) * a.head_dim ||
-      k.shape().dims != std::vector<std::int64_t>{rows, static_cast<std::int64_t>(a.kv_heads) * a.head_dim} ||
-      v.shape().dims != k.shape().dims) {
-    throw TensorError("Nexus lm::attention: q [B*T, H*D], k/v [B*T, Hkv*D] bekler");
+      k.shape().dims != std::vector<std::int64_t>{krows, static_cast<std::int64_t>(a.kv_heads) * a.head_dim} ||
+      v.shape().dims != k.shape().dims || tk < a.time) {
+    throw TensorError("Nexus lm::attention: q [B*T, H*D], k/v [B*Tk, Hkv*D] (Tk >= T) bekler");
   }
   AttentionParams p;
   p.batch = a.batch;
   p.heads = a.heads;
   p.kv_heads = a.kv_heads;
   p.tq = a.time;
-  p.tk = a.time;
+  p.tk = tk;
   p.head_dim = a.head_dim;
   p.dtype = DType::F32;
   p.scale = a.scale;

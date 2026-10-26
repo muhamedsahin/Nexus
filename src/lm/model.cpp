@@ -205,7 +205,18 @@ Variable DecoderBlock::attn(const Variable& h, const BlockContext& ctx) const {
     q = rope(q, H, D, ctx.positions, ctx.rope);
     k = rope(k, Hk, D, ctx.positions, ctx.rope);
   }
+  Variable kk = k, vv = v;
   AttentionSpec spec;
+  if (ctx.cache != nullptr) {  // FAZ 16: onceki K/V + yeni (batch 1)
+    std::vector<float>& ck = ctx.cache->k[static_cast<std::size_t>(index_)];
+    std::vector<float>& cv = ctx.cache->v[static_cast<std::size_t>(index_)];
+    ck.insert(ck.end(), k.values().begin(), k.values().end());
+    cv.insert(cv.end(), v.values().begin(), v.values().end());
+    const std::int64_t tk = static_cast<std::int64_t>(ck.size()) / (static_cast<std::int64_t>(Hk) * D);
+    kk = Variable::make(ck, Shape{{tk, static_cast<std::int64_t>(Hk) * D}}, false);
+    vv = Variable::make(cv, Shape{{tk, static_cast<std::int64_t>(Hk) * D}}, false);
+    spec.kv_time = static_cast<int>(tk);
+  }
   spec.batch = ctx.batch;
   spec.time = ctx.time;
   spec.heads = H;
@@ -221,7 +232,7 @@ Variable DecoderBlock::attn(const Variable& h, const BlockContext& ctx) const {
     spec.seed = ctx.dropout_seed;
     spec.offset = (static_cast<std::uint64_t>(index_) * 4 + 3) << 40;
   }
-  return linear(attention(q, k, v, spec), ow_, ob_);
+  return linear(attention(q, kk, vv, spec), ow_, ob_);
 }
 
 Variable DecoderBlock::mlp(const Variable& h) const {
@@ -324,10 +335,15 @@ Variable LanguageModel::embed(const std::vector<std::int32_t>& tokens, int batch
                               const ForwardOptions& o) const {
   const LmConfig& c = config_;
   if (c.pos == PosKind::Learned) {
-    if (o.position_offset != 0 || time > c.max_position) {
-      throw TensorError("Nexus lm: ogrenilen konum kodu offset/T > max_position desteklemez");
+    if (o.position_offset + time > c.max_position) {
+      throw TensorError("Nexus lm: ogrenilen konum kodu: offset + T > max_position");
     }
-    return fused::embedding_pos(wte_, wpe_, tokens, batch, time);
+    if (o.position_offset == 0) return fused::embedding_pos(wte_, wpe_, tokens, batch, time);
+    // FAZ 16 (KV onbellekli devam): konum satirlari [offset, offset + T)
+    std::vector<std::int64_t> idx(tokens.begin(), tokens.end()), pidx(static_cast<std::size_t>(batch) * time);
+    for (int b = 0; b < batch; ++b)
+      for (int t = 0; t < time; ++t) pidx[static_cast<std::size_t>(b) * time + t] = t + o.position_offset;
+    return ag::add(ag::embedding(wte_, idx), ag::embedding(wpe_, pidx));
   }
   std::vector<std::int64_t> idx(tokens.begin(), tokens.end());
   Variable x = ag::embedding(wte_, idx);
@@ -365,7 +381,14 @@ Variable LanguageModel::forward_logits(const std::vector<std::int32_t>& tokens, 
       throw TensorError("Nexus lm: token sozluk disinda");
     }
   }
+  ForwardOptions oc = o;
+  if (o.cache != nullptr) {
+    if (batch != 1) throw TensorError("Nexus lm: KV onbellekli ileri gecis batch 1 ister");
+    if (static_cast<int>(o.cache->k.size()) != config_.n_layer) throw TensorError("Nexus lm: KV onbellegi baska bir modelden");
+    oc.position_offset = o.cache->length;
+  }
   BlockContext ctx;
+  ctx.cache = o.cache;
   ctx.batch = batch;
   ctx.time = time;
   ctx.training = o.training;
@@ -375,18 +398,18 @@ Variable LanguageModel::forward_logits(const std::vector<std::int32_t>& tokens, 
   moe_stats_.clear();
   ctx.moe_stats = &moe_stats_;
   if (rope_) {
-    rope_->ensure(time + o.position_offset);
+    rope_->ensure(time + oc.position_offset);
     auto pos = std::make_shared<std::vector<int>>(static_cast<std::size_t>(batch) * time);
     for (int b = 0; b < batch; ++b) {
       for (int t = 0; t < time; ++t) {
-        (*pos)[static_cast<std::size_t>(b) * time + t] = t + o.position_offset;
+        (*pos)[static_cast<std::size_t>(b) * time + t] = t + oc.position_offset;
       }
     }
     ctx.positions = pos;
     // ensure tabloyu yeniden kurabilir: bu ileri gecis icin degismez kopya.
     ctx.rope = std::make_shared<const RopeCache>(*rope_);
   }
-  Variable x = embed(tokens, batch, time, o);
+  Variable x = embed(tokens, batch, time, oc);
   for (const DecoderBlock& block : blocks_) {
     const bool ckpt = config_.recompute == RecomputeKind::Full ||
                       (config_.recompute == RecomputeKind::EveryK && block.index() % config_.recompute_every == 0);
@@ -411,7 +434,17 @@ Variable LanguageModel::forward_logits(const std::vector<std::int32_t>& tokens, 
   if (pad_mask_.has_data()) {
     out = ag::add_bias(out, pad_mask_);
   }
+  if (o.cache != nullptr) {
+    o.cache->length += time;
+  }
   return out;
+}
+
+KvCache LanguageModel::make_cache() const {
+  KvCache c;
+  c.k.resize(static_cast<std::size_t>(config_.n_layer));
+  c.v.resize(static_cast<std::size_t>(config_.n_layer));
+  return c;
 }
 
 Variable LanguageModel::loss(const std::vector<std::int32_t>& tokens, int batch, int time,

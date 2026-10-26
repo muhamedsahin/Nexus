@@ -1,0 +1,11 @@
+  info  fp16               ppl 11.3890 (+0.00%), agirlik 248.7 MB, kurulum 2381 ms (30208 token degerlendirme)
+  PASS  test_quant_ppl: fp16 ppl artisi <= 0%
+  info  KV int8            ppl 14.4785 (ayni decode protokolu fp16 14.4803, -0.01%), KV 36864 -> 19584 bayt/token
+  PASS  test_quant_ppl: KV int8 ppl artisi <= %1
+  info  W8A8 (olceksiz)    ppl 11.4658 (+0.67%), agirlik 164.1 MB, kurulum 1111 ms (30208 token degerlendirme)
+  info  W8A8 SmoothQuant   ppl 11.4356 (+0.41%), agirlik 164.1 MB, kurulum 2137 ms (30208 token degerlendirme)
+  PASS  test_quant_ppl: W8A8 SmoothQuant ppl artisi <= 5%
+  info  W4A16 g128 (RTN)   ppl 12.5237 (+9.96%), agirlik 124.6 MB, kurulum 1244 ms (30208 token degerlendirme)
+  info  W4A16 g128 AWQ     ppl 12.1095 (+6.33%), agirlik 124.6 MB, kurulum 23981 ms (30208 token degerlendirme)
+  PASS  test_quant_ppl: W4A16 g128 AWQ ppl artisi <= 15%
+test_phase16_infer_cuda: 4 gecti, 0 basarisiz

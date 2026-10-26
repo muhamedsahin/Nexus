@@ -1,0 +1,18 @@
+{"mode": "bench_infer", "quant": "fp16", "prompt": 32, "gen": 128, "ttft_ms": 3.158, "tpot_ms": 1.508, "tokens_per_s": 663.1, "weight_mb": 248.7}
+{"mode": "bench_infer", "quant": "fp16", "prompt": 128, "gen": 128, "ttft_ms": 2.457, "tpot_ms": 1.704, "tokens_per_s": 586.9, "weight_mb": 248.7}
+{"mode": "bench_infer", "quant": "fp16", "prompt": 512, "gen": 128, "ttft_ms": 5.538, "tpot_ms": 2.323, "tokens_per_s": 430.5, "weight_mb": 248.7}
+{"mode": "bench_infer", "quant": "w8a8", "prompt": 32, "gen": 128, "ttft_ms": 3.727, "tpot_ms": 1.630, "tokens_per_s": 613.4, "weight_mb": 164.1}
+{"mode": "bench_infer", "quant": "w8a8", "prompt": 128, "gen": 128, "ttft_ms": 3.921, "tpot_ms": 1.678, "tokens_per_s": 595.8, "weight_mb": 164.1}
+{"mode": "bench_infer", "quant": "w8a8", "prompt": 512, "gen": 128, "ttft_ms": 4.456, "tpot_ms": 2.626, "tokens_per_s": 380.8, "weight_mb": 164.1}
+{"mode": "bench_infer", "quant": "w4a16", "prompt": 32, "gen": 128, "ttft_ms": 6.396, "tpot_ms": 1.261, "tokens_per_s": 792.9, "weight_mb": 124.6}
+{"mode": "bench_infer", "quant": "w4a16", "prompt": 128, "gen": 128, "ttft_ms": 7.428, "tpot_ms": 1.555, "tokens_per_s": 643.0, "weight_mb": 124.6}
+{"mode": "bench_infer", "quant": "w4a16", "prompt": 512, "gen": 128, "ttft_ms": 11.183, "tpot_ms": 2.367, "tokens_per_s": 422.4, "weight_mb": 124.6}
+{"mode": "bench_spec", "draft_layers": 4, "gamma": 4, "accept_rate": 0.053, "tokens_per_step": 1.21, "ms": 652.3, "greedy_ms": 201.2}
+{"mode": "bench_spec", "draft_layers": 6, "gamma": 4, "accept_rate": 0.438, "tokens_per_step": 2.70, "ms": 339.2, "greedy_ms": 201.2}
+{"mode": "bench_serve", "concurrent": 1, "total_tokens_per_s": 601.4, "ttft_ms": 5.28, "tpot_ms": 1.634, "steps": 128}
+{"mode": "bench_serve", "concurrent": 2, "total_tokens_per_s": 1152.6, "ttft_ms": 10.14, "tpot_ms": 1.669, "steps": 128}
+{"mode": "bench_serve", "concurrent": 4, "total_tokens_per_s": 2228.2, "ttft_ms": 5.62, "tpot_ms": 1.765, "steps": 128}
+{"mode": "bench_serve", "concurrent": 8, "total_tokens_per_s": 3652.6, "ttft_ms": 12.24, "tpot_ms": 2.111, "steps": 128}
+{"mode": "bench_serve", "concurrent": 16, "total_tokens_per_s": 4301.2, "ttft_ms": 25.49, "tpot_ms": 3.548, "steps": 128}
+{"mode": "bench_serve", "concurrent": 32, "total_tokens_per_s": 10332.1, "ttft_ms": 33.40, "tpot_ms": 2.829, "steps": 130}
+{"mode": "bench_serve", "concurrent": 64, "total_tokens_per_s": 14447.9, "ttft_ms": 54.98, "tpot_ms": 3.972, "steps": 132}

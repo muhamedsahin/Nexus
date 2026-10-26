@@ -1,0 +1,6 @@
+{"mode": "torch_gpt2_generate", "torch": "2.14.1+cu132", "dtype": "fp16", "batch": 1, "prompt": 32, "gen": 128, "ttft_ms": 12.82, "tpot_ms": 12.778, "tokens_per_s": 78.3}
+{"mode": "torch_gpt2_generate", "torch": "2.14.1+cu132", "dtype": "fp16", "batch": 1, "prompt": 128, "gen": 128, "ttft_ms": 15.526, "tpot_ms": 13.642, "tokens_per_s": 73.3}
+{"mode": "torch_gpt2_generate", "torch": "2.14.1+cu132", "dtype": "fp16", "batch": 1, "prompt": 512, "gen": 128, "ttft_ms": 12.236, "tpot_ms": 11.244, "tokens_per_s": 88.9}
+{"mode": "torch_gpt2_compiled_decode", "torch": "2.14.1+cu132", "compile": "reduce-overhead", "prompt": 32, "gen": 128, "ttft_ms_eager_prefill": 13.797, "tpot_ms": 2.0, "tokens_per_s": 500.0, "first_run_s": 19.7}
+{"mode": "torch_gpt2_compiled_decode", "torch": "2.14.1+cu132", "compile": "reduce-overhead", "prompt": 128, "gen": 128, "ttft_ms_eager_prefill": 12.287, "tpot_ms": 2.168, "tokens_per_s": 461.2, "first_run_s": 29.5}
+{"mode": "torch_gpt2_compiled_decode", "torch": "2.14.1+cu132", "compile": "reduce-overhead", "prompt": 512, "gen": 128, "ttft_ms_eager_prefill": 16.475, "tpot_ms": 3.767, "tokens_per_s": 265.4, "first_run_s": 21.6}

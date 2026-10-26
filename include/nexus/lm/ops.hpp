@@ -42,6 +42,7 @@ namespace lm {
 struct AttentionSpec {
   int batch = 1;
   int time = 1;
+  int kv_time = 0;  // FAZ 16: 0 = time; > time: K/V onbellekli (sorgular anahtarlarin sonuna hizali, nedensel)
   int heads = 1;
   int kv_heads = 1;
   int head_dim = 64;
@@ -55,7 +56,7 @@ struct AttentionSpec {
   std::shared_ptr<const std::vector<float>> alibi_slopes;  // [heads] ya da bos
 };
 
-/// q [B*T, H*D], k/v [B*T, Hkv*D] -> [B*T, H*D].
+/// q [B*T, H*D], k/v [B*Tk, Hkv*D] (Tk = kv_time ya da T) -> [B*T, H*D].
 [[nodiscard]] autograd::Variable attention(const autograd::Variable& q, const autograd::Variable& k,
                                            const autograd::Variable& v, const AttentionSpec& spec);
 

@@ -148,3 +148,20 @@ target_link_libraries(test_phase14_moe_cuda PRIVATE nexus::nexus nexus::cuda nex
 nexus_configure_target(test_phase14_moe_cuda)
 add_test(NAME test_moe_grouped_gemm_cuda COMMAND test_phase14_moe_cuda grouped)
 set_tests_properties(test_moe_grouped_gemm_cuda PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE)
+
+# FAZ 16 (GPU): GPT-2 124M cikarim — sayfali KV, artimli cozme, ornekleme, spekulatif, nicemleme, decode CUDA Graph.
+add_executable(test_phase16_infer_cuda test_phase16_infer_cuda.cpp)
+target_link_libraries(test_phase16_infer_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+target_compile_definitions(test_phase16_infer_cuda PRIVATE
+    NEXUS_PARITY_PYTHON="${_nexus_gpt_python}"
+    NEXUS_FAZ16_SCRIPT="${CMAKE_SOURCE_DIR}/benchmarks/runner/faz16_gpt2.py")
+nexus_configure_target(test_phase16_infer_cuda)
+add_test(NAME test_kv_cache_matches_full COMMAND test_phase16_infer_cuda kvcache)
+add_test(NAME test_paged_cache_equivalence COMMAND test_phase16_infer_cuda paged)
+add_test(NAME test_sampling_distribution COMMAND test_phase16_infer_cuda sampling)
+add_test(NAME test_speculative_exact COMMAND test_phase16_infer_cuda spec)
+add_test(NAME test_quant_ppl COMMAND test_phase16_infer_cuda quant)
+add_test(NAME test_decode_cuda_graph COMMAND test_phase16_infer_cuda graph)
+add_test(NAME test_continuous_batching COMMAND test_phase16_infer_cuda serve)
+set_tests_properties(test_kv_cache_matches_full test_paged_cache_equivalence test_sampling_distribution test_speculative_exact
+    test_quant_ppl test_decode_cuda_graph test_continuous_batching PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)

@@ -1,0 +1,98 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+      Start 112: test_cuda_allocator
+ 1/46 Test #112: test_cuda_allocator .................   Passed    0.99 sec
+      Start 113: test_cuda_kernels
+ 2/46 Test #113: test_cuda_kernels ...................   Passed    2.81 sec
+      Start 114: test_phase4_narrow_gemm
+ 3/46 Test #114: test_phase4_narrow_gemm .............   Passed    0.72 sec
+      Start 115: test_phase4_cast_cache
+ 4/46 Test #115: test_phase4_cast_cache ..............   Passed    0.29 sec
+      Start 116: test_fp8_emulation
+ 5/46 Test #116: test_fp8_emulation ..................   Passed    0.42 sec
+      Start 117: test_fp16_loss_scale
+ 6/46 Test #117: test_fp16_loss_scale ................   Passed    0.72 sec
+      Start 118: test_master_weight_modes
+ 7/46 Test #118: test_master_weight_modes ............   Passed   16.21 sec
+      Start 119: test_bf16_training_converges
+ 8/46 Test #119: test_bf16_training_converges ........   Passed   91.48 sec
+      Start 120: test_gpt_flash_vs_math
+ 9/46 Test #120: test_gpt_flash_vs_math ..............   Passed    8.24 sec
+      Start 121: test_cuda_gpt_small
+10/46 Test #121: test_cuda_gpt_small .................   Passed   10.67 sec
+      Start 122: test_gpt2s_parity_fp32
+11/46 Test #122: test_gpt2s_parity_fp32 ..............   Passed  225.75 sec
+      Start 123: test_flash_vs_math
+12/46 Test #123: test_flash_vs_math ..................   Passed    0.37 sec
+      Start 124: test_flash_tq1_decode
+13/46 Test #124: test_flash_tq1_decode ...............   Passed    0.26 sec
+      Start 125: test_flash_varlen_equals_separate
+14/46 Test #125: test_flash_varlen_equals_separate ...   Passed    0.20 sec
+      Start 126: test_flash_dropout_stats
+15/46 Test #126: test_flash_dropout_stats ............   Passed    0.22 sec
+      Start 127: test_flash_determinism
+16/46 Test #127: test_flash_determinism ..............   Passed    0.24 sec
+      Start 128: test_causal_future_invariance
+17/46 Test #128: test_causal_future_invariance .......   Passed    0.18 sec
+      Start 129: test_rope_swiglu_cuda
+18/46 Test #129: test_rope_swiglu_cuda ...............   Passed    0.25 sec
+      Start 130: test_checkpoint_grad_equal_cuda
+19/46 Test #130: test_checkpoint_grad_equal_cuda .....   Passed    1.19 sec
+      Start 131: test_chunked_ce_equals_full
+20/46 Test #131: test_chunked_ce_equals_full .........   Passed    0.83 sec
+      Start 132: test_zero_offload_equals_gpu_adam
+21/46 Test #132: test_zero_offload_equals_gpu_adam ...   Passed    7.55 sec
+      Start 133: test_8bit_adam_converges
+22/46 Test #133: test_8bit_adam_converges ............   Passed   33.11 sec
+      Start 134: test_fused_8bit_update
+23/46 Test #134: test_fused_8bit_update ..............   Passed    2.07 sec
+      Start 135: test_loader_order
+24/46 Test #135: test_loader_order ...................   Passed    6.67 sec
+      Start 136: test_loader_error
+25/46 Test #136: test_loader_error ...................   Passed    0.29 sec
+      Start 137: test_accum_equivalence_cuda
+26/46 Test #137: test_accum_equivalence_cuda .........   Passed    0.51 sec
+      Start 138: test_param_groups_wd_cuda
+27/46 Test #138: test_param_groups_wd_cuda ...........   Passed    0.40 sec
+      Start 139: test_nan_policy_cuda
+28/46 Test #139: test_nan_policy_cuda ................   Passed    0.68 sec
+      Start 141: test_trainer_resume_cuda
+29/46 Test #141: test_trainer_resume_cuda ............   Passed    0.63 sec
+      Start 142: test_ddp_equivalence_cuda
+30/46 Test #142: test_ddp_equivalence_cuda ...........   Passed    2.07 sec
+      Start 143: test_overlap_occurs_cuda
+31/46 Test #143: test_overlap_occurs_cuda ............   Passed    2.18 sec
+      Start 144: test_cuda_graph_replay_equal
+32/46 Test #144: test_cuda_graph_replay_equal ........   Passed    0.80 sec
+      Start 145: test_nvrtc_fusion_kernels
+33/46 Test #145: test_nvrtc_fusion_kernels ...........   Passed    5.15 sec
+      Start 146: test_moe_grouped_gemm_cuda
+34/46 Test #146: test_moe_grouped_gemm_cuda ..........   Passed    3.31 sec
+      Start 147: test_kv_cache_matches_full
+35/46 Test #147: test_kv_cache_matches_full ..........   Passed   11.31 sec
+      Start 148: test_paged_cache_equivalence
+36/46 Test #148: test_paged_cache_equivalence ........   Passed    2.94 sec
+      Start 149: test_sampling_distribution
+37/46 Test #149: test_sampling_distribution ..........   Passed   59.84 sec
+      Start 150: test_speculative_exact
+38/46 Test #150: test_speculative_exact ..............   Passed    7.16 sec
+      Start 151: test_quant_ppl
+39/46 Test #151: test_quant_ppl ......................   Passed   49.01 sec
+      Start 152: test_decode_cuda_graph
+40/46 Test #152: test_decode_cuda_graph ..............   Passed    4.96 sec
+      Start 153: test_continuous_batching
+41/46 Test #153: test_continuous_batching ............   Passed    6.19 sec
+      Start 176: bench_cuda_phase3
+42/46 Test #176: bench_cuda_phase3 ...................   Passed   21.29 sec
+      Start 177: bench_cuda_phase4
+43/46 Test #177: bench_cuda_phase4 ...................   Passed   21.19 sec
+      Start 178: bench_cuda_phase5
+44/46 Test #178: bench_cuda_phase5 ...................   Passed  361.51 sec
+      Start 179: bench_cuda_phase6
+45/46 Test #179: bench_cuda_phase6 ...................   Passed    6.95 sec
+      Start 180: bench_cuda_phase7
+46/46 Test #180: bench_cuda_phase7 ...................   Passed  268.01 sec
+
+100% tests passed, 0 tests failed out of 46
+
+Total Test time (real) = 1247.96 sec

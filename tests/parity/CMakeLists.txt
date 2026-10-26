@@ -264,3 +264,11 @@ add_test(NAME test_watchdog_timeout COMMAND test_phase15_durability watchdog)
 add_test(NAME test_elastic_restart COMMAND test_phase15_durability elastic $<TARGET_FILE:nexus_run>)
 set_tests_properties(test_save_load_exact test_rng_restore test_sharded_save_load test_reshard_2_to_4 test_crash_injection
     test_watchdog_timeout test_elastic_restart PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 16 (CPU): lm::LanguageModel artimli cozme (KV onbellegi), tum mimari varyantlari.
+add_executable(test_phase16_infer test_phase16_infer.cpp)
+target_link_libraries(test_phase16_infer PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase16_infer)
+add_test(NAME test_kv_cache_matches_full_cpu COMMAND test_phase16_infer kvcache)
+add_test(NAME test_kv_cache_generate_cpu COMMAND test_phase16_infer generate)
+set_tests_properties(test_kv_cache_matches_full_cpu test_kv_cache_generate_cpu PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
