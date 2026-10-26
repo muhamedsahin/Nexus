@@ -206,6 +206,7 @@ TracedLm trace_lm(const lm::LmConfig& c) {
   if (c.pos == lm::PosKind::Alibi || c.pos == lm::PosKind::Sinusoidal) no("ALiBi / sinuzoidal");
   if (c.pos == lm::PosKind::Rope && c.rope_scaling.type != lm::RopeScaling::Type::None) no("RoPE olcekleme");
   if (c.recompute != lm::RecomputeKind::None) no("recompute (derleyici min-cut kullanir)");
+  if (c.moe_experts > 0) no("MoE (derleyici IR'de MoE op yok)");
 
   TracedLm tr;
   Graph& g = tr.graph;

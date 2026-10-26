@@ -1,0 +1,42 @@
+  PASS  ayni giris -> ayni top-k, kapi ve kapasite atamasi
+  info  temiz: kapasite 9 (grup basina), dusen 58 / 192, bos uzman 0, aux 0.0110, z 0.0137
+  PASS  kapasite siniri ve dusurme sayimi tutarli
+  PASS  ayni giris -> ayni top-k, kapi ve kapasite atamasi (gurultulu, ayni tohum)
+  info  gurultulu: kapasite 9 (grup basina), dusen 54 / 192, bos uzman 0, aux 0.0109, z 0.0137
+  PASS  kapasite siniri ve dusurme sayimi tutarli
+  PASS  gurultu tohumu degisince secim degisir (kesif); egitim disinda gurultu yok
+  PASS  cikarimda (training = false) gurultu kapali: tohumdan bagimsiz
+  info  reroute: 29 yeniden yonlendirildi, 48 dustu (drop modunda 58)
+  PASS  taşma (reroute) dusurmeyi azaltir
+test_phase14_moe: 7 gecti, 0 basarisiz
+  info  k=1, E=1: kayip yogun 4.60231018 MoE 4.60231018; en kotu gradyan goreli 0.00e+00 (); yonlendirici |grad| 0.0e+00
+  PASS  k=1/E=1 MoE == yogun SwiGLU MLP (kayip ve tum gradyanlar bit bit; kapi = 1, yonlendirici gradyani 0)
+test_phase14_moe: 1 gecti, 0 basarisiz
+  info  drop (dusen 34, yeniden 0): goreli y 2.4e-07 dx 1.9e-07 drouter 2.8e-07 dup 2.4e-07 ddown 1.0e-07 aux 1.3e-08 z 4.1e-08
+  PASS  MoE ileri + geri == bagimsiz double referans (<= 1e-5), drop
+  info  reroute (dusen 32, yeniden 14): goreli y 2.4e-07 dx 1.9e-07 drouter 2.9e-07 dup 2.4e-07 ddown 1.0e-07 aux 1.3e-08 z 4.1e-08
+  PASS  MoE ileri + geri == bagimsiz double referans (<= 1e-5), reroute
+test_phase14_moe: 2 gecti, 0 basarisiz
+  info  EP 2 rank: y bit bit, dx bit bit, dup bit bit, ddown bit bit; drouter goreli 2.0e-07; aux+z 0.038462 vs 0.038462; a2a 0.25 ms, hesap 1.56 ms, gonderilen 40.5 KB
+  PASS  test_ep_equivalence: 1 rank == 2 rank EP (cikti, gradyanlar, aux)
+  info  EP 4 rank: y bit bit, dx bit bit, dup bit bit, ddown bit bit; drouter goreli 2.4e-07; aux+z 0.038796 vs 0.038796; a2a 0.47 ms, hesap 1.42 ms, gonderilen 123.5 KB
+  PASS  test_ep_equivalence: 1 rank == 4 rank EP (cikti, gradyanlar, aux)
+  info  EP 8 rank: y bit bit, dx bit bit, dup bit bit, ddown bit bit; drouter goreli 3.2e-07; aux+z 0.040118 vs 0.040118; a2a 1.25 ms, hesap 0.52 ms, gonderilen 285.0 KB
+  PASS  test_ep_equivalence: 1 rank == 8 rank EP (cikti, gradyanlar, aux)
+test_phase14_moe: 3 gecti, 0 basarisiz
+  info  BF16 uzman agirligi: bellek 1.57 MB (FP32 3.15 MB, 2.00x), cikis goreli hatasi 2.83e-03
+  PASS  BF16 uzman agirligi: bellek kazanci ve sinirli hata
+  info  FP8-E4M3 uzman agirligi: bellek 0.79 MB (FP32 3.15 MB, 4.00x), cikis goreli hatasi 3.99e-02
+  PASS  FP8 uzman agirligi: bellek kazanci ve sinirli hata
+test_phase14_moe: 2 gecti, 0 basarisiz
+  info  moe-124m: toplam 123.5M, aktif 38.0M (31%); E=8 k=2, 5 katman, d 512, uzman F 1856, sozluk 8192
+  PASS  moe-124m: ~124M toplam, aktif < toplamin yarisi
+  PASS  MoE alanlari JSON gidis-donus
+  info  paylasimli uzman + gurultu + moe_every=2: 41632 parametre (count_parameters 41632); NXS kayip 4.179452 / 4.179452
+  PASS  count_parameters dogru; NXS kayit/yukleme ayni kayip (tur 36 MoEFFN)
+test_phase14_moe: 3 gecti, 0 basarisiz
+  info  aux_alpha=0.00: kayip 5.556 -> 1.820; uzman payi min 0.000 max 0.294 (esit pay 0.125); 23 ms/adim
+  info  aux_alpha=0.01: kayip 5.577 -> 1.831; uzman payi min 0.066 max 0.164 (esit pay 0.125); 23 ms/adim
+  PASS  aux kayipla her uzmanin payi >= 0.5 / E (son 20 adim)
+  PASS  MoE modeli ogreniyor (kayip %40+ duser)
+test_phase14_moe: 2 gecti, 0 basarisiz

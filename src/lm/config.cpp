@@ -137,6 +137,16 @@ void validate(const LmConfig& c) {
   if (c.dtype != "float32") {
     fail("CPU lm yolu yalniz float32 (dar tipler GPU yolunda)");
   }
+  if (c.moe_experts < 0 || (c.moe_experts > 0 && (c.moe_top_k < 1 || c.moe_top_k > c.moe_experts || c.moe_every < 1 ||
+                                                   c.moe_capacity_factor <= 0.0f || c.moe_groups < 1 || c.moe_min_capacity < 0))) {
+    fail("MoE: 1 <= moe_top_k <= moe_experts, moe_every >= 1, moe_capacity_factor > 0, moe_groups >= 1");
+  }
+  if (c.moe_experts > 0 && (c.mlp != MlpKind::SwiGlu || c.bias || c.parallel_block || !c.prenorm)) {
+    fail("MoE: uzman SwiGLU MLP ister; bias, paralel blok ve son-norm desteklenmez");
+  }
+  if (c.moe_experts > 0 && c.recompute != RecomputeKind::None) {
+    fail("MoE: yeniden hesaplama (recompute) ile desteklenmez (yonlendirme yeniden kosulurdu)");
+  }
 }
 
 std::int64_t count_parameters(const LmConfig& c) {
@@ -172,6 +182,23 @@ std::int64_t count_parameters(const LmConfig& c) {
   }
   total += c.n_layer * layer;
   total += norm;  // final norm (on-norm mimaride zorunlu; son-normda da tutulur)
+  // FAZ 14: MoE katmanlari yogun MLP yerine (paylasimli uzman varsa ek olarak) yonlendirici + E uzman
+  const std::int64_t mlp = c.gated_mlp() ? d * 2 * F + F * d + (c.bias ? 2 * F + d : 0) : d * F + F * d + (c.bias ? F + d : 0);
+  const std::int64_t Fe = c.expert_ff();
+  for (int l = 0; l < c.n_layer; ++l) {
+    if (!c.is_moe_layer(l)) continue;
+    if (!c.moe_shared_expert) total -= mlp;
+    total += d * c.moe_experts * (c.moe_noisy ? 2 : 1) + static_cast<std::int64_t>(c.moe_experts) * 3 * d * Fe;
+  }
+  return total;
+}
+
+std::int64_t count_active_parameters(const LmConfig& c) {
+  std::int64_t total = count_parameters(c);
+  const std::int64_t d = c.d_model, Fe = c.expert_ff();
+  for (int l = 0; l < c.n_layer; ++l) {
+    if (c.is_moe_layer(l)) total -= static_cast<std::int64_t>(c.moe_experts - c.moe_top_k) * 3 * d * Fe;
+  }
   return total;
 }
 
@@ -255,6 +282,14 @@ const std::map<std::string, std::function<LmConfig()>>& presets() {
        }},
       {"tinyllama-1.1b",
        [] { return llama_like("tinyllama-1.1b", 32000, 22, 2048, 32, 4, 5632, 2048, 10000.0f, 1e-5f, false); }},
+      // FAZ 14: kucuk MoE (8 uzman, k = 2, ~124M toplam / ~38M aktif; 8k sozluk). Mixtral sekli kucultulmus.
+      {"moe-124m",
+       [] {
+         LmConfig c = llama_like("moe-124m", 8192, 5, 512, 8, 8, 1856, 1024, 10000.0f, 1e-5f, true);
+         c.moe_experts = 8;
+         c.moe_top_k = 2;
+         return c;
+       }},
   };
   return table;
 }
@@ -433,7 +468,13 @@ std::string to_json(const LmConfig& c) {
     << ",\"init\":\"" << to_string(c.init) << "\",\"init_std\":" << fmt(c.init_std)
     << ",\"init_truncated\":" << (c.init_truncated ? "true" : "false") << ",\"mup_base_width\":" << c.mup_base_width
     << ",\"seed\":" << c.seed << ",\"dtype\":\"" << c.dtype << "\",\"recompute\":\""
-    << to_string(c.recompute) << "\",\"recompute_every\":" << c.recompute_every << "}";
+    << to_string(c.recompute) << "\",\"recompute_every\":" << c.recompute_every << ",\"moe_experts\":" << c.moe_experts
+    << ",\"moe_top_k\":" << c.moe_top_k << ",\"moe_every\":" << c.moe_every << ",\"moe_d_ff\":" << c.moe_d_ff
+    << ",\"moe_capacity_factor\":" << fmt(c.moe_capacity_factor) << ",\"moe_min_capacity\":" << c.moe_min_capacity
+    << ",\"moe_reroute\":" << (c.moe_reroute ? "true" : "false") << ",\"moe_groups\":" << c.moe_groups
+    << ",\"moe_noisy\":" << (c.moe_noisy ? "true" : "false") << ",\"moe_shared_expert\":"
+    << (c.moe_shared_expert ? "true" : "false") << ",\"moe_aux_alpha\":" << fmt(c.moe_aux_alpha)
+    << ",\"moe_z_alpha\":" << fmt(c.moe_z_alpha) << "}";
   return o.str();
 }
 
@@ -504,6 +545,18 @@ LmConfig apply_overrides(LmConfig c, const std::string& json) {
       c.recompute = parse_enum<RecomputeKind>(str(v, key), {RecomputeKind::None, RecomputeKind::Full, RecomputeKind::EveryK},
                                               "recompute");
     else if (key == "recompute_every") c.recompute_every = static_cast<int>(num(v, key));
+    else if (key == "moe_experts") c.moe_experts = static_cast<int>(num(v, key));
+    else if (key == "moe_top_k") c.moe_top_k = static_cast<int>(num(v, key));
+    else if (key == "moe_every") c.moe_every = static_cast<int>(num(v, key));
+    else if (key == "moe_d_ff") c.moe_d_ff = static_cast<int>(num(v, key));
+    else if (key == "moe_capacity_factor") c.moe_capacity_factor = static_cast<float>(num(v, key));
+    else if (key == "moe_min_capacity") c.moe_min_capacity = static_cast<int>(num(v, key));
+    else if (key == "moe_reroute") c.moe_reroute = boolean(v, key);
+    else if (key == "moe_groups") c.moe_groups = static_cast<int>(num(v, key));
+    else if (key == "moe_noisy") c.moe_noisy = boolean(v, key);
+    else if (key == "moe_shared_expert") c.moe_shared_expert = boolean(v, key);
+    else if (key == "moe_aux_alpha") c.moe_aux_alpha = static_cast<float>(num(v, key));
+    else if (key == "moe_z_alpha") c.moe_z_alpha = static_cast<float>(num(v, key));
     else fail("JSON: bilinmeyen anahtar: " + key);
   }
   return c;

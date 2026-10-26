@@ -1,0 +1,2 @@
+{"mode": "bench_moe_train", "model": "moe-124m", "total_params": 119432704, "active_params": 33908224, "steps": 12, "tokens_per_step": 1024, "loss_first": 5.6996, "loss_last20": 3.5507, "ms_per_step": 3547, "tokens_per_s": 289, "usage_min": 0.0413, "usage_max": 0.2736
+{"mode": "bench_moe_train", "model": "dense-same-active", "total_params": 33887744, "active_params": 33887744, "steps": 12, "tokens_per_step": 1024, "loss_first": 5.6552, "loss_last20": 3.6149, "ms_per_step": 9024, "tokens_per_s": 113

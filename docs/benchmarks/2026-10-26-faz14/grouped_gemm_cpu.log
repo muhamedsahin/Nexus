@@ -1,0 +1,5 @@
+  info  gruplu GEMM (E=8, 8192 satir, d=256, F=512): sirali uzman dongusu 135.5 ms (47.5 GFLOP/s), paralel gruplu 43.5 ms (148.1 GFLOP/s, 3.11x), token basina dongu ~860 ms (tahmini, 256 satirdan); token dongusu farki 0.0e+00
+  PASS  paralel gruplu GEMM == sirali uzman dongusu (bit bit)
+  PASS  paralel gruplu GEMM sirali donguden hizli
+  PASS  token basina dongu ile ayni sonuc (satir bagimsiz)
+test_phase14_moe: 3 gecti, 0 basarisiz

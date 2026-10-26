@@ -234,3 +234,19 @@ add_test(NAME test_compile_comm_reorder COMMAND test_phase13_compile comm)
 add_test(NAME test_compile_export_stablehlo COMMAND test_phase13_compile export)
 set_tests_properties(test_compile_numerics test_fusion_kernel_count test_dynamic_shape_no_recompile test_cache_hit_zero_compile
     test_compile_min_cut_memory test_compile_comm_reorder test_compile_export_stablehlo PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 14 (CPU): MoE — yonlendirici, kapasite, gruplu GEMM, yuk dengeleme, uzman paralelligi, dar uzman agirliklari.
+add_executable(test_phase14_moe test_phase14_moe.cpp)
+target_link_libraries(test_phase14_moe PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase14_moe)
+add_test(NAME test_moe_router_deterministic COMMAND test_phase14_moe router)
+add_test(NAME test_moe_k1_equals_dense COMMAND test_phase14_moe k1)
+add_test(NAME test_moe_grad_numerics COMMAND test_phase14_moe grad)
+add_test(NAME test_grouped_gemm_vs_loop COMMAND test_phase14_moe grouped)
+add_test(NAME test_load_balance_in_range COMMAND test_phase14_moe balance)
+add_test(NAME test_ep_equivalence COMMAND test_phase14_moe ep)
+add_test(NAME test_moe_quantized_experts COMMAND test_phase14_moe quant)
+add_test(NAME test_moe_config_roundtrip COMMAND test_phase14_moe config)
+set_tests_properties(test_load_balance_in_range PROPERTIES SKIP_RETURN_CODE 77)
+set_tests_properties(test_moe_router_deterministic test_moe_k1_equals_dense test_moe_grad_numerics test_grouped_gemm_vs_loop
+    test_load_balance_in_range test_ep_equivalence test_moe_quantized_experts test_moe_config_roundtrip PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

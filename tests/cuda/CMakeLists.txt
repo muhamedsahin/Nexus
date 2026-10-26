@@ -141,3 +141,10 @@ nexus_configure_target(test_phase13_compile_cuda)
 add_test(NAME test_cuda_graph_replay_equal COMMAND test_phase13_compile_cuda graph)
 add_test(NAME test_nvrtc_fusion_kernels COMMAND test_phase13_compile_cuda nvrtc)
 set_tests_properties(test_cuda_graph_replay_equal test_nvrtc_fusion_kernels PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 14 (GPU): MoE uzman GEMM'leri — uzman basina cuBLASLt dongusu vs dolgulu strided batched.
+add_executable(test_phase14_moe_cuda test_phase14_moe_cuda.cpp)
+target_link_libraries(test_phase14_moe_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase14_moe_cuda)
+add_test(NAME test_moe_grouped_gemm_cuda COMMAND test_phase14_moe_cuda grouped)
+set_tests_properties(test_moe_grouped_gemm_cuda PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE)

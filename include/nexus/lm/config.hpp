@@ -77,6 +77,19 @@ struct LmConfig {
   std::string dtype = "float32";  // CPU yolu FP32; alan arsive yazilir
   RecomputeKind recompute = RecomputeKind::None;
   int recompute_every = 2;
+  // ---- FAZ 14 MoE (nexus::moe; uzman = SwiGLU MLP) ----
+  int moe_experts = 0;             // 0: yogun MLP
+  int moe_top_k = 2;
+  int moe_every = 1;               // her moe_every. blok MoE (blok l: l % moe_every == moe_every - 1)
+  int moe_d_ff = 0;                // uzman basina F (0: d_ff)
+  float moe_capacity_factor = 1.25f;
+  int moe_min_capacity = 4;
+  bool moe_reroute = false;        // false: tasan atama dusurulur
+  int moe_groups = 1;              // GShard grup basina kapasite
+  bool moe_noisy = false;          // gurultulu top-k (yalniz egitim)
+  bool moe_shared_expert = false;  // yogun MLP paylasimli uzman olarak tutulur (DeepSeek)
+  float moe_aux_alpha = 0.01f;
+  float moe_z_alpha = 1.0e-3f;
 
   [[nodiscard]] int kv_heads() const noexcept { return n_kv_head > 0 ? n_kv_head : n_head; }
   [[nodiscard]] int hdim() const noexcept { return head_dim > 0 ? head_dim : (n_head > 0 ? d_model / n_head : 0); }
@@ -86,6 +99,10 @@ struct LmConfig {
     return (vocab_size + m - 1) / m * m;
   }
   [[nodiscard]] bool gated_mlp() const noexcept { return mlp != MlpKind::Gelu; }
+  [[nodiscard]] bool is_moe_layer(int layer) const noexcept {
+    return moe_experts > 0 && moe_every > 0 && layer % moe_every == moe_every - 1;
+  }
+  [[nodiscard]] int expert_ff() const noexcept { return moe_d_ff > 0 ? moe_d_ff : d_ff; }
 };
 
 /// Gecersiz alan icin TensorError (sessiz duzeltme yok).
@@ -93,6 +110,8 @@ void validate(const LmConfig& config);
 
 /// Ayirmadan parametre sayisi (dolgulu sozluk dahil).
 [[nodiscard]] std::int64_t count_parameters(const LmConfig& config);
+/// FAZ 14: token basina etkin (aktif) parametre: MoE katmaninda yonlendirici + top_k uzman (+ paylasimli).
+[[nodiscard]] std::int64_t count_active_parameters(const LmConfig& config);
 
 /// gpt2-{124m,350m,774m,1.5b}, llama2-7b, llama3-8b, mistral-7b, qwen2-{0.5b,1.5b,7b}, tinyllama-1.1b.
 [[nodiscard]] LmConfig preset(const std::string& name);

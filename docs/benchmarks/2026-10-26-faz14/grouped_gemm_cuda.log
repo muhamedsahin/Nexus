@@ -1,0 +1,9 @@
+  info  satir 16384 (kapasite 2560, dusen 0); uzman basina: 2012 2153 2008 2074 2089 2057 2073 1918; dolgu Cmax 2153 (yararli/dolgulu FLOP 0.95)
+  info  uzman basina cuBLASLt dongusu (16 cagri): 4.376 ms, 21.35 TFLOPS
+  info  dolgulu strided batched (2 cagri): 4.240 ms, 22.03 TFLOPS yararli (23.16 dolgulu dahil), 1.03x
+  info  CUTLASS grouped GEMM: bu depoda yok, olculmedi
+  info  dongu vs batched max fark 1.53e-05 (olcek 5.19); CPU double referans goreli 8.43e-07
+{"mode": "bench_moe_grouped_gemm_cuda", "rows": 16384, "cmax": 2153, "loop_ms": 4.3764, "batched_ms": 4.2400, "loop_tflops": 21.345, "batched_tflops_useful": 22.032}
+  PASS  uzman dongusu == dolgulu batched (dolgusuz satirlar)
+  PASS  BF16 uzman GEMM CPU double referansina gore <= 1e-2
+test_phase14_moe_cuda: 2 gecti, 0 basarisiz

@@ -743,6 +743,7 @@ void check_supported(const lm::LmConfig& c) {
   if (c.qk_norm) no("qk_norm");
   if (c.pos == lm::PosKind::Alibi || c.pos == lm::PosKind::Sinusoidal) no("ALiBi / sinuzoidal konum");
   if (c.recompute != lm::RecomputeKind::None) no("yeniden hesaplama (recompute)");
+  if (c.moe_experts > 0) no("MoE (uzman paralelligi: dist::MoeExpertParallel)");
 }
 
 }  // namespace

@@ -119,15 +119,51 @@ DecoderBlock::DecoderBlock(const LmConfig& c, int index, ParamFactory& f) : c_(c
       n2b_ = f.constant(p + "norm2.bias", {d}, 0.0f);
     }
   }
-  const std::int64_t up = c.gated_mlp() ? 2 * F : F;
-  upw_ = f.normal(p + "mlp.up.weight", {d, up}, hidden, true, hidden_lr);
-  if (c.bias) {
-    upb_ = f.constant(p + "mlp.up.bias", {up}, 0.0f);
+  moe_ = c.is_moe_layer(index);
+  if (!moe_ || c.moe_shared_expert) {  // MoE'de yogun MLP yalniz paylasimli uzman olarak
+    const std::int64_t up = c.gated_mlp() ? 2 * F : F;
+    upw_ = f.normal(p + "mlp.up.weight", {d, up}, hidden, true, hidden_lr);
+    if (c.bias) {
+      upb_ = f.constant(p + "mlp.up.bias", {up}, 0.0f);
+    }
+    downw_ = f.normal(p + "mlp.down.weight", {F, d}, resid, true, hidden_lr);
+    if (c.bias) {
+      downb_ = f.constant(p + "mlp.down.bias", {d}, 0.0f);
+    }
   }
-  downw_ = f.normal(p + "mlp.down.weight", {F, d}, resid, true, hidden_lr);
-  if (c.bias) {
-    downb_ = f.constant(p + "mlp.down.bias", {d}, 0.0f);
+  if (moe_) {
+    const std::int64_t E = c.moe_experts, Fe = c.expert_ff();
+    router_ = f.normal(p + "moe.router.weight", {d, E}, hidden, false, hidden_lr);  // FP32, sonumsuz
+    if (c.moe_noisy) noise_ = f.constant(p + "moe.noise.weight", {d, E}, 0.0f);
+    eup_ = f.normal(p + "moe.experts.up.weight", {E, d, 2 * Fe}, hidden, true, hidden_lr);
+    edown_ = f.normal(p + "moe.experts.down.weight", {E, Fe, d}, resid, true, hidden_lr);
   }
+}
+
+Variable DecoderBlock::ffn(const Variable& h, const BlockContext& ctx) const {
+  if (!moe_) return mlp(h);
+  moe::Spec s;
+  s.experts = c_.moe_experts;
+  s.top_k = c_.moe_top_k;
+  s.d_model = c_.d_model;
+  s.d_ff = c_.expert_ff();
+  s.capacity_factor = c_.moe_capacity_factor;
+  s.min_capacity = c_.moe_min_capacity;
+  s.overflow = c_.moe_reroute ? moe::Overflow::Reroute : moe::Overflow::Drop;
+  s.groups = c_.moe_groups;
+  s.noisy = c_.moe_noisy;
+  s.aux_alpha = c_.moe_aux_alpha;
+  s.z_alpha = c_.moe_z_alpha;
+  const std::uint64_t seed = ctx.dropout_seed ^ (0x5EEDull + static_cast<std::uint64_t>(index_) * 0x9E3779B97F4A7C15ULL);
+  Variable rl;
+  MoeLayerStats st;
+  st.layer = index_;
+  Variable y = moe_ffn(h, router_, noise_, eup_, edown_, s, ctx.training, seed, ctx.router_losses ? &rl : nullptr,
+                       ctx.moe_stats ? &st : nullptr);
+  if (ctx.router_losses && (s.aux_alpha != 0.0f || s.z_alpha != 0.0f)) ctx.router_losses->push_back(rl);
+  if (ctx.moe_stats) ctx.moe_stats->push_back(std::move(st));
+  if (c_.moe_shared_expert) y = ag::add(y, mlp(h));
+  return y;
 }
 
 Variable DecoderBlock::norm(const Variable& x, const Variable& w, const Variable& b) const {
@@ -208,14 +244,14 @@ Variable DecoderBlock::mlp(const Variable& h) const {
 Variable DecoderBlock::forward(const Variable& x, const BlockContext& ctx) const {
   if (!c_.prenorm) {
     const Variable h = norm(ag::add(x, dropout(attn(x, ctx), ctx, 0)), n1w_, n1b_);
-    return norm(ag::add(h, dropout(mlp(h), ctx, 1)), n2w_, n2b_);
+    return norm(ag::add(h, dropout(ffn(h, ctx), ctx, 1)), n2w_, n2b_);
   }
   const Variable h = norm(x, n1w_, n1b_);
   if (c_.parallel_block) {
-    return ag::add(ag::add(x, dropout(attn(h, ctx), ctx, 0)), dropout(mlp(h), ctx, 1));
+    return ag::add(ag::add(x, dropout(attn(h, ctx), ctx, 0)), dropout(ffn(h, ctx), ctx, 1));
   }
   const Variable r = ag::add(x, dropout(attn(h, ctx), ctx, 0));
-  return ag::add(r, dropout(mlp(norm(r, n2w_, n2b_)), ctx, 1));
+  return ag::add(r, dropout(ffn(norm(r, n2w_, n2b_), ctx), ctx, 1));
 }
 
 nxs::LayerSpec DecoderBlock::nxs_spec() const {
@@ -224,6 +260,12 @@ nxs::LayerSpec DecoderBlock::nxs_spec() const {
                        nxs::i32("n_kv_head", c_.kv_heads()), nxs::i32("head_dim", c_.hdim()), nxs::i32("d_ff", c_.d_ff),
                        nxs::str("norm", to_string(c_.norm)), nxs::str("mlp", to_string(c_.mlp)),
                        nxs::boolean("prenorm", c_.prenorm), nxs::boolean("parallel", c_.parallel_block)});
+}
+
+nxs::LayerSpec DecoderBlock::nxs_moe_spec() const {
+  return nxs::spec_of(nxs::LayerKind::MoEFFN, "MoEFFN",
+                      {nxs::i32("experts", c_.moe_experts), nxs::i32("top_k", c_.moe_top_k), nxs::i32("d_ff", c_.expert_ff()),
+                       nxs::boolean("shared_expert", c_.moe_shared_expert), nxs::boolean("noisy", c_.moe_noisy)});
 }
 
 // ---- LanguageModel ----------------------------------------------------------------------
@@ -310,6 +352,11 @@ Variable LanguageModel::embed(const std::vector<std::int32_t>& tokens, int batch
 
 Variable LanguageModel::logits(const std::vector<std::int32_t>& tokens, int batch, int time,
                                const ForwardOptions& o) const {
+  return forward_logits(tokens, batch, time, o, nullptr);
+}
+
+Variable LanguageModel::forward_logits(const std::vector<std::int32_t>& tokens, int batch, int time, const ForwardOptions& o,
+                                       std::vector<Variable>* aux) const {
   if (static_cast<int>(tokens.size()) != batch * time) {
     throw TensorError("Nexus lm: tokens boyu batch*time olmali");
   }
@@ -324,6 +371,9 @@ Variable LanguageModel::logits(const std::vector<std::int32_t>& tokens, int batc
   ctx.training = o.training;
   ctx.dropout_seed = o.dropout_seed;
   ctx.alibi = alibi_;
+  ctx.router_losses = aux;
+  moe_stats_.clear();
+  ctx.moe_stats = &moe_stats_;
   if (rope_) {
     rope_->ensure(time + o.position_offset);
     auto pos = std::make_shared<std::vector<int>>(static_cast<std::size_t>(batch) * time);
@@ -366,7 +416,10 @@ Variable LanguageModel::logits(const std::vector<std::int32_t>& tokens, int batc
 
 Variable LanguageModel::loss(const std::vector<std::int32_t>& tokens, int batch, int time,
                              const ForwardOptions& o) const {
-  return fused::cross_entropy_shifted(logits(tokens, batch, time, o), tokens, batch, time);
+  std::vector<Variable> aux;
+  Variable loss = fused::cross_entropy_shifted(forward_logits(tokens, batch, time, o, &aux), tokens, batch, time);
+  for (const Variable& a : aux) loss = ag::add(loss, a);  // FAZ 14: MoE yonlendirici kayiplari (aux + z)
+  return loss;
 }
 
 std::vector<double> LanguageModel::layer_grad_norms() const {
@@ -403,7 +456,9 @@ void LanguageModel::save_nxs(const std::string& path) const {
   nxs::LayerSpec root = nxs::spec_of(nxs::LayerKind::LanguageModel, "LanguageModel",
                                      {nxs::str("config", to_json(config_)), nxs::i32("format", 1)});
   for (const DecoderBlock& b : blocks_) {
-    root.children.push_back(b.nxs_spec());
+    nxs::LayerSpec bs = b.nxs_spec();
+    if (b.is_moe()) bs.children.push_back(b.nxs_moe_spec());  // FAZ 14: NexusMoE cocugu (tur 36)
+    root.children.push_back(std::move(bs));
   }
   archive.layers.push_back(std::move(root));
   for (const NamedParam& p : params_) {

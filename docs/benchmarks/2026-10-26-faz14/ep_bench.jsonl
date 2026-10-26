@@ -1,0 +1,3 @@
+{"mode": "bench_moe_ep", "ep": 2, "tokens_per_rank": 4096, "step_ms": 3493.0, "a2a_ms": 82.4, "compute_ms": 3344.4, "a2a_share": 0.024, "bytes_total": 66699264, "a2a_gb_s": 0.81, "overlap": 0}
+{"mode": "bench_moe_ep", "ep": 4, "tokens_per_rank": 4096, "step_ms": 4567.0, "a2a_ms": 117.1, "compute_ms": 4339.7, "a2a_share": 0.026, "bytes_total": 201474048, "a2a_gb_s": 1.72, "overlap": 0}
+{"mode": "bench_moe_ep", "ep": 8, "tokens_per_rank": 4096, "step_ms": 8266.2, "a2a_ms": 514.3, "compute_ms": 7952.7, "a2a_share": 0.062, "bytes_total": 470007808, "a2a_gb_s": 0.91, "overlap": 0}

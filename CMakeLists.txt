@@ -53,6 +53,8 @@ add_library(nexus STATIC
     src/lm/rope.cpp
     src/lm/ops.cpp
     src/lm/model.cpp
+    src/lm/moe_layer.cpp
+    src/moe/moe.cpp
     src/prof/prof.cpp
     src/model/nxs.cpp
     src/train/lm_trainer.cpp
@@ -69,6 +71,7 @@ add_library(nexus STATIC
     src/dist/context_parallel.cpp
     src/dist/pipeline.cpp
     src/dist/parallel_lm.cpp
+    src/dist/moe_ep.cpp
     src/compile/ir.cpp
     src/compile/trace.cpp
     src/compile/passes.cpp

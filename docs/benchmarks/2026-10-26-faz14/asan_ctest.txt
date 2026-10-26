@@ -1,0 +1,22 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start  95: test_moe_router_deterministic
+1/8 Test  #95: test_moe_router_deterministic ....   Passed    0.20 sec
+    Start  96: test_moe_k1_equals_dense
+2/8 Test  #96: test_moe_k1_equals_dense .........   Passed    0.17 sec
+    Start  97: test_moe_grad_numerics
+3/8 Test  #97: test_moe_grad_numerics ...........   Passed    0.14 sec
+    Start  98: test_grouped_gemm_vs_loop
+4/8 Test  #98: test_grouped_gemm_vs_loop ........   Passed   14.19 sec
+    Start  99: test_load_balance_in_range
+5/8 Test  #99: test_load_balance_in_range .......   Passed  332.54 sec
+    Start 100: test_ep_equivalence
+6/8 Test #100: test_ep_equivalence ..............   Passed    0.24 sec
+    Start 101: test_moe_quantized_experts
+7/8 Test #101: test_moe_quantized_experts .......   Passed    7.35 sec
+    Start 102: test_moe_config_roundtrip
+8/8 Test #102: test_moe_config_roundtrip ........   Passed    0.15 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) = 355.11 sec

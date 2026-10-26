@@ -13,11 +13,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest-115%2F115_ge%C3%A7ti-2EA44F?style=flat-square)
+![Testler](https://img.shields.io/badge/ctest-123%2F123_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
-![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
+![CUDA tests](https://img.shields.io/badge/CUDA_testleri-153%2F153_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--13_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--14_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,19 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**26 Ekim 2026 — FAZ 14 MoE ve uzman paralelliği** ([rapor](docs/benchmarks/2026-10-26-faz14/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| MoE-124M (E=8, k=2) vs aynı aktif FLOP'lu yoğun, bayt TinyStories, 150 adım | kayıp **1.931** vs 2.037; aktif param 33.9M / toplam 119.4M |
+| E=1, k=1 MoE vs yoğun SwiGLU | kayıp ve tüm gradyanlar **bit bit aynı** |
+| MoE ileri + geri vs bağımsız double referans | göreli ≤ **2.9e-7** (drop + reroute) |
+| EP 1 rank vs 2 / 4 / 8 rank (all-to-all-v) | y, dx, uzman gradyanları **bit bit**; drouter ≤ 3.2e-7 |
+| Yük dengeleme (300 adım) | aux ile uzman payı 0.066–0.164 · aux'suz ölü uzman (0.000) |
+| Gruplu GEMM CPU / GPU | paralel **3.11×** (148 GFLOP/s) · GPU batched 22.0 vs döngü 21.4 TFLOPS (1.03×) |
+| BF16 / FP8 uzman ağırlığı | bellek 2× / 4× az, çıkış hatası 2.8e-3 / 4.0e-2 |
+| Eksik | ⛔ GPU MoE eğitimi, CUTLASS grouped, a2a örtüşmesi, Mixtral ölçeği |
+
 **26 Ekim 2026 — FAZ 13 derleyici, CUDA Graphs, autotune** ([rapor](docs/benchmarks/2026-10-26-faz13/README.md))
 
 | Ölçüm | Sonuç |
@@ -401,8 +414,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 11 | ZeRO-0/1/2/3, FSDP, HSDP, önceden getirme + sınırlayıcı, BF16 iletişim, NVMe takası, parçalı kayıt + yeniden parçalama (CPU) | ✅ aşamalar bit bit eşdeğer, ZeRO-3 bellek 1/dp (FSDP2 ile aynı), FSDP2'den hızlı · ⛔ GPU FSDP ve 7B ZeRO-Infinity yok · 🟡 ZeRO-0/1/2 fazladan kopya, kopyasız görünüm yok |
 | 12 | DeviceMesh/DTensor (redistribute + yayılım), TP (sözlük-parçalı CE, GQA), SP, async TP, PP (GPipe/1F1B/interleaved/ZB-H1), CP (ring zigzag + Ulysses), ZeRO-1, `nexus_estimate --auto-parallel`, `.parallel({dp,tp,pp,cp})` (CPU) | ✅ tüm eşdeğerlikler (4B 16 rank dahil), 128k ring attention · ⛔ GPU TP/PP/CP ve 7B MFU yok · 🟡 tek iş p. çekirdekler PyTorch'tan 1.9× yavaş, ZB-H1 çalışma anı, tahminci kalibre değil |
 | 13 | IR (SSA, sembolik şekil), meta izleme + autodiff, desen/epilog/eleman eleman füzyon, min-cut, statik arena, iletişim sıralama, CPU (cl.exe) + CUDA (NVRTC) kod üretimi + disk önbelleği, StableHLO, `nexus::compile`, `trainer.compile` (GEMM dolgusu + tüm adım CUDA Graph + autotune) | ✅ gpt2s torch.compile(max-autotune)'dan %5.6 hızlı, soğuk başlangıç ~4 s · 🟡 çekirdek sayısı 2.07× (3× değil), CPU yürütücüsü eager'dan yavaş, GPU'da IR yürütücüsü yok |
-| 14 | MoE, uzman paralelliği | ⏭ sıradaki |
-| 15–22 | çıkarım, 1.0 | 📋 planlı |
+| 14 | MoE: FP32 yönlendirici, gürültülü top-k, GShard kapasitesi (drop/reroute), sayım sıralı permütasyon, paralel gruplu GEMM, aux + z kaybı, paylaşımlı uzman, BF16/FP8 uzman ağırlığı, `moe-124m`, NXS `MoEFFN`; all-to-all(v) uzman paralelliği (CPU) | ✅ k=1/E=1 = yoğun bit bit, referans ≤ 2.9e-7, EP 1↔8 rank bit bit, aux ile ölü uzman yok, aynı aktif FLOP'ta kayıp 1.93 vs 2.04 · ⛔ GPU MoE eğitimi, CUTLASS grouped, Mixtral ölçeği yok · 🟡 a2a örtüşmesi, EP+TP+DP, uzman offload açık |
+| 15 | Dayanıklılık: tam durum kaydı, parçalı/eşzamansız kayıt, yeniden parçalama, bekçi | ⏭ sıradaki |
+| 16–22 | çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

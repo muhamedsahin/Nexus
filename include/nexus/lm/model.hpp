@@ -32,6 +32,7 @@
 #include "nexus/autograd/autograd.hpp"
 #include "nexus/fused/training.hpp"
 #include "nexus/lm/config.hpp"
+#include "nexus/lm/moe_layer.hpp"
 #include "nexus/lm/ops.hpp"
 #include "nexus/model/nxs_format.hpp"
 
@@ -65,6 +66,8 @@ struct BlockContext {
   std::shared_ptr<const std::vector<int>> positions;
   std::shared_ptr<const RopeCache> rope;
   std::shared_ptr<const std::vector<float>> alibi;
+  std::vector<autograd::Variable>* router_losses = nullptr;  // FAZ 14: MoE aux + z dugumleri
+  std::vector<MoeLayerStats>* moe_stats = nullptr;
 };
 
 class ParamFactory;
@@ -74,6 +77,8 @@ class DecoderBlock {
   DecoderBlock(const LmConfig& config, int index, ParamFactory& factory);
   [[nodiscard]] autograd::Variable forward(const autograd::Variable& x, const BlockContext& ctx) const;
   [[nodiscard]] nxs::LayerSpec nxs_spec() const;
+  [[nodiscard]] nxs::LayerSpec nxs_moe_spec() const;
+  [[nodiscard]] bool is_moe() const noexcept { return moe_; }
   [[nodiscard]] int index() const noexcept { return index_; }
 
  private:
@@ -83,11 +88,14 @@ class DecoderBlock {
                                           const autograd::Variable& b) const;
   [[nodiscard]] autograd::Variable attn(const autograd::Variable& h, const BlockContext& ctx) const;
   [[nodiscard]] autograd::Variable mlp(const autograd::Variable& h) const;
+  [[nodiscard]] autograd::Variable ffn(const autograd::Variable& h, const BlockContext& ctx) const;  // yogun ya da MoE
   [[nodiscard]] autograd::Variable dropout(const autograd::Variable& x, const BlockContext& ctx, int slot) const;
 
   LmConfig c_;
   int index_ = 0;
   autograd::Variable n1w_, n1b_, n2w_, n2b_, qkvw_, qkvb_, ow_, ob_, qn_, kn_, upw_, upb_, downw_, downb_;
+  bool moe_ = false;                              // FAZ 14
+  autograd::Variable router_, noise_, eup_, edown_;
 };
 
 class LanguageModel {
@@ -107,6 +115,8 @@ class LanguageModel {
   /// Ada gore parametre (yoksa nullptr).
   [[nodiscard]] const NamedParam* find(const std::string& name) const noexcept;
   [[nodiscard]] const std::vector<DecoderBlock>& blocks() const noexcept { return blocks_; }
+  /// FAZ 14: son ileri gecisteki MoE katmani uzman kullanimi (MoE yoksa bos).
+  [[nodiscard]] const std::vector<MoeLayerStats>& moe_stats() const noexcept { return moe_stats_; }
   /// Katman basina gradyan L2 normu (h{l}.* parametreleri).
   [[nodiscard]] std::vector<double> layer_grad_norms() const;
   void zero_grad();
@@ -116,6 +126,8 @@ class LanguageModel {
   [[nodiscard]] static LanguageModel load_nxs(const std::string& path);
 
  private:
+  [[nodiscard]] autograd::Variable forward_logits(const std::vector<std::int32_t>& tokens, int batch, int time,
+                                                  const ForwardOptions& options, std::vector<autograd::Variable>* aux) const;
   [[nodiscard]] autograd::Variable embed(const std::vector<std::int32_t>& tokens, int batch, int time,
                                          const ForwardOptions& options) const;
 
@@ -125,6 +137,7 @@ class LanguageModel {
   autograd::Variable wte_, wpe_, nfw_, nfb_, head_, pad_mask_;
   std::shared_ptr<RopeCache> rope_;
   std::shared_ptr<const std::vector<float>> alibi_;
+  mutable std::vector<MoeLayerStats> moe_stats_;
 };
 
 [[nodiscard]] LanguageModel build(const LmConfig& config);
