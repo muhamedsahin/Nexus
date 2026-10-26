@@ -134,6 +134,10 @@ class CpuModuleBackend final : public LmBackend {
  public:
   CpuModuleBackend(nn::Module& model, const LmBackendRequest& request)
       : model_(&model), batch_(request.micro_batch), time_(request.seq_len) {
+    if (request.compile) {
+      throw std::invalid_argument(
+          "Nexus LM trainer: nn::Module arka ucu trainer.compile desteklemiyor (lm::LanguageModel icin nexus::compile::compile)");
+    }
     if (request.policy.use_cuda()) {
       throw std::invalid_argument(
           "Nexus LM trainer: nn::Module CPU arka ucudur; CUDA icin cuda::gpt_backend(config) kullanin");
@@ -1014,6 +1018,15 @@ LanguageTrainerBuilder& LanguageTrainerBuilder::fsdp(std::shared_ptr<dist::Proce
   group_ = std::move(group);
   use_fsdp_ = true;
   fsdp_ = options;
+  return *this;
+}
+
+LanguageTrainerBuilder& LanguageTrainerBuilder::compile(bool enabled, std::string mode) {
+  if (mode != "default" && mode != "reduce-overhead" && mode != "max-autotune") {
+    throw std::invalid_argument("LanguageTrainerBuilder::compile: mode 'default' | 'reduce-overhead' | 'max-autotune'");
+  }
+  request_.compile = enabled;
+  request_.compile_mode = std::move(mode);
   return *this;
 }
 

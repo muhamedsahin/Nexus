@@ -99,7 +99,19 @@ struct GptConfig {
   // ---- FAZ 7 ----
   Recompute recompute = Recompute::None;
   int recompute_every = 2;
-  int ce_chunk_rows = 0;  // > 0: lm_head GEMM + CE B*T ekseninde bu satirlik parcalarla (logit tamponu sabit)
+  int ce_chunk_rows = 0;
+  // ---- FAZ 13 ----
+  // GEMM boyut dolgusu (inductor pad_mm karsiligi): wte/lm_head satirlari ve logit adimi bu katlara
+  // yukseltilir. Dolgu satirlari sifirla baslar ve gradyan almaz (CE dolgu sutunlarini yok sayar,
+  // dlogits 0); kayip ve gercek parametrelerin matematigi ayni. 1: dolgu yok.
+  int vocab_pad_multiple = 1;
+  // FAZ 13: BF16'da CE dlogits'i dogrudan dar tipte yazar (ayri cast cekirdegi + FP32 yazimi yok; ayni RN
+  // yuvarlama, sonuc bit bit ayni). Yalniz parcasiz CE (ce_chunk_rows = 0).
+  bool fuse_ce_cast = false;
+  bool fast_ce = false;  // FAZ 13: cevrimici softmax CE cekirdegi (toplama sirasi farkli; varsayilan FAZ 3 sirasi)
+  [[nodiscard]] int padded_vocab() const noexcept {
+    return vocab_pad_multiple > 1 ? (vocab + vocab_pad_multiple - 1) / vocab_pad_multiple * vocab_pad_multiple : vocab;
+  }  // > 0: lm_head GEMM + CE B*T ekseninde bu satirlik parcalarla (logit tamponu sabit)
   OptimizerKind optimizer = OptimizerKind::AdamW;
   bool adam8_embedding_fp32 = true;        // 8-bit: wte/wpe durumu 32-bit (bitsandbytes StableEmbedding onerisi)
   DType offload_grad_dtype = DType::BF16;  // ZeroOffload: D2H gradyan tipi (F32: GPU AdamW ile birebir test)
@@ -170,6 +182,13 @@ class GptModel {
   void set_nonfinite_guard(bool enabled);
   /// FAZ 9.3: parametre basina sonum/LR carpanlari (bos: GptParamInfo::decay'dan).
   void set_param_scales(const std::vector<GptParamScale>& scales);
+  /// FAZ 13.6 (CUDA Graph): CE gradyan olcegi aygittan okunur (nullptr: host grad_scale); AdamW lr/adim aygittan
+  /// (nullptr: host). Yalniz AdamW (32-bit), kayip olceksiz, ana kopyali modlarda; aksi acik hata.
+  void set_graph_parameters(const float* device_grad_scale, const DeviceAdamDynamic* device_adam);
+  void set_step_count(std::int64_t step) noexcept { step_ = step; }
+  [[nodiscard]] bool fuse_ce_cast() const noexcept {
+    return config_.fuse_ce_cast && config_.compute_dtype == DType::BF16 && config_.ce_chunk_rows <= 0;
+  }
   [[nodiscard]] const std::vector<GptParamScale>& param_scales() const noexcept { return scales_; }
   /// FAZ 9.7: parametre + optimizer + kayip olcegi durumunun host kopyasi / geri yuklenmesi.
   [[nodiscard]] GptStateSnapshot save_state() const;
@@ -272,6 +291,9 @@ class GptModel {
   std::function<void(int)> backward_hook_;  // FAZ 10.3
   std::vector<GptParamScale> scales_;
   std::int64_t step_ = 0;
+  const float* graph_grad_scale_ = nullptr;           // FAZ 13.6
+  const DeviceAdamDynamic* graph_adam_ = nullptr;     // FAZ 13.6
+  bool adam_descriptors_ready_ = false;               // FAZ 13.6: scratch'te tanimlayicilar yuklu
   DeviceBuffer params_, shadow_, grads_, exp_avg_, exp_avg_sq_, loss_, grad_norm_, loss_scale_state_;
   // 8-bit AdamW durumu (katman matrisleri [+ gomme]): kodlar ve blok absmax'lari.
   DeviceBuffer q8_m_, q8_v_, q8_absmax_m_, q8_absmax_v_;

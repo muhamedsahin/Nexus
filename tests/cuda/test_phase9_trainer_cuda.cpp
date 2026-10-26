@@ -549,6 +549,7 @@ int run_bench(const Args& a) {
   const int accum = static_cast<int>(a.num("accum", 4));
   const int steps = static_cast<int>(a.num("steps", 10));
   nc::GptConfig config = model_config("gpt2s", T);
+  config.vocab_pad_multiple = static_cast<int>(a.num("pad", 1));  // FAZ 13 GEMM dolgusu (1: kapali)
   config.compute_dtype = nexus::DType::BF16;
   config.recompute = nc::Recompute::Selective;
   config.attention = nc::AttentionBackend::Flash;

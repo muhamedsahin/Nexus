@@ -92,7 +92,14 @@ def get_lr(it, lr, warmup, decay_iters, min_lr):  # train.py get_lr
 
 def train(args, model, batches, device, steps):
     optimizer = model.configure_optimizers(args.wd, args.lr, (0.9, 0.95), "cuda")
-    run = torch.compile(model) if args.compile else model
+    # FAZ 13: --compile-mode max-autotune (Triton GEMM/cekirdek ayari); varsayilan torch.compile "default".
+    run = torch.compile(model, mode=args.compile_mode) if args.compile else model
+    # max-autotune / reduce-overhead CUDA Graph kullanir: biriktirmede .grad tamponlari yakalamadan once
+    # sabit ayrilmali (PyTorch hata iletisinin onerisi), her adimda yerinde sifirlanir.
+    stable_grads = args.compile and args.compile_mode in ("max-autotune", "reduce-overhead")
+    if stable_grads:
+        for p in model.parameters():
+            p.grad = torch.zeros_like(p)
     ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
     losses, times = [], []
     peak_alloc = peak_reserved = 0
@@ -112,7 +119,7 @@ def train(args, model, batches, device, steps):
             loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
-        optimizer.zero_grad(set_to_none=True)
+        optimizer.zero_grad(set_to_none=not stable_grads)
         lossf = total.item()  # train.py gibi adim basina senkron (log_interval = 1)
         times.append((time.perf_counter() - t0) * 1e3)
         losses.append(lossf)
@@ -131,6 +138,7 @@ def main():
     ap.add_argument("--steps", type=int, default=10)
     ap.add_argument("--warmup-steps", type=int, default=3)
     ap.add_argument("--compile", type=int, default=0)
+    ap.add_argument("--compile-mode", default="default")
     ap.add_argument("--vocab", type=int, default=50257)
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--wd", type=float, default=0.1)
@@ -165,7 +173,7 @@ def main():
         tps = B * T * A / (ms / 1e3)
         N = model.get_num_params()  # wpe haric (nanoGPT)
         fpt = 6 * N + 12 * 12 * 12 * 64 * T
-        out = {"framework": "nanoGPT/PyTorch " + torch.__version__, "compile": bool(args.compile), "B": B, "T": T,
+        out = {"framework": "nanoGPT/PyTorch " + torch.__version__, "compile": bool(args.compile), "compile_mode": args.compile_mode, "B": B, "T": T,
                "accum": A, "vocab": args.vocab, "ms_per_step": ms, "tokens_per_s": tps,
                "mfu": fpt * tps / (args.peak_tflops * 1e12), "peak_allocated_gb": pa / 1e9,
                "peak_reserved_gb": pr / 1e9, "first_step_ms": times[0], "flops_per_token": fpt,

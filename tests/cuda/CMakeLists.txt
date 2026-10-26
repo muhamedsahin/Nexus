@@ -133,3 +133,11 @@ add_test(NAME test_ddp_equivalence_cuda COMMAND $<TARGET_FILE:nexus_run> --nproc
 add_test(NAME test_overlap_occurs_cuda COMMAND $<TARGET_FILE:nexus_run> --nproc-per-node 2 --master-port 29652
     -- $<TARGET_FILE:test_phase10_ddp_cuda> overlap)
 set_tests_properties(test_ddp_equivalence_cuda test_overlap_occurs_cuda PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 13 (GPU): trainer.compile — GEMM dolgusu + tum adim CUDA Graph; NVRTC fuzyon cekirdekleri.
+add_executable(test_phase13_compile_cuda test_phase13_compile_cuda.cpp)
+target_link_libraries(test_phase13_compile_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_phase13_compile_cuda)
+add_test(NAME test_cuda_graph_replay_equal COMMAND test_phase13_compile_cuda graph)
+add_test(NAME test_nvrtc_fusion_kernels COMMAND test_phase13_compile_cuda nvrtc)
+set_tests_properties(test_cuda_graph_replay_equal test_nvrtc_fusion_kernels PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

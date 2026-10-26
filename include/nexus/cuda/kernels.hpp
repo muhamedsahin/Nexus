@@ -94,6 +94,9 @@ struct CrossEntropyDeviceOptions {
   std::int32_t ignore_index = -100;
   float label_smoothing = 0.0f;
   float z_loss = 0.0f;
+  int row_stride = 0;  // FAZ 13: logit satir adimi (0: vocab). [vocab, row_stride) dolgu: yok sayilir, dlogits 0
+  void* dlogits_bf16 = nullptr;
+  bool online = false;  // FAZ 13: tek okumali cevrimici softmax + float4 (compile yolu); false: FAZ 3 toplama sirasi  // FAZ 13: verilirse dlogits FP32 yerine BF16 yazilir (ayri cast cekirdegi yok; ayni RN)
 };
 [[nodiscard]] std::size_t cross_entropy_scratch_bytes(int batch, int time);
 /// FAZ 7.5 parcali CE: begin (gecerli sayim) -> her parca icin chunk (logits/dlogits parca
@@ -141,6 +144,17 @@ struct DeviceParamSlot {
   void* shadow = nullptr;
 };
 
+/// FAZ 13.6: CUDA Graph uyumlu AdamW: degisken hiperparametreler aygitta (yeniden oynatmada pinned bellekten
+/// bir memcpy dugumu yeniler). inv1/inv2 = 1 / (1 - beta^step).
+struct DeviceAdamDynamic {
+  float lr = 0.0f;
+  float lr_wd = 0.0f;
+  float inv1 = 1.0f;
+  float inv2 = 1.0f;
+  long long step = 1;
+  long long pad = 0;
+};
+
 struct DeviceAdamWConfig {
   double lr = 1.0e-3;
   double beta1 = 0.9;
@@ -157,6 +171,9 @@ struct DeviceAdamWConfig {
   const long long* skipped_steps = nullptr;
   bool stochastic_rounding = false;    // ana kopyasiz BF16 golgede stokastik yuvarlama
   std::uint64_t sr_seed = 0;
+  // ---- FAZ 13.6 ----
+  const DeviceAdamDynamic* dynamic = nullptr;  // aygit: lr/lr_wd/inv1/inv2/adim (host degerleri yok sayilir)
+  bool descriptors_ready = false;              // scratch'teki slot/parca tanimlayicilari onceki cagridan gecerli
 };
 
 /// Aygittaki dinamik kayip olcegi durumu (FAZ 4.3). Son 64 olcek, host senkronu

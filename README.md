@@ -13,11 +13,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest-108%2F108_ge%C3%A7ti-2EA44F?style=flat-square)
+![Testler](https://img.shields.io/badge/ctest-115%2F115_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-152%2F152_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--12_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--13_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,18 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**26 Ekim 2026 — FAZ 13 derleyici, CUDA Graphs, autotune** ([rapor](docs/benchmarks/2026-10-26-faz13/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| gpt2s BF16 tok/s, B=4×8, 3 karışık sıralı tur (medyan) | **Nexus compile max-autotune 24 048** · torch.compile max-autotune 22 762 (**+%5.6**) · max-autotune-no-cudagraphs 23 041 (+%4.4) |
+| Adım başına host süresi (CUDA Graph) | eager 1 114 ms → **4.5 ms** |
+| Soğuk derleme (ilk adım) | Nexus ~4 s · PyTorch max-autotune 182 s, default 49 s (Nexus GPU yolu kod üretmiyor: dolgu + graph + GEMM ayarı) |
+| Derlenmiş == eager (10 ön tanımlı, tüm gradyanlar) | kayıp farkı **0**, gradyan ≤ 5.2e-7 |
+| Graph yeniden oynatma == eager | **bit bit** |
+| gpt2-124m çekirdek sayısı (IR) | 468 → 226 (2.07×; spec 3× ⛔) |
+| CPU yürütücüsü vs eager | 🟡 0.82–0.96× (yavaş) |
+
 **25 Ekim 2026 — FAZ 12 TP / SP / PP / CP, DeviceMesh / DTensor** ([rapor](docs/benchmarks/2026-10-25-faz12/README.md))
 
 | Ölçüm | Sonuç |
@@ -388,8 +400,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 10 | Çok süreç: ProcessGroup (thread/tcp), TCPStore, `nexus-run`, kovalı + örtüşmeli DDP (CPU + GPU), `no_sync`, BF16 sıkıştırma, hiyerarşik all-reduce, kollektif doğrulama | ✅ eşdeğerlik (≤1e-6, sıfır-gradyanlı anahtar bias'ı hariç), örtüşme kanıtı, rank ölümünde temiz çıkış, busbw gloo'dan yüksek · ⛔ çok GPU / NCCL ölçülemedi (tek GPU, Windows) |
 | 11 | ZeRO-0/1/2/3, FSDP, HSDP, önceden getirme + sınırlayıcı, BF16 iletişim, NVMe takası, parçalı kayıt + yeniden parçalama (CPU) | ✅ aşamalar bit bit eşdeğer, ZeRO-3 bellek 1/dp (FSDP2 ile aynı), FSDP2'den hızlı · ⛔ GPU FSDP ve 7B ZeRO-Infinity yok · 🟡 ZeRO-0/1/2 fazladan kopya, kopyasız görünüm yok |
 | 12 | DeviceMesh/DTensor (redistribute + yayılım), TP (sözlük-parçalı CE, GQA), SP, async TP, PP (GPipe/1F1B/interleaved/ZB-H1), CP (ring zigzag + Ulysses), ZeRO-1, `nexus_estimate --auto-parallel`, `.parallel({dp,tp,pp,cp})` (CPU) | ✅ tüm eşdeğerlikler (4B 16 rank dahil), 128k ring attention · ⛔ GPU TP/PP/CP ve 7B MFU yok · 🟡 tek iş p. çekirdekler PyTorch'tan 1.9× yavaş, ZB-H1 çalışma anı, tahminci kalibre değil |
-| 13 | Grafik IR, füzyon derleyicisi, CUDA Graphs | ⏭ sıradaki |
-| 14–22 | MoE, çıkarım, 1.0 | 📋 planlı |
+| 13 | IR (SSA, sembolik şekil), meta izleme + autodiff, desen/epilog/eleman eleman füzyon, min-cut, statik arena, iletişim sıralama, CPU (cl.exe) + CUDA (NVRTC) kod üretimi + disk önbelleği, StableHLO, `nexus::compile`, `trainer.compile` (GEMM dolgusu + tüm adım CUDA Graph + autotune) | ✅ gpt2s torch.compile(max-autotune)'dan %5.6 hızlı, soğuk başlangıç ~4 s · 🟡 çekirdek sayısı 2.07× (3× değil), CPU yürütücüsü eager'dan yavaş, GPU'da IR yürütücüsü yok |
+| 14 | MoE, uzman paralelliği | ⏭ sıradaki |
+| 15–22 | çıkarım, 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

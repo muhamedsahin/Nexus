@@ -130,24 +130,25 @@ __global__ void ce_count_kernel(std::int32_t* __restrict__ valid, float* __restr
   }
 }
 
-// row_offset: parcali CE (FAZ 7.5). logits/dlogits parcaya gore yerel, row_loss/tokens kuresel.
-__global__ void ce_row_kernel(float* __restrict__ dlogits, float* __restrict__ row_loss, const float* logits,
-                              const std::int32_t* __restrict__ tokens, int time, int vocab,
-                              std::int32_t ignore_index, float smoothing, float z_coef, float grad_scale,
-                              const float* __restrict__ inv_valid, const float* __restrict__ device_scale,
-                              std::size_t row_offset) {
+// Referans (eager varsayilani): FAZ 3 ile ayni uc gecis ve toplama sirasi (gecmis egriler bit bit korunur).
+// ld/dn: satir adimi ve istege bagli BF16 dlogits (ld == vocab ve dn yoksa eski cekirdekle ayni).
+__global__ void ce_row_ref_kernel(float* __restrict__ dlogits, float* __restrict__ row_loss, const float* logits,
+                                  const std::int32_t* __restrict__ tokens, int time, int vocab, int ld,
+                                  std::int32_t ignore_index, float smoothing, float z_coef, float grad_scale,
+                                  const float* __restrict__ inv_valid, const float* __restrict__ device_scale,
+                                  std::size_t row_offset, __nv_bfloat16* __restrict__ dlogits_bf16) {
   __shared__ float shared[32];
   const std::size_t local = blockIdx.x;
   const std::size_t row = row_offset + local;
   const int t = static_cast<int>(row % time);
-  const float* x = logits + local * vocab;
-  float* d = dlogits != nullptr ? dlogits + local * vocab : nullptr;
+  const float* x = logits + local * static_cast<std::size_t>(ld);
+  __nv_bfloat16* dn = dlogits_bf16 != nullptr && dlogits != nullptr ? dlogits_bf16 + local * static_cast<std::size_t>(ld) : nullptr;
+  float* d = dlogits != nullptr && dn == nullptr ? dlogits + local * static_cast<std::size_t>(ld) : nullptr;
   const std::int32_t target = (t + 1 == time) ? ignore_index : tokens[row + 1];
   if (target == ignore_index || target < 0 || target >= vocab) {
-    if (d != nullptr) {
-      for (int j = threadIdx.x; j < vocab; j += blockDim.x) {
-        d[j] = 0.0f;
-      }
+    for (int j = threadIdx.x; j < ld; j += blockDim.x) {
+      if (d != nullptr) d[j] = 0.0f;
+      if (dn != nullptr) dn[j] = detail::Num<__nv_bfloat16>::store(0.0f);
     }
     if (threadIdx.x == 0) {
       row_loss[row] = 0.0f;
@@ -178,17 +179,126 @@ __global__ void ce_row_kernel(float* __restrict__ dlogits, float* __restrict__ r
     }
     row_loss[row] = loss + z_coef * lse * lse;
   }
-  if (d != nullptr) {
+  if (d != nullptr || dn != nullptr) {
     const float scale = *inv_valid * grad_scale * (device_scale != nullptr ? *device_scale : 1.0f);
     const float uniform = smoothing / static_cast<float>(vocab);
     const float z_grad = 2.0f * z_coef * lse;
-    for (int j = threadIdx.x; j < vocab; j += blockDim.x) {
-      const float p = expf(x[j] - lse);
+    for (int j = threadIdx.x; j < ld; j += blockDim.x) {
+      float g = 0.0f;
+      if (j < vocab) {
+        const float p = expf(x[j] - lse);
+        g = p - uniform + z_grad * p;
+        if (j == target) {
+          g -= on_target;
+        }
+        g *= scale;
+      }
+      if (d != nullptr) {
+        d[j] = g;
+      } else {
+        dn[j] = detail::Num<__nv_bfloat16>::store(g);
+      }
+    }
+  }
+}
+
+// row_offset: parcali CE (FAZ 7.5). logits/dlogits parcaya gore yerel, row_loss/tokens kuresel.
+// FAZ 13: ld satir adimi (>= vocab; [vocab, ld) dolgu sutunlari yok sayilir, gradyanlari 0 yazilir).
+// Tek okumada cevrimici softmax (her ip yerel max + olceklenmis toplam, blokta birlesim), ld % 4 == 0
+// ise float4 yukleme; ikinci okuma gradyani yazar.
+__global__ void ce_row_kernel(float* __restrict__ dlogits, float* __restrict__ row_loss, const float* logits,
+                              const std::int32_t* __restrict__ tokens, int time, int vocab, int ld,
+                              std::int32_t ignore_index, float smoothing, float z_coef, float grad_scale,
+                              const float* __restrict__ inv_valid, const float* __restrict__ device_scale,
+                              std::size_t row_offset, __nv_bfloat16* __restrict__ dlogits_bf16) {
+  __shared__ float shared[32];
+  const std::size_t local = blockIdx.x;
+  const std::size_t row = row_offset + local;
+  const int t = static_cast<int>(row % time);
+  const float* x = logits + local * static_cast<std::size_t>(ld);
+  __nv_bfloat16* dn = dlogits_bf16 != nullptr && dlogits != nullptr ? dlogits_bf16 + local * static_cast<std::size_t>(ld) : nullptr;
+  float* d = dlogits != nullptr && dn == nullptr ? dlogits + local * static_cast<std::size_t>(ld) : nullptr;
+  const std::int32_t target = (t + 1 == time) ? ignore_index : tokens[row + 1];
+  if (target == ignore_index || target < 0 || target >= vocab) {
+    if (d != nullptr) {
+      for (int j = threadIdx.x; j < ld; j += blockDim.x) {
+        d[j] = 0.0f;
+      }
+    }
+    if (dn != nullptr) {
+      for (int j = threadIdx.x; j < ld; j += blockDim.x) dn[j] = detail::Num<__nv_bfloat16>::store(0.0f);
+    }
+    if (threadIdx.x == 0) {
+      row_loss[row] = 0.0f;
+    }
+    return;
+  }
+  const bool vec = (ld & 3) == 0;
+  float m = -INFINITY;
+  float total = 0.0f;
+  float logit_sum = 0.0f;
+  auto take = [&](float v) {
+    if (v > m) {
+      total = total * expf(m - v) + 1.0f;
+      m = v;
+    } else {
+      total += expf(v - m);
+    }
+    logit_sum += v;
+  };
+  if (vec) {
+    const float4* x4 = reinterpret_cast<const float4*>(x);
+    const int n4 = vocab / 4;
+    for (int j = threadIdx.x; j < n4; j += blockDim.x) {
+      const float4 v = x4[j];
+      take(v.x);
+      take(v.y);
+      take(v.z);
+      take(v.w);
+    }
+    for (int j = n4 * 4 + threadIdx.x; j < vocab; j += blockDim.x) take(x[j]);
+  } else {
+    for (int j = threadIdx.x; j < vocab; j += blockDim.x) take(x[j]);
+  }
+  const float maxv = detail::block_max(m, shared);
+  total = m == -INFINITY ? 0.0f : total * expf(m - maxv);
+  total = detail::block_sum(total, shared);
+  logit_sum = detail::block_sum(logit_sum, shared);
+  const float lse = maxv + logf(total);
+  const float x_target = x[target];
+  __syncthreads();  // tum ipler satiri okudu: yerinde yazmak guvenli
+  const float on_target = 1.0f - smoothing;
+  if (threadIdx.x == 0) {
+    float loss = on_target * (lse - x_target);
+    if (smoothing > 0.0f) {
+      loss += smoothing * (lse - logit_sum / static_cast<float>(vocab));
+    }
+    row_loss[row] = loss + z_coef * lse * lse;
+  }
+  if (d != nullptr || dn != nullptr) {
+    const float scale = *inv_valid * grad_scale * (device_scale != nullptr ? *device_scale : 1.0f);
+    const float uniform = smoothing / static_cast<float>(vocab);
+    const float z_grad = 2.0f * z_coef * lse;
+    auto grad = [&](int j, float xv) {
+      if (j >= vocab) return 0.0f;
+      const float p = expf(xv - lse);
       float g = p - uniform + z_grad * p;
       if (j == target) {
         g -= on_target;
       }
-      d[j] = g * scale;
+      return g * scale;
+    };
+    if (dn != nullptr) {
+      for (int j = threadIdx.x; j < ld; j += blockDim.x) dn[j] = detail::Num<__nv_bfloat16>::store(grad(j, j < vocab ? x[j] : 0.0f));
+    } else if (vec) {
+      const float4* x4 = reinterpret_cast<const float4*>(x);
+      float4* d4 = reinterpret_cast<float4*>(d);
+      for (int j = threadIdx.x; j < ld / 4; j += blockDim.x) {
+        const float4 v = x4[j];
+        d4[j] = make_float4(grad(4 * j, v.x), grad(4 * j + 1, v.y), grad(4 * j + 2, v.z), grad(4 * j + 3, v.w));
+      }
+    } else {
+      for (int j = threadIdx.x; j < ld; j += blockDim.x) d[j] = grad(j, j < vocab ? x[j] : 0.0f);
     }
   }
 }
@@ -331,9 +441,17 @@ template <typename S>
 __global__ void adamw_update_kernel(const DeviceParamSlot* __restrict__ slots, const Chunk* __restrict__ chunks,
                                     const float* __restrict__ clip_ptr, AdamCoeffs c, const int* __restrict__ found_inf,
                                     const long long* __restrict__ skipped_steps, long long attempt_step,
-                                     bool stochastic, unsigned long long sr_seed) {
+                                     bool stochastic, unsigned long long sr_seed,
+                                     const DeviceAdamDynamic* __restrict__ dyn) {
   if (found_inf != nullptr && *found_inf != 0) {
     return;  // inf/NaN: adim atlanir (parametre ve momentler degismez)
+  }
+  if (dyn != nullptr) {  // FAZ 13.6: CUDA Graph yeniden oynatmasinda degisen degerler aygittan
+    c.lr = dyn->lr;
+    c.lr_wd = dyn->lr_wd;
+    c.inv1 = dyn->inv1;
+    c.inv2 = dyn->inv2;
+    attempt_step = dyn->step;
   }
   float inv1 = c.inv1;
   float inv2 = c.inv2;
@@ -530,9 +648,17 @@ void cross_entropy_shifted(float* dlogits, float* loss_out, std::int32_t* valid_
   check(cudaMemsetAsync(bad, 0, sizeof(int), stream), "cudaMemsetAsync");
   ce_count_kernel<<<1, 1024, 0, stream>>>(valid, inv_valid, tokens, batch, time, vocab, options.ignore_index, bad);
   detail::check_launch("ce_count_kernel");
-  ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
-      dlogits, row_loss, logits, tokens, time, vocab, options.ignore_index, options.label_smoothing, options.z_loss,
-      grad_scale, inv_valid, device_grad_scale, 0);
+  if (options.online) {
+    ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
+      dlogits, row_loss, logits, tokens, time, vocab, options.row_stride > 0 ? options.row_stride : vocab,
+      options.ignore_index, options.label_smoothing, options.z_loss, grad_scale, inv_valid, device_grad_scale, 0,
+      static_cast<__nv_bfloat16*>(options.dlogits_bf16));
+  } else {
+    ce_row_ref_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
+      dlogits, row_loss, logits, tokens, time, vocab, options.row_stride > 0 ? options.row_stride : vocab,
+      options.ignore_index, options.label_smoothing, options.z_loss, grad_scale, inv_valid, device_grad_scale, 0,
+      static_cast<__nv_bfloat16*>(options.dlogits_bf16));
+  }
   detail::check_launch("ce_row_kernel");
   ce_reduce_kernel<<<1, 1024, 0, stream>>>(loss_out, row_loss, rows, inv_valid, bad);
   detail::check_launch("ce_reduce_kernel");
@@ -597,11 +723,15 @@ void adamw_multi_tensor(const DeviceParamSlot* slots, int num_slots, const Devic
   auto* clip = reinterpret_cast<float*>(base);
   // Sayfalanabilir kaynaktan asenkron kopya, kaynak hazirlik tamponuna alindiginda doner:
   // host dizileri bu cagridan sonra serbest kalabilir.
-  check(cudaMemcpyAsync(d_slots, slots, sizeof(DeviceParamSlot) * static_cast<std::size_t>(num_slots),
-                        cudaMemcpyHostToDevice, stream),
-        "cudaMemcpyAsync(slots)");
-  check(cudaMemcpyAsync(d_chunks, chunks.data(), sizeof(Chunk) * chunks.size(), cudaMemcpyHostToDevice, stream),
-        "cudaMemcpyAsync(chunks)");
+  // FAZ 13.6: tanimlayicilar ayni scratch'te onceki (eager) cagridan gecerliyse kopya yok (CUDA Graph
+  // yakalamasinda sayfalanabilir H2D kopyasi yasak).
+  if (!config.descriptors_ready) {
+    check(cudaMemcpyAsync(d_slots, slots, sizeof(DeviceParamSlot) * static_cast<std::size_t>(num_slots),
+                          cudaMemcpyHostToDevice, stream),
+          "cudaMemcpyAsync(slots)");
+    check(cudaMemcpyAsync(d_chunks, chunks.data(), sizeof(Chunk) * chunks.size(), cudaMemcpyHostToDevice, stream),
+          "cudaMemcpyAsync(chunks)");
+  }
   const auto count = static_cast<unsigned int>(chunks.size());
   // Norm gecisi ayni zamanda unscale + isfinite denetimidir (tek cok-tensorlu indirgeme, tek bayrak).
   if (config.max_grad_norm > 0.0 || grad_norm_out != nullptr || config.loss_scale != nullptr ||
@@ -636,7 +766,8 @@ void adamw_multi_tensor(const DeviceParamSlot* slots, int num_slots, const Devic
     adamw_update_kernel<S><<<count, kAdamThreads, 0, stream>>>(d_slots, d_chunks, clip, c, config.found_inf,
                                                                config.skipped_steps, step, config.stochastic_rounding,
                                                                static_cast<unsigned long long>(config.sr_seed) ^
-                                                                   static_cast<unsigned long long>(step) * 0x9E3779B97F4A7C15ULL);
+                                                                   static_cast<unsigned long long>(step) * 0x9E3779B97F4A7C15ULL,
+                                                               config.dynamic);
   });
   detail::check_launch("adamw_update_kernel");
 }
@@ -674,9 +805,17 @@ void cross_entropy_chunk(float* dlogits, const float* logits, const std::int32_t
     throw TensorError("Nexus CUDA CE (parcali): satir araligi gecersiz");
   }
   const CeScratch c = ce_scratch(scratch, batch * time);
-  ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
-      dlogits, c.row_loss, logits, tokens, time, vocab, options.ignore_index, options.label_smoothing, options.z_loss,
-      grad_scale, c.inv_valid, device_grad_scale, static_cast<std::size_t>(row_begin));
+  if (options.online) {
+    ce_row_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
+      dlogits, c.row_loss, logits, tokens, time, vocab, options.row_stride > 0 ? options.row_stride : vocab,
+      options.ignore_index, options.label_smoothing, options.z_loss, grad_scale, c.inv_valid, device_grad_scale,
+      static_cast<std::size_t>(row_begin), static_cast<__nv_bfloat16*>(options.dlogits_bf16));
+  } else {
+    ce_row_ref_kernel<<<static_cast<unsigned int>(rows), kCeThreads, 0, stream>>>(
+      dlogits, c.row_loss, logits, tokens, time, vocab, options.row_stride > 0 ? options.row_stride : vocab,
+      options.ignore_index, options.label_smoothing, options.z_loss, grad_scale, c.inv_valid, device_grad_scale,
+      static_cast<std::size_t>(row_begin), static_cast<__nv_bfloat16*>(options.dlogits_bf16));
+  }
   detail::check_launch("ce_row_kernel");
 }
 
@@ -961,7 +1100,7 @@ void adamw_fixed_clip_update(const DeviceParamSlot* slots32, int n32, const Devi
     using S = decltype(tag);
     if (!chunks32.empty()) {
       adamw_update_kernel<S><<<static_cast<unsigned int>(chunks32.size()), kAdamThreads, 0, stream>>>(
-          d_all, d_chunks32, clip, c, nullptr, nullptr, step, config.stochastic_rounding, seed);
+          d_all, d_chunks32, clip, c, nullptr, nullptr, step, config.stochastic_rounding, seed, nullptr);
       detail::check_launch("adamw_update_kernel");
     }
     if (n8 > 0) {
@@ -1068,7 +1207,7 @@ void adamw_mixed_multi_tensor(const DeviceParamSlot* slots32, int n32, const Dev
     using S = decltype(tag);
     if (!chunks32.empty()) {
       adamw_update_kernel<S><<<static_cast<unsigned int>(chunks32.size()), kAdamThreads, 0, stream>>>(
-          d_all, d_chunks32, clip, c, config.found_inf, nullptr, step, config.stochastic_rounding, seed);
+          d_all, d_chunks32, clip, c, config.found_inf, nullptr, step, config.stochastic_rounding, seed, nullptr);
       detail::check_launch("adamw_update_kernel");
     }
     if (n8 > 0) {

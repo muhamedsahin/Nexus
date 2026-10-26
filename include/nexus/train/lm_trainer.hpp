@@ -147,6 +147,9 @@ struct LmBackendRequest {
   std::uint64_t seed = 1337;
   bool deterministic = true;
   int accum_steps = 1;
+  // ---- FAZ 13 ----
+  bool compile = false;                // trainer.compile(true): arka uc derleyici yolunu acar
+  std::string compile_mode = "default";  // "default" | "reduce-overhead" | "max-autotune"
 };
 
 struct LmStepResult {
@@ -352,6 +355,10 @@ class LanguageTrainerBuilder {
   LanguageTrainerBuilder& execution_policy(ExecutionPolicy policy);
   LanguageTrainerBuilder& seed(std::uint64_t seed);
   LanguageTrainerBuilder& deterministic(bool enabled);
+  /// FAZ 13.8: derleyici yolu. GPU (cuda::gpt_backend): GEMM boyut dolgusu (sozluk 64'un kati, maskeli) +
+  /// tum adim (ileri + geri + AdamW + kopyalar) tek CUDA Graph; "max-autotune": cuBLASLt algoritmalari olculur
+  /// ve diske yazilir. Desteklemeyen arka uc acik hata verir.
+  LanguageTrainerBuilder& compile(bool enabled, std::string mode = "default");
   LanguageTrainerBuilder& nan_policy(NanOptions options);
   LanguageTrainerBuilder& spike_detector(SpikeOptions options);
   LanguageTrainerBuilder& histogram_every(std::int64_t steps);

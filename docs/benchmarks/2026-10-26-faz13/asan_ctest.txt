@@ -1,0 +1,24 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start 78: test_tp_equivalence
+1/9 Test #78: test_tp_equivalence ...............   Passed    2.80 sec
+    Start 84: test_4d_equivalence
+2/9 Test #84: test_4d_equivalence ...............   Passed    4.40 sec
+    Start 88: test_compile_numerics
+3/9 Test #88: test_compile_numerics .............   Passed   19.16 sec
+    Start 89: test_fusion_kernel_count
+4/9 Test #89: test_fusion_kernel_count ..........   Passed   19.49 sec
+    Start 90: test_dynamic_shape_no_recompile
+5/9 Test #90: test_dynamic_shape_no_recompile ...   Passed   12.25 sec
+    Start 91: test_cache_hit_zero_compile
+6/9 Test #91: test_cache_hit_zero_compile .......   Passed   10.76 sec
+    Start 92: test_compile_min_cut_memory
+7/9 Test #92: test_compile_min_cut_memory .......   Passed    2.61 sec
+    Start 93: test_compile_comm_reorder
+8/9 Test #93: test_compile_comm_reorder .........   Passed    0.11 sec
+    Start 94: test_compile_export_stablehlo
+9/9 Test #94: test_compile_export_stablehlo .....   Passed    0.47 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =  72.23 sec

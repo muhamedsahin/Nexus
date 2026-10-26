@@ -80,6 +80,10 @@ class GptLmBackend final : public train::LmBackend {
   dist::DdpStepStats ddp_stats() const override { return stats_; }
 
   [[nodiscard]] GptModel& model() noexcept { return *model_; }
+  /// FAZ 13.6: yakalanan grafigin dugum sayisi ve kac kez yeniden oynatildigi (0: grafik yok).
+  [[nodiscard]] std::size_t graph_nodes() const noexcept { return graph_nodes_; }
+  [[nodiscard]] std::int64_t graph_replays() const noexcept { return graph_replays_; }
+  [[nodiscard]] bool graph_enabled() const noexcept { return graph_enabled_; }
 
  private:
   const std::int32_t* upload(const std::int32_t* tokens);
@@ -109,6 +113,24 @@ class GptLmBackend final : public train::LmBackend {
   int count_ = 0;
   double peak_flops_ = 0.0;
   static constexpr int kMaxAccum = 4096;
+  // ---- FAZ 13.6 CUDA Graph ----
+  struct GraphInputs {
+    DeviceAdamDynamic adam;
+    float scales[kMaxAccum];
+  };
+  void capture_graph(const train::AdamW& opt, double clip);
+  bool graph_enabled_ = false;
+  int graph_state_ = 0;  // 0: isinma (eager), 1: sonraki adim yakalanir, 2: grafik hazir
+  int graph_count_ = 0;
+  GraphInputs* pinned_graph_ = nullptr;
+  DeviceBuffer device_graph_;
+  std::vector<std::int32_t*> pinned_graph_tokens_;
+  std::vector<DeviceBuffer> device_graph_tokens_;
+  cudaGraph_t graph_ = nullptr;
+  cudaGraphExec_t graph_exec_ = nullptr;
+  std::size_t graph_nodes_ = 0;
+  std::int64_t graph_replays_ = 0;
+  double graph_lr_base_ = 0.0;
 };
 
 }  // namespace cuda

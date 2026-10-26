@@ -30,6 +30,9 @@ class ParallelLmBackend final : public LmBackend {
     if (request.precision != Precision::F32) {
       throw dist::DistError("Nexus paralel arka uc: yalniz FP32 (CPU)");
     }
+    if (request.compile) {
+      throw dist::DistError("Nexus paralel arka uc: trainer.compile desteklenmiyor (CPU derleyici: nexus::compile::compile)");
+    }
     if (!world) {
       single_ = std::make_unique<dist::ThreadWorld>(1);
       world = single_->create_group(0);

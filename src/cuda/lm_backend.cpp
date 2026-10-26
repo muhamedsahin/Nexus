@@ -10,6 +10,7 @@
 #include "nexus/cuda/lm_backend.hpp"
 
 #include "nexus/core/error.hpp"
+#include "nexus/cuda/gemm.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -70,6 +71,13 @@ GptConfig configure(GptConfig config, const train::LmBackendRequest& r) {
   }
   config.deterministic = r.deterministic;
   config.deterministic_attention = r.deterministic;
+  if (r.compile) {
+    // FAZ 13: GEMM boyut dolgusu (inductor pad_mm karsiligi; maskeli, kayip ayni).
+    config.vocab_pad_multiple = std::max(config.vocab_pad_multiple, 64);
+    config.fuse_ce_cast = true;  // CE -> BF16 dlogits (cast cekirdegi kalkar)
+    config.fast_ce = true;       // tek okumali cevrimici softmax CE
+    if (r.compile_mode == "max-autotune") set_gemm_autotune(true);
+  }
   if (config.optimizer == OptimizerKind::AdamW8bitFused) {
     throw std::invalid_argument(
         "cuda::gpt_backend: AdamW8bitFused guncellemeyi geri geciste yapar; v2 egitmende (biriktirme, mikro "
@@ -177,6 +185,19 @@ GptLmBackend::GptLmBackend(GptConfig config, const train::LmBackendRequest& requ
   pinned_losses_ = static_cast<float*>(pinned_allocator().allocate(kMaxAccum * sizeof(float)));
   pinned_tail_ = static_cast<StepTail*>(pinned_allocator().allocate(sizeof(StepTail)));
   peak_flops_ = tensor_core_peak_flops(device_, c.compute_dtype);
+  if (request.compile) {
+    if (c.optimizer != OptimizerKind::AdamW || c.compute_dtype == DType::F16 || c.master == MasterWeights::NoMaster) {
+      throw std::invalid_argument("cuda::gpt_backend compile: CUDA Graph yalniz AdamW, F32/BF16, ana kopyali modda");
+    }
+    graph_enabled_ = true;
+    pinned_graph_ = static_cast<GraphInputs*>(pinned_allocator().allocate(sizeof(GraphInputs)));
+    device_graph_ = DeviceBuffer(sizeof(GraphInputs), stream_);
+    const int n = std::max(1, request.accum_steps);
+    for (int i = 0; i < n; ++i) {
+      pinned_graph_tokens_.push_back(static_cast<std::int32_t*>(pinned_allocator().allocate(tokens_per_micro_ * sizeof(std::int32_t))));
+      device_graph_tokens_.emplace_back(tokens_per_micro_ * sizeof(std::int32_t), stream_);
+    }
+  }
 }
 
 // ============================================================================== FAZ 10 DDP
@@ -428,6 +449,10 @@ GptLmBackend::~GptLmBackend() {
   }
   pinned_allocator().deallocate(pinned_losses_);
   pinned_allocator().deallocate(pinned_tail_);
+  if (graph_exec_ != nullptr) cudaGraphExecDestroy(graph_exec_);
+  if (graph_ != nullptr) cudaGraphDestroy(graph_);
+  if (pinned_graph_ != nullptr) pinned_allocator().deallocate(pinned_graph_);
+  for (std::int32_t* p : pinned_graph_tokens_) pinned_allocator().deallocate(p);
   device_tokens_[0].reset();
   device_tokens_[1].reset();
   model_.reset();
@@ -445,6 +470,10 @@ train::LmShape GptLmBackend::shape() const {
     }
   }
   const GptConfig& c = model_->config();
+  // FAZ 13: sozluk dolgusu satirlari model parametresi degil (MFU'da sayilmaz).
+  const std::int64_t pad = static_cast<std::int64_t>(c.padded_vocab() - c.vocab) * c.dim;
+  s.params -= pad;
+  s.params_no_pos -= pad;
   s.layers = c.layers;
   s.heads = c.heads;
   s.head_dim = c.dim / c.heads;
@@ -502,6 +531,16 @@ void GptLmBackend::micro_step(const std::int32_t* tokens, float grad_weight, int
   if (count > kMaxAccum || index < 0 || index >= count) {
     throw std::invalid_argument("cuda::gpt_backend: mikro adim indeksi gecersiz");
   }
+  if (graph_enabled_ && graph_state_ > 0) {
+    // FAZ 13.6: yalniz sahneleme (pinned); aygit isi optimizer_step'te tek grafik olarak.
+    if (count > static_cast<int>(pinned_graph_tokens_.size())) {
+      throw std::invalid_argument("cuda::gpt_backend compile: biriktirme adim sayisi kurulustakinden buyuk");
+    }
+    std::memcpy(pinned_graph_tokens_[static_cast<std::size_t>(index)], tokens, tokens_per_micro_ * sizeof(std::int32_t));
+    pinned_graph_->scales[index] = grad_weight;
+    count_ = count;
+    return;
+  }
   const std::int32_t* d = upload(tokens);
   if (ddp_ && index + 1 == count) {  // no_sync: yalniz son mikro adim iletisim yapar
     Ddp& dd = *ddp_;
@@ -523,7 +562,72 @@ void GptLmBackend::micro_step(const std::int32_t* tokens, float grad_weight, int
   count_ = count;
 }
 
+void GptLmBackend::capture_graph(const train::AdamW& opt, double clip) {
+  if (ddp_) throw std::invalid_argument("cuda::gpt_backend compile: CUDA Graph DDP ile desteklenmiyor");
+  if (graph_exec_ != nullptr) {
+    cudaGraphExecDestroy(graph_exec_);
+    cudaGraphDestroy(graph_);
+    graph_exec_ = nullptr;
+    graph_ = nullptr;
+  }
+  auto* dg = device_graph_.as<GraphInputs>();
+  cudaStream_t s = stream_.handle();
+  NEXUS_CUDA_CHECK(cudaStreamBeginCapture(s, cudaStreamCaptureModeThreadLocal));
+  try {
+    NEXUS_CUDA_CHECK(cudaMemcpyAsync(dg, pinned_graph_, sizeof(GraphInputs), cudaMemcpyHostToDevice, s));
+    for (int i = 0; i < count_; ++i) {
+      NEXUS_CUDA_CHECK(cudaMemcpyAsync(device_graph_tokens_[static_cast<std::size_t>(i)].data(),
+                                       pinned_graph_tokens_[static_cast<std::size_t>(i)], tokens_per_micro_ * sizeof(std::int32_t),
+                                       cudaMemcpyHostToDevice, s));
+      model_->set_graph_parameters(&dg->scales[i], &dg->adam);
+      model_->forward_backward(device_graph_tokens_[static_cast<std::size_t>(i)].as<std::int32_t>(), 1.0f, i > 0);
+      NEXUS_CUDA_CHECK(cudaMemcpyAsync(pinned_losses_ + i, model_->device_loss(), sizeof(float), cudaMemcpyDeviceToHost, s));
+    }
+    DeviceAdamWConfig c;
+    c.lr = 0.0;  // aygittan (DeviceAdamDynamic)
+    c.beta1 = opt.beta1;
+    c.beta2 = opt.beta2;
+    c.eps = opt.eps;
+    c.weight_decay = opt.weight_decay;
+    c.max_grad_norm = clip;
+    const std::int64_t before = model_->step_count();
+    model_->optimizer_step(c);
+    model_->set_step_count(before);  // yakalama yurutmez: adim sayaci yeniden oynatmada ilerler
+    NEXUS_CUDA_CHECK(cudaMemcpyAsync(&pinned_tail_->grad_norm, model_->device_grad_norm(), sizeof(float),
+                                     cudaMemcpyDeviceToHost, s));
+  } catch (...) {
+    cudaGraph_t broken = nullptr;
+    cudaStreamEndCapture(s, &broken);
+    if (broken != nullptr) cudaGraphDestroy(broken);
+    model_->set_graph_parameters(nullptr, nullptr);
+    throw;
+  }
+  NEXUS_CUDA_CHECK(cudaStreamEndCapture(s, &graph_));
+  model_->set_graph_parameters(nullptr, nullptr);
+  NEXUS_CUDA_CHECK(cudaGraphInstantiate(&graph_exec_, graph_, 0));
+  NEXUS_CUDA_CHECK(cudaGraphGetNodes(graph_, nullptr, &graph_nodes_));
+  graph_count_ = count_;
+}
+
 void GptLmBackend::optimizer_step(const train::AdamW& opt, double lr, double clip) {
+  if (graph_enabled_ && graph_state_ > 0) {
+    if (graph_state_ == 1 || graph_count_ != count_) {
+      capture_graph(opt, clip);
+      graph_state_ = 2;
+    }
+    const std::int64_t t = model_->step_count() + 1;
+    DeviceAdamDynamic& d = pinned_graph_->adam;
+    d.lr = static_cast<float>(lr);
+    d.lr_wd = static_cast<float>(lr) * static_cast<float>(opt.weight_decay);
+    d.inv1 = static_cast<float>(1.0 / (1.0 - std::pow(opt.beta1, static_cast<double>(t))));
+    d.inv2 = static_cast<float>(1.0 / (1.0 - std::pow(opt.beta2, static_cast<double>(t))));
+    d.step = t;
+    NEXUS_CUDA_CHECK(cudaGraphLaunch(graph_exec_, stream_.handle()));
+    model_->set_step_count(t);
+    graph_replays_ += 1;
+    step_done_.record(stream_);
+    return;
+  }
   DeviceAdamWConfig c;
   c.lr = lr;
   c.beta1 = opt.beta1;
@@ -537,6 +641,7 @@ void GptLmBackend::optimizer_step(const train::AdamW& opt, double lr, double cli
   model_->optimizer_step(c);
   NEXUS_CUDA_CHECK(cudaMemcpyAsync(&pinned_tail_->grad_norm, model_->device_grad_norm(), sizeof(float),
                                    cudaMemcpyDeviceToHost, stream_.handle()));
+  if (graph_enabled_) graph_state_ = 1;  // isinma bitti (planlar, calisma alanlari, tanimlayicilar hazir)
   // Kayip olcegi durumu (found_inf, skipped_steps): model ozel tamponu; read_loss_scale senkron oldugu icin
   // finish_step'te okunur (adim zaten bitmis olur).
   step_done_.record(stream_);

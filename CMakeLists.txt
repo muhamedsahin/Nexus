@@ -68,7 +68,13 @@ add_library(nexus STATIC
     src/dist/dtensor.cpp
     src/dist/context_parallel.cpp
     src/dist/pipeline.cpp
-    src/dist/parallel_lm.cpp)
+    src/dist/parallel_lm.cpp
+    src/compile/ir.cpp
+    src/compile/trace.cpp
+    src/compile/passes.cpp
+    src/compile/codegen.cpp
+    src/compile/executor.cpp
+    src/compile/compile.cpp)
 add_library(nexus::nexus ALIAS nexus)
 
 target_compile_features(nexus PUBLIC cxx_std_20)
@@ -144,11 +150,12 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/cast_cache.cpp
         src/cuda/gpt.cpp
         src/cuda/token_loader.cpp
-        src/cuda/lm_backend.cpp)
+        src/cuda/lm_backend.cpp
+        src/cuda/nvrtc_jit.cpp)
     add_library(nexus::cuda ALIAS nexus_cuda)
     # nexus'un kullanim gereksinimleri (or. NexusLoss'un INTERFACE /W4) nvcc'ye gecmesin:
     # yalniz baglama icin nexus, basliklar ve tanimlar acikca verilir.
-    target_link_libraries(nexus_cuda PUBLIC $<LINK_ONLY:nexus> CUDA::cudart CUDA::cublasLt)
+    target_link_libraries(nexus_cuda PUBLIC $<LINK_ONLY:nexus> CUDA::cudart CUDA::cublasLt CUDA::nvrtc CUDA::cuda_driver)
     target_include_directories(nexus_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/lib/NexusTrain/include)
     target_compile_definitions(nexus_cuda PUBLIC NEXUS_ENABLE_CUDA=1)

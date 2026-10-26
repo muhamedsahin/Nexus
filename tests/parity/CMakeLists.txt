@@ -220,3 +220,17 @@ add_executable(test_phase12_autoconfig test_phase12_autoconfig.cpp)
 target_link_libraries(test_phase12_autoconfig PRIVATE nexus_estimate_core nexus_test_support)
 nexus_configure_target(test_phase12_autoconfig)
 add_test(NAME test_auto_parallel_config COMMAND test_phase12_autoconfig)
+
+# FAZ 13 (CPU): IR, izleme, gecisler, kod uretimi (cl.exe JIT), yurutucu, StableHLO.
+add_executable(test_phase13_compile test_phase13_compile.cpp)
+target_link_libraries(test_phase13_compile PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase13_compile)
+add_test(NAME test_compile_numerics COMMAND test_phase13_compile numerics)
+add_test(NAME test_fusion_kernel_count COMMAND test_phase13_compile fusion)
+add_test(NAME test_dynamic_shape_no_recompile COMMAND test_phase13_compile dynamic)
+add_test(NAME test_cache_hit_zero_compile COMMAND test_phase13_compile cache)
+add_test(NAME test_compile_min_cut_memory COMMAND test_phase13_compile memory)
+add_test(NAME test_compile_comm_reorder COMMAND test_phase13_compile comm)
+add_test(NAME test_compile_export_stablehlo COMMAND test_phase13_compile export)
+set_tests_properties(test_compile_numerics test_fusion_kernel_count test_dynamic_shape_no_recompile test_cache_hit_zero_compile
+    test_compile_min_cut_memory test_compile_comm_reorder test_compile_export_stablehlo PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

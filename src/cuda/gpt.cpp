@@ -335,8 +335,8 @@ const void* GptModel::weight(std::size_t offset) const {
 GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t seed, const Stream& stream)
     : config_(config), batch_(batch), time_(time), stream_(stream) {
   if (batch < 1 || time < 2 || time > config.max_seq || config.dim % config.heads != 0 || config.layers < 1 ||
-      config.vocab < 2) {
-    throw TensorError("Nexus GPT: gecersiz yapilandirma (time <= max_seq, dim % heads == 0)");
+      config.vocab < 2 || config.vocab_pad_multiple < 1) {
+    throw TensorError("Nexus GPT: gecersiz yapilandirma (time <= max_seq, dim % heads == 0, vocab_pad_multiple >= 1)");
   }
   const DType ct = config_.compute_dtype;
   if (ct != DType::F32 && ct != DType::BF16 && ct != DType::F16) {
@@ -522,7 +522,8 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
       std::fill(dst, dst + p.numel, 1.0f);
     } else if (p.decay) {
       const float std = (p.name == "attproj_w" || p.name == "fcproj_w") ? residual_scale : 0.02f;
-      for (std::size_t i = 0; i < p.numel; ++i) {
+      const std::size_t n = p.name == "wte" ? static_cast<std::size_t>(config_.vocab) * config_.dim : p.numel;
+      for (std::size_t i = 0; i < n; ++i) {
         dst[i] = std * normal(rng);
       }
     }
@@ -541,7 +542,7 @@ GptModel::GptModel(const GptConfig& config, int batch, int time, std::uint64_t s
   const std::size_t BT = static_cast<std::size_t>(batch) * time;
   const std::size_t H = static_cast<std::size_t>(config_.heads);
   const std::size_t T = static_cast<std::size_t>(time);
-  const std::size_t V = static_cast<std::size_t>(config_.vocab);
+  const std::size_t V = static_cast<std::size_t>(config_.padded_vocab());  // FAZ 13: hizali GEMM satir adimi
   const std::size_t BHTT = static_cast<std::size_t>(batch) * H * T * T;
   const std::size_t et = size_of(ct);
   // Yuva eslemesi.
@@ -654,7 +655,7 @@ GptModel::~GptModel() {
 void GptModel::build_layout() {
   const int L = config_.layers;
   const int C = config_.dim;
-  const int V = config_.vocab;
+  const int V = config_.padded_vocab();  // dolgu satirlari sifir, gradyani sifir (CE dolgu sutunlarini yok sayar)
   const int P = config_.max_seq;
   struct Spec {
     const char* name;
@@ -848,28 +849,32 @@ void GptModel::head_forward(const std::int32_t* d_tokens, bool for_backward) {
   const int B = batch_;
   const int T = time_;
   const int C = config_.dim;
-  const int V = config_.vocab;
+  const int V = config_.padded_vocab();  // GEMM boyutu (hizali)
+  const int Vr = config_.vocab;          // gercek sozluk (CE)
   const int BT = B * T;
   const DType mt = config_.compute_dtype;
   const std::size_t wte_off = params_info_[kWte].offset;
   const Mat wte{weight(wte_off), mt};
   CrossEntropyDeviceOptions options;
-  const float* device_scale = use_loss_scale_ ? &loss_scale_state_.as<DeviceLossScaleState>()->scale : nullptr;
+  options.row_stride = V;
+  options.online = config_.fast_ce;
+  if (fuse_ce_cast() && for_backward) options.dlogits_bf16 = b.dlogits_t.data();
+  const float* device_scale = use_loss_scale_ ? &loss_scale_state_.as<DeviceLossScaleState>()->scale : graph_grad_scale_;
   if (config_.ce_chunk_rows <= 0) {
     // Logit FP32'ye yukseltilmis cikti (4.6) -> CE FP32.
     mm(s, false, true, BT, V, C, Mat{b.lnf.data(), mt}, wte, OutBuf{b.logits.data(), DType::F32});
     cross_entropy_shifted(for_backward ? b.logits.as<float>() : nullptr, loss_.as<float>(), nullptr,
-                          b.logits.as<float>(), d_tokens, B, T, V, options, grad_scale_, device_scale, b.ce_scratch.data(), s);
+                          b.logits.as<float>(), d_tokens, B, T, Vr, options, grad_scale_, device_scale, b.ce_scratch.data(), s);
     return;
   }
   float* dwte = grads_.as<float>() + (offload() ? rest_index(wte_off) : wte_off);
   float* dln = b.dln.as<float>();
-  cross_entropy_chunked_begin(d_tokens, B, T, V, options, b.ce_scratch.data(), s);
+  cross_entropy_chunked_begin(d_tokens, B, T, Vr, options, b.ce_scratch.data(), s);
   for (int r0 = 0; r0 < BT; r0 += b.logit_rows) {
     const int rows = std::min(b.logit_rows, BT - r0);
     const void* lnf = at(b.lnf, static_cast<std::size_t>(r0) * C, mt);
     mm(s, false, true, rows, V, C, Mat{lnf, mt}, wte, OutBuf{b.logits.data(), DType::F32});
-    cross_entropy_chunk(for_backward ? b.logits.as<float>() : nullptr, b.logits.as<float>(), d_tokens, B, T, V, options,
+    cross_entropy_chunk(for_backward ? b.logits.as<float>() : nullptr, b.logits.as<float>(), d_tokens, B, T, Vr, options,
                         grad_scale_, device_scale, r0, rows, b.ce_scratch.data(), s);
     if (!for_backward) {
       continue;
@@ -895,7 +900,7 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
   const int C = config_.dim;
   const int H = config_.heads;
   const int D = C / H;
-  const int V = config_.vocab;
+  const int V = config_.padded_vocab();
   const int BT = B * T;
   const std::size_t btc = static_cast<std::size_t>(BT) * C;
   const std::size_t bhtt = static_cast<std::size_t>(B) * H * T * T;
@@ -948,7 +953,9 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
   if (config_.ce_chunk_rows <= 0) {
     // Kafa: dlogits FP32 (CE yerinde yazdi); dar modda GEMM icin dar kopya.
     Mat dlogits{b.logits.data(), DType::F32};
-    if (narrow()) {
+    if (fuse_ce_cast()) {
+      dlogits = Mat{b.dlogits_t.data(), mt};  // CE dar tipte yazdi
+    } else if (narrow()) {
       cast(b.dlogits_t.data(), mt, b.logits.data(), DType::F32, static_cast<std::size_t>(BT) * V, s);
       dlogits = Mat{b.dlogits_t.data(), mt};
     }
@@ -1068,7 +1075,7 @@ void GptModel::run_backward(const std::int32_t* d_tokens) {
   }
   // Gomme: dwte'ye (kafanin yazdigi) EKLER; dwpe sifirdan. FP32.
   if (config_.deterministic) {
-    embedding_backward_deterministic(grad(kWte), grad(kWpe), dres, d_tokens, B, T, C, V, -1, b.emb_scratch.data(), s);
+    embedding_backward_deterministic(grad(kWte), grad(kWpe), dres, d_tokens, B, T, C, config_.vocab, -1, b.emb_scratch.data(), s);
   } else {
     embedding_backward_atomic(grad(kWte), grad(kWpe), dres, d_tokens, B, T, C, s);
   }
@@ -1130,7 +1137,18 @@ void GptModel::set_nonfinite_guard(bool enabled) {
   guard_ = enabled;
 }
 
+void GptModel::set_graph_parameters(const float* device_grad_scale, const DeviceAdamDynamic* device_adam) {
+  if ((device_grad_scale != nullptr || device_adam != nullptr) &&
+      (use_loss_scale_ || offload() || fused() || config_.optimizer != OptimizerKind::AdamW ||
+       (narrow() && config_.master == MasterWeights::NoMaster))) {
+    throw TensorError("Nexus GPT: CUDA Graph modu yalniz AdamW (32-bit), kayip olceksiz, ana kopyali modda");
+  }
+  graph_grad_scale_ = device_grad_scale;
+  graph_adam_ = device_adam;
+}
+
 void GptModel::set_param_scales(const std::vector<GptParamScale>& scales) {
+  adam_descriptors_ready_ = false;  // slot carpanlari degisti: tanimlayicilar yeniden yuklenmeli
   if (scales.empty()) {
     scales_.clear();
     for (const GptParamInfo& p : params_info_) {
@@ -1482,8 +1500,13 @@ void GptModel::optimizer_step(const DeviceAdamWConfig& base) {
     slot.lr_scale = scale_of(p).lr;
     slots.push_back(slot);
   }
+  if (graph_adam_ != nullptr) {
+    config.dynamic = graph_adam_;
+    config.descriptors_ready = adam_descriptors_ready_;
+  }
   adamw_multi_tensor(slots.data(), static_cast<int>(slots.size()), config, step_, grad_norm_.as<float>(),
                      buffers_->adam_scratch.data(), stream_.handle());
+  adam_descriptors_ready_ = true;  // ayni scratch, ayni slotlar (set_param_scales sifirlar)
   if (use_loss_scale_) {
     loss_scale_update(scale_state, config_.loss_scale, stream_.handle());
   } else if (guard_) {
