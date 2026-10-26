@@ -1,0 +1,12 @@
+== model: 1.1M parametre (durum w+m+v 13 MB)
+{"mode": "bench_ckpt_raw", "world": 1, "total_mb": 64, "wall_ms": 144.1, "gb_s": 0.47, "rank_write_ms_max": 131.5}
+{"mode": "bench_ckpt_raw", "world": 1, "total_mb": 512, "wall_ms": 1058.1, "gb_s": 0.51, "rank_write_ms_max": 990.1}
+{"mode": "bench_ckpt_raw", "world": 4, "total_mb": 64, "wall_ms": 75.2, "gb_s": 0.89, "rank_write_ms_max": 65.2}
+{"mode": "bench_ckpt_raw", "world": 4, "total_mb": 512, "wall_ms": 359.2, "gb_s": 1.49, "rank_write_ms_max": 335.8}
+{"mode": "bench_ckpt", "case": "none", "params": 1060877, "interval": 0, "ms_per_step": 17.7, "saves": 0, "file_bytes": 0, "save_blocking_ms": 0.0, "save_write_ms": 0.0, "write_gb_s": 0.000}
+{"mode": "bench_ckpt", "case": "sync_i2", "params": 1060877, "interval": 2, "ms_per_step": 40.6, "saves": 10, "file_bytes": 12731688, "save_blocking_ms": 38.6, "save_write_ms": 38.5, "write_gb_s": 0.330}
+{"mode": "bench_ckpt", "case": "async_i2", "params": 1060877, "interval": 2, "ms_per_step": 29.0, "saves": 10, "file_bytes": 12731688, "save_blocking_ms": 0.0, "save_write_ms": 37.1, "write_gb_s": 0.343}
+  info  adim 17.7 ms; her 2 adimda kayit: senkron +128.8%, eszamansiz +63.2%
+{"mode": "bench_ckpt", "case": "sync_i10", "params": 1060877, "interval": 10, "ms_per_step": 23.4, "saves": 2, "file_bytes": 12731688, "save_blocking_ms": 27.7, "save_write_ms": 27.7, "write_gb_s": 0.459}
+{"mode": "bench_ckpt", "case": "async_i10", "params": 1060877, "interval": 10, "ms_per_step": 21.2, "saves": 2, "file_bytes": 12731688, "save_blocking_ms": 0.0, "save_write_ms": 40.3, "write_gb_s": 0.316}
+  info  adim 17.7 ms; her 10 adimda kayit: senkron +31.7%, eszamansiz +19.6%

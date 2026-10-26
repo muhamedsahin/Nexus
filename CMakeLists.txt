@@ -72,6 +72,9 @@ add_library(nexus STATIC
     src/dist/pipeline.cpp
     src/dist/parallel_lm.cpp
     src/dist/moe_ep.cpp
+    src/dist/watchdog.cpp
+    src/ckpt/checkpoint.cpp
+    src/ckpt/sha256.cpp
     src/compile/ir.cpp
     src/compile/trace.cpp
     src/compile/passes.cpp

@@ -33,10 +33,12 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/ckpt/checkpoint.hpp"
 #include "nexus/core/config.hpp"
 #include "nexus/dist/ddp.hpp"
 #include "nexus/dist/fsdp_options.hpp"
 #include "nexus/dist/parallel_lm.hpp"
+#include "nexus/dist/watchdog.hpp"
 #include "nexus/train/schedule.hpp"
 #include "nexus_train/logging/logger_base.hpp"
 
@@ -44,6 +46,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -220,6 +223,16 @@ class LmBackend {
   /// FAZ 12: arka uc kendi cihaz agini kurduysa veri paralel grubu (token agirligi toplami icin).
   [[nodiscard]] virtual std::shared_ptr<dist::ProcessGroup> data_parallel_group() const { return nullptr; }
   [[nodiscard]] virtual dist::ParallelLm* parallel_model() noexcept { return nullptr; }
+  // ---- FAZ 15 ----
+  /// Sonraki mikro adimin RNG'si (sayac tabanli: maske = f(seed, offset, cagri)). Varsayilan: arka ucta RNG yok.
+  virtual void set_rng(std::uint64_t seed, std::uint64_t offset) {
+    (void)seed;
+    (void)offset;
+  }
+  /// Kayit duzeni (manifest "layout"): "replicated" ya da "fsdp:<asama>:<parca>".
+  [[nodiscard]] virtual std::string state_layout() const { return "replicated"; }
+  /// Baska rank sayisinda kaydedilmis tum rank yuklerinden bu rank'in durumunu kurar. Varsayilan: acik hata.
+  virtual void load_resharded_state(const std::vector<std::vector<unsigned char>>& old_rank_blobs);
 };
 
 using BackendFactory = std::function<std::unique_ptr<LmBackend>(const LmBackendRequest&)>;
@@ -242,6 +255,9 @@ class TokenBatchSource {
   virtual void next(std::int32_t* dst, int rows, int time, std::uint64_t* ids) = 0;
   [[nodiscard]] virtual std::string state() const = 0;
   virtual void restore(const std::string& state) = 0;
+  /// FAZ 15: true ise durum rank'ten bagimsiz kuresel imlectir (orn. kuresel adim sayaci): rank sayisi degisince
+  /// (yeniden parcalama) eski rank 0'in durumu yeni her rank'e verilebilir.
+  [[nodiscard]] virtual bool global_cursor() const { return false; }
 };
 
 /// nexusdata TokenStream: satir = ornegin ilk `time` tokeni (pencere + 1 >= time olmali).
@@ -393,6 +409,10 @@ class LanguageTrainerBuilder {
     std::string cp_layout = "zigzag";   // "zigzag" | "contiguous"
   };
   LanguageTrainerBuilder& parallel(std::shared_ptr<dist::ProcessGroup> group, Parallel config);
+  /// FAZ 15: tam durum kaydi (interval adimda bir, son-N, istege bagli eszamansiz). Dizin tum rank'lerde ayni.
+  LanguageTrainerBuilder& checkpointing(ckpt::CheckpointOptions options);
+  /// FAZ 15.F: her adim sonunda bekciye kalp atisi (adim, sure) verilir.
+  LanguageTrainerBuilder& watchdog(std::shared_ptr<dist::Watchdog> watchdog);
 
   [[nodiscard]] std::unique_ptr<LanguageModelTrainer> build();
 
@@ -426,6 +446,8 @@ class LanguageTrainerBuilder {
   const lm::LanguageModel* lm_model_ = nullptr;  // FAZ 12 paralel arka uc
   dist::ParallelConfig parallel_{};
   std::shared_ptr<dist::ProcessGroup> world_;
+  std::optional<ckpt::CheckpointOptions> ckpt_;
+  std::shared_ptr<dist::Watchdog> watchdog_;
 };
 
 class LanguageModelTrainer {
@@ -443,6 +465,13 @@ class LanguageModelTrainer {
   /// Model + optimizer + kaynak + adim durumu (FAZ 15 tam kayit sistemine kadar tek dosya).
   void save(const std::string& path) const;
   void resume(const std::string& path);
+  /// FAZ 15: checkpointing() dizinindeki en yeni tamamlanmis kayittan devam (yoksa false). Rank sayisi farkliysa
+  /// yeniden parcalar (arka uc + kuresel imlecli veri kaynagi gerekir; yoksa acik hata).
+  bool resume_latest();
+  /// Su anki durumu hemen kaydeder (checkpointing() gerekir).
+  void save_checkpoint();
+  [[nodiscard]] ckpt::TrainerState trainer_state() const;
+  [[nodiscard]] ckpt::CheckpointManager* checkpoints() noexcept { return ckpt_.get(); }
   /// Eski API: yigin boyutu degisirse (yalniz CPU arka ucu).
   void reshape(int micro_batch, int seq_len);
 
@@ -500,6 +529,12 @@ class LanguageModelTrainer {
   [[nodiscard]] std::string rank_path(const std::string& path) const;
 
   std::int64_t step_ = 0;
+  std::int64_t global_batch_tokens_ = 0;
+  std::uint64_t rng_seed_ = 1337;
+  std::uint64_t rng_offset_ = 0;  // tamamlanan mikro adim (RNG sayaci)
+  double loss_scale_ = 1.0;
+  std::unique_ptr<ckpt::CheckpointManager> ckpt_;
+  std::shared_ptr<dist::Watchdog> watchdog_;
   double lr_factor_ = 1.0;
   int rollbacks_ = 0;
   int consecutive_skips_ = 0;

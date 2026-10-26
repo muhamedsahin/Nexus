@@ -1,0 +1,82 @@
+test_save_load_exact: 6 adim + kayit, yeni surecte 6 adim == kesintisiz 12
+  info  senkron: kayitlar 3, 6 (A) + 9, 12 (B), keep=2 -> 2 kaldi; devam adim 6; manifest NXS3 v3, 1 dosya, 32616 bayt, sha 31177f7411b9...
+  info  kayip farki 0.0e+00, agirlik bit bit, gradyan bit bit
+  PASS  test_save_load_exact (senkron): yeni surecte devam == kesintisiz (kayip, agirlik, gradyan bit bit; dropout 0.1)
+  info  eszamansiz: kayitlar 3, 6 (A) + 9, 12 (B), keep=2 -> 2 kaldi; devam adim 6; manifest NXS3 v3, 1 dosya, 32616 bayt, sha 31177f7411b9...
+  info  kayip farki 0.0e+00, agirlik bit bit, gradyan bit bit
+  PASS  test_save_load_exact (eszamansiz): yeni surecte devam == kesintisiz (kayip, agirlik, gradyan bit bit; dropout 0.1)
+test_phase15_durability: 2 gecti, 0 basarisiz
+test_rng_restore: dropout maskesi (seed, offset)'ten birebir
+  PASS  ayni (seed, offset, cagri) -> ayni maske; offset ya da cagri degisince farkli
+  info  FAZ 9 kaydi (RNG yok): kayip farki 6.66e-02; FAZ 15 kaydi: 0.0e+00
+  PASS  negatif kontrol: RNG sayaci kaydedilmezse devamda maske farkli (kayip farkli)
+  PASS  test_rng_restore: FAZ 15 kaydiyla devamda ayni maske dizisi (kayip ve agirlik bit bit)
+test_phase15_durability: 3 gecti, 0 basarisiz
+test_sharded_save_load: ZeRO-3 rank basina parca
+  info  4 rank: duzen fsdp:3:4, dosya 8301..8337 bayt (toplam 33312; tam durum w+m+v 31836 bayt), devam adim 4
+  PASS  4 rank: her rank yalniz kendi parcasini yazdi (en buyuk dosya < tam durumun yarisi)
+  PASS  test_sharded_save_load (4 rank): devam == kesintisiz (bit bit)
+  info  8 rank: duzen fsdp:3:8, dosya 4317..4353 bayt (toplam 34788; tam durum w+m+v 31836 bayt), devam adim 4
+  PASS  8 rank: her rank yalniz kendi parcasini yazdi (en buyuk dosya < tam durumun yarisi)
+  PASS  test_sharded_save_load (8 rank): devam == kesintisiz (bit bit)
+test_phase15_durability: 4 gecti, 0 basarisiz
+test_reshard_2_to_4: rank sayisi degisince devam
+  info  2 -> 4: devam adim 4; kayip goreli farki kesintisiz 2 rank'e 3.7e-08, 4 rank'e 2.0e-08; agirlik max 5.2e-04 (kesintisiz 2 rank vs 4 rank: 1.6e-03)
+  PASS  test_reshard_2_to_4: kayip devam eder (kesintisiz egriyle <= 1e-5; agirlik farki rank sayisi farkinin etkisi kadar)
+  info  4 -> 2: devam adim 4; kayip goreli farki kesintisiz 4 rank'e 3.3e-08, 2 rank'e 3.0e-08; agirlik max 6.5e-04 (kesintisiz 4 rank vs 2 rank: 1.2e-03)
+  PASS  test_reshard_4_to_2: kayip devam eder (kesintisiz egriyle <= 1e-5; agirlik farki rank sayisi farkinin etkisi kadar)
+test_phase15_durability: 2 gecti, 0 basarisiz
+test_crash_injection: kayit ortasinda surec oldurulur
+nexus ckpt: NEXUS_CKPT_CRASH=rank_file -> surec olduruluyor (rank 0)
+  info  rank_file: cikis kodu 86, yarim kayit dizini kaldi (yok sayildi), tamamlanmis kayitlar 1 (son 2), devam adim 2
+  PASS  test_crash_injection (rank_file): son gecerli kayit (adim 2) saglam, devam kesintisizle ayni
+nexus ckpt: NEXUS_CKPT_CRASH=before_manifest -> surec olduruluyor (rank 0)
+  info  before_manifest: cikis kodu 86, yarim kayit dizini kaldi (yok sayildi), tamamlanmis kayitlar 1 (son 2), devam adim 2
+  PASS  test_crash_injection (before_manifest): son gecerli kayit (adim 2) saglam, devam kesintisizle ayni
+nexus ckpt: NEXUS_CKPT_CRASH=before_rename -> surec olduruluyor (rank 0)
+  info  before_rename: cikis kodu 86, yarim kayit dizini kaldi (yok sayildi), tamamlanmis kayitlar 1 (son 2), devam adim 2
+  PASS  test_crash_injection (before_rename): son gecerli kayit (adim 2) saglam, devam kesintisizle ayni
+  info  bozuk dosya: Nexus ckpt: rank0.nxs3: SHA-256 uyusmuyor (dosya bozuk)
+  PASS  bozuk kayit acik hatayla reddedilir (sessiz yedek yok)
+  PASS  surum/sema uyusmazligi acik hata
+  PASS  NXS3 gidis-donus
+  info  SHA-256 yolu: sha-ni; sha256("abc") = ba7816bf8f01cfea...
+  PASS  SHA-256: donanim yolu == skaler (0..300 bayt + 1 MiB), FIPS 180-2 'abc' vektoru
+test_phase15_durability: 7 gecti, 0 basarisiz
+test_watchdog_timeout: takilan rank tespit edilir
+  info  bekci: rank 2 takildi (son adim 2, en ileri 3, 512 ms kalp atisi yok)
+  info  rank 1: Nexus dist (thread): rank 0'den veri gelmedi (zaman asimi)
+  info  rank 3: Nexus dist (thread): rank 2'den veri gelmedi (zaman asimi)
+  info  rank 0: Nexus dist (thread): rank 3'den veri gelmedi (zaman asimi)
+  info  rank 2: Nexus dist (thread): rank 1'den veri gelmedi (zaman asimi)
+  info  tespit gecikmesi (rank 2 takildiktan sonra) 512 ms; toplam 5533 ms; 4 rank hata ile cikti
+  PASS  test_watchdog_timeout: takilan rank (2) tespit edilip raporlandi, baska rank suclanmadi
+  PASS  diger rank'ler kollektif zaman asimiyla cikti (asili kalmadi)
+  info  son adim sureleri (ms): 0.2 63.0 0.2 0.2
+  info  bekci: rank 1 yavas (son 4 adimda ortalama 63.75 ms gec varis, ortanca adim 0.2243 ms)
+  PASS  straggler tespiti: her adimda 60 ms geciken rank 1 (varis gecikmesiyle)
+test_phase15_durability: 3 gecti, 0 basarisiz
+elastik yeniden baslatma: 4 surec, rank 3 olur -> 2 surecle devam
+elastic_child: deneme 0 rank 1/4, devam adim 0
+elastic_child: deneme 0 rank 0/4, devam adim 0
+elastic_child: deneme 0 rank 3/4, devam adim 0
+elastic_child: deneme 0 rank 2/4, devam adim 0
+elastic_child: rank 3 adim 5'te olduruluyor
+nexus-run: rank 3 kod 9 ile cikti; digerlerine 0 s taninir
+nexus-run: deneme 0, 4 surec, 0.2 s
+  rank 0: sonlandirildi 137
+  rank 1: sonlandirildi 137
+  rank 2: sonlandirildi 137
+  rank 3: cikis 9
+nexus-run: ilk basarisiz: rank 3 (kod 9)
+nexus-run: yeniden baslatma 1 / 1, 2 surec
+elastic_child: deneme 1 rank 1/2, devam adim 4
+elastic_child: deneme 1 rank 0/2, devam adim 4
+nexus-run: deneme 1, 2 surec, 0.3 s
+  rank 0: cikis 0
+  rank 1: cikis 0
+  info  cokme adim 5'te, devam adim 4 (kayit araligi 2 -> kaybedilen 1 adim); MTTR 87 ms (olumden ilk devam adimina: surec baslatma + tcp grup + yukleme + 4->2 yeniden parcalama); toplam 0.5 s
+  info  devam kaybi kesintisiz 4 rank egrisine goreli 6.0e-08
+{"mode": "bench_elastic", "crash_step": 5, "resume_step": 4, "interval": 2, "mttr_ms": 87, "loss_rel_vs_uninterrupted": 5.98e-08}
+  PASS  kurtarma kayit araligindan fazla adim kaybettirmez; devam kaybi kesintisiz egriyi izler (<= 1e-5)
+test_phase15_durability: 1 gecti, 0 basarisiz

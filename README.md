@@ -13,11 +13,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest-123%2F123_ge%C3%A7ti-2EA44F?style=flat-square)
+![Testler](https://img.shields.io/badge/ctest-130%2F130_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-153%2F153_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--14_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--15_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,20 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**26 Ekim 2026 — FAZ 15 dayanıklılık: tam durum kaydı, elastik yeniden başlatma** ([rapor](docs/benchmarks/2026-10-26-faz15/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| 6 adım + kayıt, yeni süreçte 6 adım vs kesintisiz 12 (dropout 0.1, senkron + eşzamansız) | kayıp, ağırlık, gradyan **bit bit aynı** |
+| ZeRO-3 4 / 8 rank parçalı kayıt + devam | rank başına kendi parçası (toplama yok), devam **bit bit** |
+| 2 → 4 ve 4 → 2 rank yeniden parçalama | devam kaybı kesintisize göre ≤ 3.7e-8 |
+| Kaydın 3 noktasında süreç öldürme | son geçerli kayıt sağlam, bozuk dosya / sürüm açık hata |
+| nexus-run elastik: 4 süreçten biri ölür → 2 süreçle devam | 1 adım kayıp (aralık 2), MTTR 87–132 ms |
+| Bekçi | takılan rank 0.5 s'de tespit; straggler (60 ms gecikme) tespit |
+| Kayıt hızı (SHA-NI) | 1 rank 0.52 GB/s, 4 rank 1.57 GB/s (skaler SHA ile 0.10 / 0.34) |
+| Eşzamansız kayıt ek yükü (CPU, her 10 adım) | eğitim bloklanmıyor (0 ms) ama adım +%20 (senkron +%32) — ⛔ ≈0 değil |
+| Bulunan hata | NexusOptim ThreadPool kayıp uyandırma kilitlenmesi düzeltildi (GPU regresyonu 2131 → 1210 s) |
+
 **26 Ekim 2026 — FAZ 14 MoE ve uzman paralelliği** ([rapor](docs/benchmarks/2026-10-26-faz14/README.md))
 
 | Ölçüm | Sonuç |
@@ -415,8 +429,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 12 | DeviceMesh/DTensor (redistribute + yayılım), TP (sözlük-parçalı CE, GQA), SP, async TP, PP (GPipe/1F1B/interleaved/ZB-H1), CP (ring zigzag + Ulysses), ZeRO-1, `nexus_estimate --auto-parallel`, `.parallel({dp,tp,pp,cp})` (CPU) | ✅ tüm eşdeğerlikler (4B 16 rank dahil), 128k ring attention · ⛔ GPU TP/PP/CP ve 7B MFU yok · 🟡 tek iş p. çekirdekler PyTorch'tan 1.9× yavaş, ZB-H1 çalışma anı, tahminci kalibre değil |
 | 13 | IR (SSA, sembolik şekil), meta izleme + autodiff, desen/epilog/eleman eleman füzyon, min-cut, statik arena, iletişim sıralama, CPU (cl.exe) + CUDA (NVRTC) kod üretimi + disk önbelleği, StableHLO, `nexus::compile`, `trainer.compile` (GEMM dolgusu + tüm adım CUDA Graph + autotune) | ✅ gpt2s torch.compile(max-autotune)'dan %5.6 hızlı, soğuk başlangıç ~4 s · 🟡 çekirdek sayısı 2.07× (3× değil), CPU yürütücüsü eager'dan yavaş, GPU'da IR yürütücüsü yok |
 | 14 | MoE: FP32 yönlendirici, gürültülü top-k, GShard kapasitesi (drop/reroute), sayım sıralı permütasyon, paralel gruplu GEMM, aux + z kaybı, paylaşımlı uzman, BF16/FP8 uzman ağırlığı, `moe-124m`, NXS `MoEFFN`; all-to-all(v) uzman paralelliği (CPU) | ✅ k=1/E=1 = yoğun bit bit, referans ≤ 2.9e-7, EP 1↔8 rank bit bit, aux ile ölü uzman yok, aynı aktif FLOP'ta kayıp 1.93 vs 2.04 · ⛔ GPU MoE eğitimi, CUTLASS grouped, Mixtral ölçeği yok · 🟡 a2a örtüşmesi, EP+TP+DP, uzman offload açık |
-| 15 | Dayanıklılık: tam durum kaydı, parçalı/eşzamansız kayıt, yeniden parçalama, bekçi | ⏭ sıradaki |
-| 16–22 | çıkarım, 1.0 | 📋 planlı |
+| 15 | Dayanıklılık: NXS3 arşivi + atomik kayıt dizini + manifest/SHA-256 (SHA-NI), son-N, TrainerState + sayaç tabanlı RNG, parçalı (rank başına) kayıt, yeniden parçalama, eşzamansız çift tampon, bekçi (takılma + straggler), `nexus-run --max-restarts` elastik yeniden başlatma | ✅ yeni süreçte devam bit bit (dropout dahil), 8 rank parçalı kayıt toplamasız, 3 noktada çökme sonrası son kayıt sağlam, 4→2 süreç elastik devam 1 adım kayıp · ⛔ süreç içi iletişim yeniden kurma, sıkıştırma · 🟡 eşzamansız kayıt CPU'da +%20 (≈0 değil), GPU arka ucu sınanmadı |
+| 16 | Çıkarım: sayfalı KV önbelleği, artımlı çözme, örnekleme, spekülatif çözme, nicemleme, sürekli batch sunucu | ⏭ sıradaki |
+| 17–22 | 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

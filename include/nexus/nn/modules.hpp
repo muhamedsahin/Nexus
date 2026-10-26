@@ -281,13 +281,70 @@ inline std::shared_ptr<Module> make_activation(std::string name, CustomActivatio
     return std::make_shared<Activation>(std::move(name), std::move(forward), std::move(backward));
 }
 
+/// FAZ 15: sayac tabanli dropout RNG baglami (is parcacigi basina). Egitmen her mikro adimdan once (seed, offset)
+/// verir; bu baglamdaki k. Dropout cagrisinin maskesi = f(seed, offset, k). Boylece maske dizisi kayittaki
+/// (seed, offset) ile birebir geri gelir. Baglam yoksa eski davranis (modul ici artan tohum).
+struct DropoutRng {
+    bool active = false;
+    std::uint64_t seed = 0;
+    std::uint64_t offset = 0;
+    std::uint64_t calls = 0;
+};
+inline DropoutRng& dropout_rng() {
+    thread_local DropoutRng rng;
+    return rng;
+}
+inline void set_dropout_rng(std::uint64_t seed, std::uint64_t offset) {
+    DropoutRng& r = dropout_rng();
+    r.active = true;
+    r.seed = seed;
+    r.offset = offset;
+    r.calls = 0;
+}
+inline void clear_dropout_rng() { dropout_rng() = DropoutRng{}; }
+inline std::uint64_t splitmix64(std::uint64_t x) {
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
 class Dropout : public Module {
  public:
     explicit Dropout(float probability = 0.5f) : probability_(probability), impl_(probability) {}
-    void train() override { impl_.train(); }
-    void eval() override { impl_.eval(); }
-    nexus_model::Tensor forward(const nexus_model::Tensor& input) override { return impl_.forward(input); }
-    nexus_model::Tensor backward(const nexus_model::Tensor& grad_output) override { return impl_.backward(grad_output); }
+    void train() override {
+        training_ = true;
+        impl_.train();
+    }
+    void eval() override {
+        training_ = false;
+        impl_.eval();
+    }
+    nexus_model::Tensor forward(const nexus_model::Tensor& input) override {
+        DropoutRng& rng = dropout_rng();
+        ctx_forward_ = rng.active && training_ && probability_ > 0.0f;
+        if (!ctx_forward_) return impl_.forward(input);
+        const std::uint64_t seed = splitmix64(rng.seed ^ splitmix64(rng.offset * 0x100000001B3ull + rng.calls++));
+        mask_.resize_like(input);
+        nexus_model::kernels::dropout_mask(mask_.data(), input.numel(), probability_, seed);
+        const float scale = probability_ >= 1.0f ? 0.0f : 1.0f / (1.0f - probability_);
+        output_.resize_like(input);
+        const float* x = input.data();
+        const float* m = mask_.data();
+        float* y = output_.data();
+        for (std::size_t i = 0; i < input.numel(); ++i) y[i] = x[i] * m[i] * scale;
+        return output_;
+    }
+    nexus_model::Tensor backward(const nexus_model::Tensor& grad_output) override {
+        if (!ctx_forward_) return impl_.backward(grad_output);
+        const float scale = probability_ >= 1.0f ? 0.0f : 1.0f / (1.0f - probability_);
+        grad_input_.resize_like(grad_output);
+        const float* dy = grad_output.data();
+        const float* m = mask_.data();
+        float* dx = grad_input_.data();
+        for (std::size_t i = 0; i < grad_output.numel(); ++i) dx[i] = dy[i] * m[i] * scale;
+        return grad_input_;
+    }
     [[nodiscard]] std::vector<nexus_model::Parameter*> parameters() const override { return {}; }
     [[nodiscard]] nxs::LayerSpec nxs_spec() const override {
         return nxs::spec_of(nxs::LayerKind::Dropout, "Dropout", {nxs::f32("p", probability_)});
@@ -296,6 +353,9 @@ class Dropout : public Module {
  private:
     float probability_ = 0.5f;
     mutable nexus_model::Dropout impl_;
+    bool training_ = true;
+    bool ctx_forward_ = false;
+    nexus_model::Tensor mask_, output_, grad_input_;
 };
 
 class MaxPool2d : public Module {

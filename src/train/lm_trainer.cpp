@@ -276,6 +276,30 @@ class CpuModuleBackend final : public LmBackend {
 
   dist::FsdpEngine* fsdp() noexcept override { return engine_.get(); }
 
+  void set_rng(std::uint64_t seed, std::uint64_t offset) override { nn::set_dropout_rng(seed, offset); }
+
+  std::string state_layout() const override {
+    if (!engine_) return "replicated";
+    return "fsdp:" + std::to_string(static_cast<int>(engine_->options().sharding)) + ":" + std::to_string(engine_->shard_size());
+  }
+
+  void load_resharded_state(const std::vector<std::vector<unsigned char>>& blobs) override {
+    if (blobs.empty()) throw std::runtime_error("Nexus LM trainer: yeniden parcalama icin kayit yuku yok");
+    if (!engine_) {  // cogaltilmis (DDP / tek rank): her rank'in yuku tam durumdur
+      load_state(blobs[0]);
+      return;
+    }
+    std::vector<std::vector<unsigned char>> shards;
+    std::int64_t skipped = 0;
+    for (const auto& b : blobs) {
+      Reader r(b);
+      shards.push_back(r.bytes());
+      skipped = r.pod<std::int64_t>();
+    }
+    engine_->load_resharded(shards);
+    skipped_total_ = skipped;
+  }
+
   void micro_step(const std::int32_t* tokens, float grad_weight, int index, int count) override {
     if (index == 0) {
       if (engine_) {
@@ -763,6 +787,10 @@ void LmBackend::attach_fsdp(std::shared_ptr<dist::ProcessGroup>, const dist::Fsd
   throw dist::DistError("Nexus LM trainer: bu arka uc ZeRO/FSDP desteklemiyor (yalniz CPU nn::Sequential)");
 }
 
+void LmBackend::load_resharded_state(const std::vector<std::vector<unsigned char>>&) {
+  throw std::runtime_error("Nexus LM trainer: bu arka uc farkli rank sayisinda kaydedilmis durumu yukleyemez (yeniden parcalama yok)");
+}
+
 BackendFactory cpu_backend(nn::Module& model) {
   return [&model](const LmBackendRequest& request) -> std::unique_ptr<LmBackend> {
     return std::make_unique<CpuModuleBackend>(model, request);
@@ -1075,6 +1103,19 @@ LanguageTrainerBuilder& LanguageTrainerBuilder::parallel(std::shared_ptr<dist::P
   return fsdp(std::move(group), config.fsdp);
 }
 
+LanguageTrainerBuilder& LanguageTrainerBuilder::checkpointing(ckpt::CheckpointOptions options) {
+  if (options.dir.empty()) {
+    throw std::invalid_argument("LanguageTrainerBuilder::checkpointing: dizin bos");
+  }
+  ckpt_ = std::move(options);
+  return *this;
+}
+
+LanguageTrainerBuilder& LanguageTrainerBuilder::watchdog(std::shared_ptr<dist::Watchdog> watchdog) {
+  watchdog_ = std::move(watchdog);
+  return *this;
+}
+
 std::unique_ptr<LanguageModelTrainer> LanguageTrainerBuilder::build() {
   return std::unique_ptr<LanguageModelTrainer>(new LanguageModelTrainer(*this));
 }
@@ -1118,7 +1159,14 @@ LanguageModelTrainer::LanguageModelTrainer(LanguageTrainerBuilder& b)
   }
   LmBackendRequest request = b.request_;
   request.accum_steps = accum_;
+  global_batch_tokens_ = per_micro * accum_ * dp_;
+  rng_seed_ = request.seed;
+  watchdog_ = b.watchdog_;
   backend_ = b.factory_(request);
+  if (b.ckpt_) {  // FAZ 15: kollektiflerden (yayin / parcalama) once — rank 0 yarim kayitlari temizler
+    const int world = b.world_ ? b.world_->size() : (group_ ? group_->size() : 1);
+    ckpt_ = std::make_unique<ckpt::CheckpointManager>(*b.ckpt_, rank_, world);
+  }
   if (b.lm_model_ != nullptr && dp_ > 1) {
     group_ = backend_->data_parallel_group();
   }
@@ -1280,6 +1328,7 @@ TrainSummary LanguageModelTrainer::train(std::int64_t max_steps) {
     for (int i = 0; i < accum_; ++i) {
       weights[static_cast<std::size_t>(i)] =
           static_cast<double>(valid[static_cast<std::size_t>(i)]) / static_cast<double>(total_valid);
+      backend_->set_rng(rng_seed_, rng_offset_++);
       backend_->micro_step(tokens_.data() + static_cast<std::size_t>(i) * micro_tokens,
                            static_cast<float>(weights[static_cast<std::size_t>(i)]), i, accum_);
     }
@@ -1299,6 +1348,9 @@ TrainSummary LanguageModelTrainer::train(std::int64_t max_steps) {
     }
     const LmStepResult result = backend_->finish_step();
     const double step_ms = ms_since(t0);
+    if (watchdog_) {
+      watchdog_->beat(step_, step_ms);  // bu adim (0 tabanli) tamamlandi
+    }
 
     StepRecord rec;
     rec.step = step_;
@@ -1405,9 +1457,16 @@ TrainSummary LanguageModelTrainer::train(std::int64_t max_steps) {
     }
     history_.push_back(rec);
     summary.last_loss = loss;
+    loss_scale_ = result.loss_scale;
     if (step_ % log_every_ == 0 || want_eval || want_norms) {
       log(rec, want_norms ? &norms : nullptr);
     }
+    if (ckpt_ && ckpt_->due(step_)) {
+      save_checkpoint();
+    }
+  }
+  if (ckpt_) {
+    ckpt_->wait();  // eszamansiz yazimlar train() donmeden biter (hata varsa burada firlar)
   }
   summary.steps = step_;
   if (!history_.empty() && !summary.stopped) {
@@ -1601,6 +1660,85 @@ void LanguageModelTrainer::resume(const std::string& path) {
   rollbacks_ = rollbacks;
   prefetched_ = false;
   recent_.clear();
+}
+
+ckpt::TrainerState LanguageModelTrainer::trainer_state() const {
+  ckpt::TrainerState st;
+  st.step = step_;
+  st.global_sample_index = static_cast<std::uint64_t>(step_) * static_cast<std::uint64_t>(accum_ * micro_batch_ * dp_);
+  st.train_cursor = prefetched_ ? prefetch_state_ : train_->state();  // onceden alinan yigin henuz kullanilmadi
+  st.val_cursor = val_ != nullptr ? val_->state() : std::string();
+  st.lr_factor = lr_factor_;
+  st.schedule_step = step_;
+  st.loss_scale = loss_scale_;
+  st.rng = ckpt::RngState{rng_seed_, rng_offset_};
+  st.accum_counter = 0;
+  st.accum_steps = accum_;
+  st.micro_batch = micro_batch_;
+  st.seq_len = seq_len_;
+  st.global_batch_tokens = global_batch_tokens_;
+  st.rollbacks = rollbacks_;
+  st.world = dp_;
+  st.rank = rank_;
+  return st;
+}
+
+void LanguageModelTrainer::save_checkpoint() {
+  if (!ckpt_) {
+    throw std::logic_error("LanguageModelTrainer::save_checkpoint: builder.checkpointing() yok");
+  }
+  const ckpt::TrainerState st = trainer_state();
+  // Ilk tampon: arka uc durumu burada (egitim is parcaciginda) kopyalanir; yazma eszamansiz kipte arka planda.
+  ckpt_->save(step_, st, backend_->save_state(), backend_->state_layout());
+}
+
+bool LanguageModelTrainer::resume_latest() {
+  if (!ckpt_) {
+    throw std::logic_error("LanguageModelTrainer::resume_latest: builder.checkpointing() yok");
+  }
+  std::optional<ckpt::LoadedCheckpoint> lc = ckpt_->load_latest();
+  if (!lc) {
+    return false;
+  }
+  const ckpt::TrainerState& st = lc->states.front();
+  // Yeniden parcalamada rank basina micro_batch degisebilir; dizi uzunlugu ve kuresel yigin ayni olmali.
+  if ((!lc->resharded && st.micro_batch != micro_batch_) || st.seq_len != seq_len_ ||
+      st.global_batch_tokens != global_batch_tokens_) {
+    throw std::runtime_error("LanguageModelTrainer::resume_latest: kayit farkli yigin yapilandirmasindan (micro " +
+                             std::to_string(st.micro_batch) + ", T " + std::to_string(st.seq_len) + ", kuresel token " +
+                             std::to_string(st.global_batch_tokens) + ")");
+  }
+  if (!lc->resharded) {
+    backend_->load_state(lc->payloads.front());
+    train_->restore(st.train_cursor);
+    if (val_ != nullptr && !st.val_cursor.empty()) {
+      val_->restore(st.val_cursor);
+    }
+  } else {
+    if (!train_->global_cursor()) {
+      throw std::runtime_error("LanguageModelTrainer::resume_latest: kayit " + std::to_string(lc->manifest.world) +
+                               " rank'te alinmis; veri kaynagi kuresel imlec desteklemiyor (global_cursor)");
+    }
+    for (const ckpt::TrainerState& o : lc->states) {
+      if (o.train_cursor != st.train_cursor || o.step != st.step) {
+        throw std::runtime_error("LanguageModelTrainer::resume_latest: rank'lerin veri imlecleri/adimlari farkli");
+      }
+    }
+    backend_->load_resharded_state(lc->payloads);
+    train_->restore(st.train_cursor);
+    if (val_ != nullptr && !st.val_cursor.empty()) {
+      val_->restore(st.val_cursor);
+    }
+  }
+  step_ = st.step;
+  lr_factor_ = st.lr_factor;
+  rollbacks_ = st.rollbacks;
+  loss_scale_ = st.loss_scale;
+  rng_seed_ = st.rng.seed;
+  rng_offset_ = st.rng.offset;
+  prefetched_ = false;
+  recent_.clear();
+  return true;
 }
 
 }  // namespace train

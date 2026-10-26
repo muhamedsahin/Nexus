@@ -1,0 +1,22 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start  75: test_sharded_checkpoint_reshard
+1/8 Test  #75: test_sharded_checkpoint_reshard ...   Passed    0.22 sec
+    Start 103: test_save_load_exact
+2/8 Test #103: test_save_load_exact ..............   Passed    0.68 sec
+    Start 104: test_rng_restore
+3/8 Test #104: test_rng_restore ..................   Passed    0.21 sec
+    Start 105: test_sharded_save_load
+4/8 Test #105: test_sharded_save_load ............   Passed    0.66 sec
+    Start 106: test_reshard_2_to_4
+5/8 Test #106: test_reshard_2_to_4 ...............   Passed    0.42 sec
+    Start 107: test_crash_injection
+6/8 Test #107: test_crash_injection ..............   Passed    0.70 sec
+    Start 108: test_watchdog_timeout
+7/8 Test #108: test_watchdog_timeout .............   Passed    6.58 sec
+    Start 109: test_elastic_restart
+8/8 Test #109: test_elastic_restart ..............   Passed    0.70 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) =  10.21 sec

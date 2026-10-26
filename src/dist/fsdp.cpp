@@ -699,7 +699,52 @@ std::vector<unsigned char> FsdpEngine::save_shard() {
   return b;
 }
 
-void FsdpEngine::load_shard(const std::vector<unsigned char>& blob) { load_resharded({blob}); }
+void FsdpEngine::load_shard(const std::vector<unsigned char>& blob) {
+  // FAZ 15.3: ayni parca duzeni -> yalniz bu rank'in kendi parcasi okunur (diger rank dosyalari gerekmez).
+  // NoShard (tam kopya) kaydi her rank'te tam uzayi kapsar: genel yol.
+  if (options_.sharding == ShardingStrategy::NoShard) {
+    load_resharded({blob});
+    return;
+  }
+  In in{blob};
+  if (in.get<std::uint32_t>() != kShardMagic) throw DistError("Nexus FSDP: parcali kayit degil");
+  const auto world = in.get<std::int32_t>();
+  const auto rank = in.get<std::int32_t>();
+  if (world != shard_world_ || rank != shard_rank_) {
+    throw DistError("Nexus FSDP: kayit parca " + std::to_string(rank) + "/" + std::to_string(world) + ", bu rank " +
+                    std::to_string(shard_rank_) + "/" + std::to_string(shard_world_) + " (load_resharded kullanin)");
+  }
+  const auto step = in.get<std::int64_t>();
+  if (in.get<std::uint64_t>() != units_.size()) throw DistError("Nexus FSDP: kayit farkli bir birim yapisindan");
+  for (std::size_t u = 0; u < units_.size(); ++u) {
+    const FsdpUnit& fu = units_[u];
+    Unit& st = *state_[u];
+    if (in.get<std::uint64_t>() != fu.numel) throw DistError("Nexus FSDP: birim boyutu uyusmuyor");
+    const auto a = static_cast<std::size_t>(in.get<std::uint64_t>());
+    if (a != static_cast<std::size_t>(shard_rank_) * fu.shard) throw DistError("Nexus FSDP: parca araligi uyusmuyor");
+    std::vector<float> p = in.floats(), m = in.floats(), v = in.floats();
+    p.resize(fu.shard, 0.0f);  // son rank'in dolgusu
+    m.resize(fu.shard, 0.0f);
+    v.resize(fu.shard, 0.0f);
+    st.master = std::move(p);
+    st.m = std::move(m);
+    st.v = std::move(v);
+    st.master_on_disk = false;
+    st.m_on_disk = false;
+    if (!sharded_params()) {  // ZeRO-1/2: parametreler tam kopya -> parcalardan topla
+      const std::size_t P = fu.shard * static_cast<std::size_t>(shard_world_);
+      st.full.resize(P);
+      shard_group_->all_gather(st.master.data(), st.full.data(), fu.shard, DType::F32)->wait();
+      for (std::size_t j = 0; j < fu.params.size(); ++j) {
+        nexus_model::Parameter* q = params_[fu.params[j]];
+        std::memcpy(q->data.data(), st.full.data() + fu.begin[j], q->data.numel() * 4);
+      }
+    }
+    if (options_.offload.params_nvme) store_master(u);
+    if (options_.offload.optimizer_nvme) store_optimizer(u);
+  }
+  step_ = step;
+}
 
 void FsdpEngine::load_resharded(const std::vector<std::vector<unsigned char>>& blobs) {
   // Tum kayitlardan her birimin tam duz uzayini kur, sonra bu rank'in yeni parcasini al.

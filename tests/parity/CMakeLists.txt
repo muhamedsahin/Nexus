@@ -250,3 +250,17 @@ add_test(NAME test_moe_config_roundtrip COMMAND test_phase14_moe config)
 set_tests_properties(test_load_balance_in_range PROPERTIES SKIP_RETURN_CODE 77)
 set_tests_properties(test_moe_router_deterministic test_moe_k1_equals_dense test_moe_grad_numerics test_grouped_gemm_vs_loop
     test_load_balance_in_range test_ep_equivalence test_moe_quantized_experts test_moe_config_roundtrip PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 15 (CPU): dayaniklilik — NXS3 tam durum kaydi, RNG, parcali kayit, yeniden parcalama, cokme, bekci, elastik.
+add_executable(test_phase15_durability test_phase15_durability.cpp)
+target_link_libraries(test_phase15_durability PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase15_durability)
+add_test(NAME test_save_load_exact COMMAND test_phase15_durability exact)
+add_test(NAME test_rng_restore COMMAND test_phase15_durability rng)
+add_test(NAME test_sharded_save_load COMMAND test_phase15_durability sharded)
+add_test(NAME test_reshard_2_to_4 COMMAND test_phase15_durability reshard)
+add_test(NAME test_crash_injection COMMAND test_phase15_durability crash)
+add_test(NAME test_watchdog_timeout COMMAND test_phase15_durability watchdog)
+add_test(NAME test_elastic_restart COMMAND test_phase15_durability elastic $<TARGET_FILE:nexus_run>)
+set_tests_properties(test_save_load_exact test_rng_restore test_sharded_save_load test_reshard_2_to_4 test_crash_injection
+    test_watchdog_timeout test_elastic_restart PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
