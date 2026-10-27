@@ -42,6 +42,12 @@ add_library(nexus STATIC
     src/core/allocator.cpp
     src/core/memory.cpp
     src/core/mirrored_tensor.cpp
+    src/backend/registry.cpp
+    src/backend/vulkan.cpp
+    src/backend/hip.cpp
+    src/backend/directml.cpp
+    src/backend/metal.cpp
+    src/backend/pjrt.cpp
     src/autograd/engine.cpp
     src/autograd/ops.cpp
     src/autograd/checkpoint.cpp
@@ -150,6 +156,32 @@ if(TARGET matrix_pro)
     message(STATUS "Nexus: nexus::nexus MatrixFlash-Pro ile baglandi (CUDA=${NEXUS_ENABLE_CUDA})")
 else()
     message(STATUS "Nexus: nexus::nexus CPU bellek koprusu ile baglandi")
+endif()
+
+# FAZ 19: Vulkan loader calisma zamaninda acilir; SDK yalniz gelistiricide baslik ve
+# glslangValidator icin gereklidir. Son kullanici vulkan-1.dll / libvulkan.so ile calisir.
+set(NEXUS_VULKAN_AVAILABLE OFF)
+if(NEXUS_ENABLE_VULKAN)
+    find_path(NEXUS_VULKAN_INCLUDE_DIR vulkan/vulkan.h
+        HINTS "$ENV{VULKAN_SDK}/Include")
+    if(NOT NEXUS_VULKAN_INCLUDE_DIR AND WIN32)
+        file(GLOB _nexus_vulkan_sdks "C:/VulkanSDK/*/Include")
+        list(SORT _nexus_vulkan_sdks COMPARE NATURAL ORDER DESCENDING)
+        find_path(NEXUS_VULKAN_INCLUDE_DIR vulkan/vulkan.h HINTS ${_nexus_vulkan_sdks})
+    endif()
+    if(NEXUS_VULKAN_INCLUDE_DIR)
+        set(NEXUS_VULKAN_AVAILABLE ON)
+        target_include_directories(nexus PRIVATE ${NEXUS_VULKAN_INCLUDE_DIR})
+        target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_VULKAN=1)
+        message(STATUS "Nexus: FAZ19 Vulkan compute etkin (${NEXUS_VULKAN_INCLUDE_DIR})")
+    else()
+        message(STATUS "Nexus: Vulkan basliklari yok; FAZ19 Vulkan surucusu devre disi")
+    endif()
+endif()
+
+if(WIN32 AND NEXUS_ENABLE_DIRECTML)
+    target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_DIRECTML=1)
+    message(STATUS "Nexus: FAZ19 DirectML (DirectX 12) etkin")
 endif()
 
 nexus_configure_target(nexus)

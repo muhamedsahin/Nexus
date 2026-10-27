@@ -1,0 +1,52 @@
+#version 450
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0, std430) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 1, std430) readonly buffer K { float k[]; };
+layout(set = 0, binding = 2, std430) readonly buffer V { float v[]; };
+layout(set = 0, binding = 3, std430) writeonly buffer O { float o[]; };
+layout(push_constant) uniform P {
+  uint bh;
+  uint seq_len;
+  uint head_dim;
+  uint causal;
+  float scale;
+} p;
+
+void main() {
+  uint idx = gl_GlobalInvocationID.x;
+  uint total_rows = p.bh * p.seq_len;
+  if (idx >= total_rows) return;
+  uint b = idx / p.seq_len;
+  uint t_q = idx % p.seq_len;
+  uint D = p.head_dim;
+  uint base_b = b * p.seq_len * D;
+  uint q_off = base_b + t_q * D;
+  uint max_t = (p.causal != 0u) ? (t_q + 1u) : p.seq_len;
+
+  float m_i = -3.402823466e+38;
+  float l_i = 0.0;
+  float acc[128];
+  for (uint d = 0u; d < D && d < 128u; ++d) acc[d] = 0.0;
+
+  for (uint t_k = 0u; t_k < max_t; ++t_k) {
+    uint k_off = base_b + t_k * D;
+    float dot_qk = 0.0;
+    for (uint d = 0u; d < D; ++d) {
+      dot_qk += q[q_off + d] * k[k_off + d];
+    }
+    float s = dot_qk * p.scale;
+    float m_new = max(m_i, s);
+    float alpha = exp(m_i - m_new);
+    float beta = exp(s - m_new);
+    l_i = l_i * alpha + beta;
+    for (uint d = 0u; d < D && d < 128u; ++d) {
+      acc[d] = acc[d] * alpha + beta * v[k_off + d];
+    }
+    m_i = m_new;
+  }
+
+  float inv_l = (l_i > 0.0) ? (1.0 / l_i) : 0.0;
+  for (uint d = 0u; d < D && d < 128u; ++d) {
+    o[q_off + d] = acc[d] * inv_l;
+  }
+}

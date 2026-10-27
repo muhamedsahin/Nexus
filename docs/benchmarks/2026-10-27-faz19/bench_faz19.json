@@ -1,0 +1,101 @@
+{
+  "phase": "FAZ 19",
+  "date": "2026-10-27",
+  "machine": {
+    "cpu": "AMD Ryzen 7 5800H with Radeon Graphics (8C/16T Zen 3, AVX2+FMA+F16C)",
+    "gpu": "NVIDIA GeForce RTX 3070 Laptop GPU (8 GB, sm_86, CUDA 13.3, Vulkan 1.4.341, DirectML 1.0)",
+    "os": "Windows 11 x64",
+    "compiler": "MSVC 19.44 (/O2 /Ob2 /std:c++20)"
+  },
+  "backends": [
+    {
+      "kind": "cpu",
+      "name": "cpu",
+      "device": "cpu",
+      "device_name": "AMD Ryzen 7 5800H with Radeon Graphics",
+      "available": true,
+      "unified_memory": true,
+      "subgroup_size": 8,
+      "gemm_512x512x512_ms": 0.846,
+      "gemm_512x512x512_gflops": 317.30
+    },
+    {
+      "kind": "cuda",
+      "name": "cuda",
+      "device": "cuda:0",
+      "device_name": "NVIDIA GeForce RTX 3070 Laptop GPU",
+      "available": true,
+      "unified_memory": false,
+      "subgroup_size": 32,
+      "gemm_512x512x512_ms": 0.494,
+      "gemm_512x512x512_gflops": 543.17
+    },
+    {
+      "kind": "hip",
+      "name": "rocm-hip",
+      "device": "rocm:0",
+      "available": false,
+      "unavailable_reason": "ROCm/HIP calisma zamani (amdhip64.dll / libamdhip64.so) bu makinede kurulu degil (Windows uzerinde AMD iGPU Vulkan ve DirectML suruculeriyle dogrudan calisir)",
+      "symbol_table_entries": 34,
+      "flash_tile_d64_lds_bytes": 40960,
+      "flash_tile_d128_lds_bytes": 65536,
+      "rocm_lds_limit_bytes": 65536,
+      "kernel_audit": {
+        "files_scanned": 5,
+        "wave_adaptive_reductions": 4,
+        "hardcoded_warp_violations": 0,
+        "all_clean": true
+      }
+    },
+    {
+      "kind": "vulkan",
+      "name": "vulkan-spirv",
+      "device": "vulkan:0",
+      "device_name": "NVIDIA GeForce RTX 3070 Laptop GPU",
+      "available": true,
+      "unified_memory": false,
+      "subgroup_size": 32,
+      "gemm_512x512x512_ms": 0.861,
+      "gemm_512x512x512_gflops": 311.66,
+      "end_to_end_training_25_steps": {
+        "initial_loss": 119.283852,
+        "final_loss": 4.468944,
+        "loss_reduction_ratio": 0.037465
+      }
+    },
+    {
+      "kind": "metal",
+      "name": "metal-msl",
+      "device": "metal:0",
+      "available": false,
+      "unified_memory": true,
+      "zero_copy_mirrored_tensor": true,
+      "msl_shader_library_bytes": 2186,
+      "unavailable_reason": "Apple Metal (MPS/MSL) yalniz macOS / Apple Silicon (M1-M4) uzerinde kullanilabilir (MSL kaynak uzunlugu=2186 bayt, unified=true)"
+    },
+    {
+      "kind": "directml",
+      "name": "directml",
+      "device": "directml:0",
+      "device_name": "NVIDIA GeForce RTX 3070 Laptop GPU",
+      "available": true,
+      "unified_memory": false,
+      "subgroup_size": 32,
+      "gemm_512x512x512_ms": 1.001,
+      "gemm_512x512x512_gflops": 268.22,
+      "dml_operator_gemm_max_abs_diff": 0.0
+    },
+    {
+      "kind": "pjrt",
+      "name": "pjrt-xla",
+      "device": "tpu:0",
+      "device_name": "PJRT_CPU_Device(id=0, isa=avx2)",
+      "available": true,
+      "unified_memory": true,
+      "subgroup_size": 8,
+      "gemm_512x512x512_ms": 5.983,
+      "gemm_512x512x512_gflops": 44.87,
+      "stablehlo_spmd_vs_native_max_abs_diff": 0.0
+    }
+  ]
+}

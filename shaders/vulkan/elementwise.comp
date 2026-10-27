@@ -1,0 +1,36 @@
+#version 450
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0, std430) readonly buffer A { float a[]; };
+layout(set = 0, binding = 1, std430) readonly buffer B { float b[]; };
+layout(set = 0, binding = 2, std430) writeonly buffer O { float o[]; };
+layout(push_constant) uniform P { uint count; float scalar; uint op; } p;
+float unary(float x) {
+  if (p.op == 4) return -x;
+  if (p.op == 5) return exp(x);
+  if (p.op == 6) return log(x);
+  if (p.op == 7) return sqrt(x);
+  if (p.op == 8) return inversesqrt(x);
+  if (p.op == 9) return tanh(x);
+  if (p.op == 10) return 1.0 / (1.0 + exp(-x));
+  if (p.op == 11) return x / (1.0 + exp(-x));
+  if (p.op == 12) return max(x, 0.0);
+  if (p.op == 13) return x * p.scalar;
+  return x;
+}
+void main() {
+  uint base = gl_GlobalInvocationID.x * 4;
+  if (base >= p.count) return;
+  uint lanes = min(4, p.count - base);
+  for (uint lane = 0; lane < lanes; ++lane) {
+    uint i = base + lane;
+    float x = a[i];
+    if (p.op <= 3) {
+      float y = b[i];
+      if (p.op == 0) o[i] = x + y;
+      else if (p.op == 1) o[i] = x - y;
+      else if (p.op == 2) o[i] = x * y;
+      else o[i] = x / y;
+    } else if (p.op == 14) o[i] = x * p.scalar + b[i];
+    else o[i] = unary(x);
+  }
+}

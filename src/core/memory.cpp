@@ -14,6 +14,7 @@
 
 #include "nexus/core/memory.hpp"
 
+#include "nexus/backend/backend.hpp"
 #include "nexus/core/allocator.hpp"
 #include "nexus/core/error.hpp"
 #include "nexus/core/shape.hpp"
@@ -51,7 +52,7 @@
 namespace nexus {
 namespace {
 
-enum class Backend : std::uint8_t { CrtAligned = 1, CudaHost = 2, OsLocked = 3, CudaDevice = 4 };
+enum class Backend : std::uint8_t { CrtAligned = 1, CudaHost = 2, OsLocked = 3, CudaDevice = 4, Phase19 = 5 };
 
 struct Record {
   Backend backend = Backend::CrtAligned;
@@ -182,6 +183,9 @@ void free_block(void* pointer, const Record& record) noexcept {
       }
     }
 #endif
+      break;
+    case Backend::Phase19:
+      backend::memory_deallocate(record.device, pointer);
       break;
   }
 }
@@ -326,9 +330,16 @@ void* allocate_device(DeviceRef device, std::size_t bytes) {
     return nullptr;
   }
   if (device.kind != DeviceKind::Cuda) {
-    throw TensorError(
-        std::string("Nexus: ") + to_string(device.kind) +
-        " bellegi Faz 1'de ayirilmaz. Mevcut bir aygit isaretcisini Tensor::alias ile goruntuleyin.");
+    void* pointer = backend::memory_allocate(device, bytes);
+    if (pointer == nullptr) throw TensorError("Nexus: FAZ19 backend bos ayirma dondurdu");
+    Record record;
+    record.backend = Backend::Phase19;
+    record.kind = AllocKind::Device;
+    record.device = device;
+    record.bytes = bytes;
+    record.reserved = bytes;
+    track(pointer, record);
+    return pointer;
   }
 #if !defined(NEXUS_ENABLE_CUDA)
   (void)device;
@@ -420,6 +431,11 @@ void copy_bytes(void* dst, MemorySpace dst_space, DeviceRef dst_device, const vo
     std::memcpy(dst, src, bytes);
     return;
   }
+  if ((dst_on_device && dst_device.kind != DeviceKind::Cuda) ||
+      (src_on_device && src_device.kind != DeviceKind::Cuda)) {
+    backend::memory_copy(dst_device, dst, src_device, src, bytes);
+    return;
+  }
 #if !defined(NEXUS_ENABLE_CUDA)
   (void)dst_device;
   (void)src_device;
@@ -457,6 +473,10 @@ void zero_bytes(void* dst, MemorySpace space, DeviceRef device, std::size_t byte
     std::memset(dst, 0, bytes);
     return;
   }
+  if (device.kind != DeviceKind::Cuda) {
+    backend::memory_fill(device, static_cast<float*>(dst), bytes / sizeof(float), 0.0f);
+    return;
+  }
 #if !defined(NEXUS_ENABLE_CUDA)
   (void)device;
   throw TensorError("Nexus: cihaz bellegi sifirlanamadi, CUDA toolkit yok");
@@ -484,6 +504,10 @@ void fill_float(float* dst, MemorySpace space, DeviceRef device, std::size_t cou
     for (std::size_t i = 0; i < count; ++i) {
       dst[i] = value;
     }
+    return;
+  }
+  if (device.kind != DeviceKind::Cuda) {
+    backend::memory_fill(device, dst, count, value);
     return;
   }
   std::vector<float> stage(count, value);
@@ -522,6 +546,7 @@ void destroy_stream(DeviceRef device, StreamHandle stream) noexcept {
 
 void synchronize_stream(DeviceRef device, StreamHandle stream) {
   if (device.kind != DeviceKind::Cuda) {
+    backend::memory_synchronize(device);
     return;
   }
 #if !defined(NEXUS_ENABLE_CUDA)
@@ -587,6 +612,12 @@ void copy_bytes_async(void* dst, MemorySpace dst_space, DeviceRef dst_device, co
   const bool src_on_device = src_space == MemorySpace::Device;
   if (!dst_on_device && !src_on_device) {
     std::memcpy(dst, src, bytes);
+    return;
+  }
+  if ((dst_on_device && dst_device.kind != DeviceKind::Cuda) ||
+      (src_on_device && src_device.kind != DeviceKind::Cuda)) {
+    // FAZ19 surucusu cagri dondugunde sonucu hazirlar; nullptr akis dogru senkron geri dusustur.
+    backend::memory_copy(dst_device, dst, src_device, src, bytes);
     return;
   }
 #if !defined(NEXUS_ENABLE_CUDA)

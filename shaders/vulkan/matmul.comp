@@ -1,0 +1,39 @@
+#version 450
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(set = 0, binding = 0, std430) readonly buffer A { float a[]; };
+layout(set = 0, binding = 1, std430) readonly buffer B { float b[]; };
+layout(set = 0, binding = 2, std430) buffer C { float c[]; };
+layout(push_constant) uniform P {
+  uint m; uint n; uint k; uint lda; uint ldb; uint ldc; uint flags;
+  float alpha; float beta;
+} p;
+shared float ta[16][17];
+shared float tb[16][17];
+void main() {
+  uint row = gl_GlobalInvocationID.y;
+  uint col = gl_GlobalInvocationID.x;
+  uint lx = gl_LocalInvocationID.x;
+  uint ly = gl_LocalInvocationID.y;
+  float sum = 0.0;
+  for (uint tile = 0; tile < p.k; tile += 16) {
+    uint ak = tile + lx;
+    uint bk = tile + ly;
+    ta[ly][lx] = 0.0;
+    tb[ly][lx] = 0.0;
+    if (row < p.m && ak < p.k) {
+      uint ai = (p.flags & 1) != 0 ? ak * p.lda + row : row * p.lda + ak;
+      ta[ly][lx] = a[ai];
+    }
+    if (col < p.n && bk < p.k) {
+      uint bi = (p.flags & 2) != 0 ? col * p.ldb + bk : bk * p.ldb + col;
+      tb[ly][lx] = b[bi];
+    }
+    barrier();
+    for (uint j = 0; j < 16; ++j) sum += ta[ly][j] * tb[j][lx];
+    barrier();
+  }
+  if (row < p.m && col < p.n) {
+    uint ci = row * p.ldc + col;
+    c[ci] = p.beta == 0.0 ? (p.alpha * sum) : (p.alpha * sum + p.beta * c[ci]);
+  }
+}

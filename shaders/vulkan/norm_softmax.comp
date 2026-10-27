@@ -1,0 +1,89 @@
+#version 450
+layout(local_size_x = 256) in;
+layout(set = 0, binding = 0, std430) readonly buffer X { float x[]; };
+layout(set = 0, binding = 1, std430) readonly buffer W { float w[]; };
+layout(set = 0, binding = 2, std430) readonly buffer B { float b[]; };
+layout(set = 0, binding = 3, std430) writeonly buffer O { float o[]; };
+layout(push_constant) uniform P {
+  uint rows;
+  uint cols;
+  uint op;    // 0: Softmax, 1: RmsNorm, 2: LayerNorm
+  float eps;
+} p;
+shared float s_red[256];
+shared float s_red2[256];
+
+void main() {
+  uint row = gl_WorkGroupID.x;
+  if (row >= p.rows) return;
+  uint tid = gl_LocalInvocationID.x;
+  uint base = row * p.cols;
+
+  if (p.op == 0u) {
+    float local_max = -3.402823466e+38;
+    for (uint c = tid; c < p.cols; c += 256u) {
+      local_max = max(local_max, x[base + c]);
+    }
+    s_red[tid] = local_max;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+      if (tid < s) s_red[tid] = max(s_red[tid], s_red[tid + s]);
+      barrier();
+    }
+    float row_max = s_red[0];
+    float local_sum = 0.0;
+    for (uint c = tid; c < p.cols; c += 256u) {
+      local_sum += exp(x[base + c] - row_max);
+    }
+    s_red[tid] = local_sum;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+      if (tid < s) s_red[tid] += s_red[tid + s];
+      barrier();
+    }
+    float inv_sum = 1.0 / s_red[0];
+    for (uint c = tid; c < p.cols; c += 256u) {
+      o[base + c] = exp(x[base + c] - row_max) * inv_sum;
+    }
+  } else if (p.op == 1u) {
+    float sq = 0.0;
+    for (uint c = tid; c < p.cols; c += 256u) {
+      float v = x[base + c];
+      sq += v * v;
+    }
+    s_red[tid] = sq;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+      if (tid < s) s_red[tid] += s_red[tid + s];
+      barrier();
+    }
+    float rrms = inversesqrt(s_red[0] / float(p.cols) + p.eps);
+    for (uint c = tid; c < p.cols; c += 256u) {
+      o[base + c] = (x[base + c] * rrms) * w[c];
+    }
+  } else {
+    float sum = 0.0;
+    float sq = 0.0;
+    for (uint c = tid; c < p.cols; c += 256u) {
+      float v = x[base + c];
+      sum += v;
+      sq += v * v;
+    }
+    s_red[tid] = sum;
+    s_red2[tid] = sq;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+      if (tid < s) {
+        s_red[tid] += s_red[tid + s];
+        s_red2[tid] += s_red2[tid + s];
+      }
+      barrier();
+    }
+    float mean = s_red[0] / float(p.cols);
+    float var = max(0.0, s_red2[0] / float(p.cols) - mean * mean);
+    float inv_std = inversesqrt(var + p.eps);
+    for (uint c = tid; c < p.cols; c += 256u) {
+      o[base + c] = ((x[base + c] - mean) * inv_std) * w[c] + b[c];
+    }
+  }
+}

@@ -329,3 +329,22 @@ set_tests_properties(
     test_cpu_quantized_inference
     test_cpu_compile_fusion
     PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+
+# FAZ 19: Diger hizlandiricilar (ROCm/HIP, Vulkan SPIR-V, Metal MSL, DirectML DX12, OpenXLA PJRT).
+add_executable(test_phase19_backends test_phase19_backends.cpp)
+target_link_libraries(test_phase19_backends PRIVATE nexus::nexus nexus_test_support)
+target_compile_definitions(test_phase19_backends PRIVATE NEXUS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+nexus_configure_target(test_phase19_backends)
+add_test(NAME test_backend_detection COMMAND test_phase19_backends detection)
+add_test(NAME test_hip_parity COMMAND test_phase19_backends hip)
+add_test(NAME test_vulkan_parity COMMAND test_phase19_backends vulkan)
+add_test(NAME test_directml_parity COMMAND test_phase19_backends directml)
+add_test(NAME test_pjrt_export COMMAND test_phase19_backends pjrt)
+set_tests_properties(
+    test_backend_detection
+    test_hip_parity
+    test_vulkan_parity
+    test_directml_parity
+    test_pjrt_export
+    PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)

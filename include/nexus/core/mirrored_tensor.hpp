@@ -82,7 +82,7 @@ class MirroredTensor {
   [[nodiscard]] std::size_t bytes() const noexcept { return shape_.numel() * sizeof(float); }
   [[nodiscard]] DeviceRef device() const noexcept { return device_; }
   [[nodiscard]] MirrorState state() const noexcept { return state_; }
-  [[nodiscard]] bool unified() const noexcept { return device_.is_host(); }
+  [[nodiscard]] bool unified() const noexcept { return device_.is_unified(); }
   [[nodiscard]] bool device_allocated() const noexcept { return device_data_ != nullptr; }
   [[nodiscard]] bool host_pinned() const noexcept { return host_space_ == MemorySpace::PinnedHost; }
 

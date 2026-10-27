@@ -26,11 +26,15 @@ namespace nexus {
 namespace cuda {
 namespace detail {
 
+#if defined(__HIP_PLATFORM_AMD__) && (!defined(__AMDGCN_WAVEFRONT_SIZE) || __AMDGCN_WAVEFRONT_SIZE == 64)
+constexpr int kWarp = 64;
+#else
 constexpr int kWarp = 32;
+#endif
 
 __device__ __forceinline__ float warp_sum(float v) {
 #pragma unroll
-  for (int offset = 16; offset > 0; offset >>= 1) {
+  for (int offset = kWarp / 2; offset > 0; offset >>= 1) {
     v += __shfl_xor_sync(0xFFFFFFFFu, v, offset);
   }
   return v;
@@ -38,7 +42,7 @@ __device__ __forceinline__ float warp_sum(float v) {
 
 __device__ __forceinline__ double warp_sum(double v) {
 #pragma unroll
-  for (int offset = 16; offset > 0; offset >>= 1) {
+  for (int offset = kWarp / 2; offset > 0; offset >>= 1) {
     v += __shfl_xor_sync(0xFFFFFFFFu, v, offset);
   }
   return v;
@@ -46,7 +50,7 @@ __device__ __forceinline__ double warp_sum(double v) {
 
 __device__ __forceinline__ float warp_max(float v) {
 #pragma unroll
-  for (int offset = 16; offset > 0; offset >>= 1) {
+  for (int offset = kWarp / 2; offset > 0; offset >>= 1) {
     v = fmaxf(v, __shfl_xor_sync(0xFFFFFFFFu, v, offset));
   }
   return v;

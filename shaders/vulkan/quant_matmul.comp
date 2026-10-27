@@ -1,0 +1,58 @@
+#version 450
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(set = 0, binding = 0, std430) readonly buffer A { float a[]; };
+layout(set = 0, binding = 1, std430) readonly buffer WQ { uint wq[]; };
+layout(set = 0, binding = 2, std430) readonly buffer WS { float ws[]; };
+layout(set = 0, binding = 3, std430) writeonly buffer C { float c[]; };
+layout(push_constant) uniform P {
+  uint m;
+  uint n;
+  uint k;
+  uint group_size;
+  uint op;  // 0: Q8 (int8 symmetric), 1: Q4 (uint4_bias8 symmetric)
+} p;
+
+void main() {
+  uint row = gl_GlobalInvocationID.y;
+  uint col = gl_GlobalInvocationID.x;
+  if (row >= p.m || col >= p.n) return;
+
+  uint groups_per_row = p.k / p.group_size;
+  float acc = 0.0;
+  uint a_base = row * p.k;
+  uint w_row_base = col * p.k;
+  uint s_row_base = col * groups_per_row;
+
+  if (p.op == 0u) {
+    for (uint g = 0u; g < groups_per_row; ++g) {
+      float scale = ws[s_row_base + g];
+      float group_sum = 0.0;
+      uint k0 = g * p.group_size;
+      for (uint j = 0u; j < p.group_size; ++j) {
+        uint kk = k0 + j;
+        uint flat_idx = w_row_base + kk;
+        uint word = wq[flat_idx >> 2u];
+        int shift = int((flat_idx & 3u) * 8u);
+        int q = bitfieldExtract(int(word), shift, 8);
+        group_sum += a[a_base + kk] * float(q);
+      }
+      acc += group_sum * scale;
+    }
+  } else {
+    for (uint g = 0u; g < groups_per_row; ++g) {
+      float scale = ws[s_row_base + g];
+      float group_sum = 0.0;
+      uint k0 = g * p.group_size;
+      for (uint j = 0u; j < p.group_size; ++j) {
+        uint kk = k0 + j;
+        uint flat_idx = w_row_base + kk;
+        uint word = wq[flat_idx >> 3u];
+        uint shift = (flat_idx & 7u) * 4u;
+        int q = int((word >> shift) & 0xFu) - 8;
+        group_sum += a[a_base + kk] * float(q);
+      }
+      acc += group_sum * scale;
+    }
+  }
+  c[row * p.n + col] = acc;
+}

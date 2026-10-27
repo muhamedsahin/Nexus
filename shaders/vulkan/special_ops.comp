@@ -1,0 +1,66 @@
+#version 450
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0, std430) buffer B0 { float b0[]; };
+layout(set = 0, binding = 1, std430) readonly buffer B1 { float b1[]; };
+layout(set = 0, binding = 2, std430) buffer B2 { float b2[]; };
+layout(set = 0, binding = 3, std430) buffer B3 { float b3[]; };
+layout(push_constant) uniform P {
+  uint d0;     // RoPE: bh*seq*half_d | SwiGLU: rows*hidden | AdamW: count
+  uint d1;     // RoPE: seq_len       | SwiGLU: hidden      | AdamW: unused
+  uint d2;     // RoPE: half_d        | SwiGLU: unused      | AdamW: unused
+  uint d3;     // RoPE: pos_offset    | op selector in high bits: op = d3 & 0xff, pos_offset = d3 >> 8
+  float f0;    // RoPE: theta         | AdamW: lr
+  float f1;    // AdamW: beta1
+  float f2;    // AdamW: beta2
+  float f3;    // AdamW: eps
+  float f4;    // AdamW: weight_decay
+  float f5;    // AdamW: bc1 (1 - beta1^t)
+  float f6;    // AdamW: bc2 (1 - beta2^t)
+} p;
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  if (i >= p.d0) return;
+  uint op = p.d3 & 0xffu;
+  if (op == 0u) {
+    // RoPE: b1 = input [BH, T, 2*half_d], b0 = output [BH, T, 2*half_d]
+    uint half_d = p.d2;
+    uint seq_len = p.d1;
+    uint pos_offset = p.d3 >> 8u;
+    uint pair_idx = i % half_d;
+    uint row = i / half_d;
+    uint t = (row % seq_len) + pos_offset;
+    float exponent = float(2u * pair_idx) / float(2u * half_d);
+    float freq = float(t) / pow(p.f0, exponent);
+    float c = cos(freq);
+    float s = sin(freq);
+    uint idx0 = row * (2u * half_d) + 2u * pair_idx;
+    uint idx1 = idx0 + 1u;
+    float x0 = b1[idx0];
+    float x1 = b1[idx1];
+    b0[idx0] = x0 * c - x1 * s;
+    b0[idx1] = x0 * s + x1 * c;
+  } else if (op == 1u) {
+    // SwiGLU: b1 = input [rows, 2*hidden], b0 = output [rows, hidden]
+    uint hidden = p.d1;
+    uint row = i / hidden;
+    uint col = i % hidden;
+    uint in_base = row * (2u * hidden);
+    float gate = b1[in_base + col];
+    float up = b1[in_base + hidden + col];
+    float silu = gate / (1.0 + exp(-gate));
+    b0[i] = silu * up;
+  } else if (op == 2u) {
+    // AdamW: b0 = param, b1 = grad, b2 = m, b3 = v
+    float param = b0[i];
+    float g = b1[i];
+    float m = p.f1 * b2[i] + (1.0 - p.f1) * g;
+    float v = p.f2 * b3[i] + (1.0 - p.f2) * (g * g);
+    b2[i] = m;
+    b3[i] = v;
+    float m_hat = m / p.f5;
+    float v_hat = v / p.f6;
+    param -= p.f0 * (m_hat / (sqrt(v_hat) + p.f3) + p.f4 * param);
+    b0[i] = param;
+  }
+}

@@ -51,7 +51,7 @@ __device__ __forceinline__ Welford welford_merge(Welford a, Welford b) {
 
 __device__ __forceinline__ Welford warp_welford(Welford w) {
 #pragma unroll
-  for (int offset = 16; offset > 0; offset >>= 1) {
+  for (int offset = kWarp / 2; offset > 0; offset >>= 1) {
     Welford other;
     other.mean = __shfl_xor_sync(0xFFFFFFFFu, w.mean, offset);
     other.m2 = __shfl_xor_sync(0xFFFFFFFFu, w.m2, offset);

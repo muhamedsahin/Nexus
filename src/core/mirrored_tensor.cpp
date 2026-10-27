@@ -53,16 +53,16 @@ MirroredTensor MirroredTensor::wrap(float* host, float* device_data, Shape shape
   if (shape.numel() > 0 && (host == nullptr || device_data == nullptr)) {
     throw TensorError("Nexus: wrap icin host ve cihaz isaretcisi gerekli");
   }
-  if (device.is_host() && host != device_data) {
-    throw TensorError("Nexus: CPU cihazinda host ve cihaz tamponu ayni adres olmali");
+  if (device.is_unified() && host != device_data) {
+    throw TensorError("Nexus: birlesik bellek cihazinda (CPU/Metal) host ve cihaz tamponu ayni adres olmali");
   }
   MirroredTensor mirror;
   mirror.shape_ = std::move(shape);
   mirror.device_ = device;
   mirror.host_ = host;
-  mirror.device_data_ = device.is_host() ? nullptr : device_data;
+  mirror.device_data_ = device.is_unified() ? nullptr : device_data;
   mirror.host_space_ = MemorySpace::Host;
-  mirror.state_ = device.is_host() ? MirrorState::Synced : state;
+  mirror.state_ = device.is_unified() ? MirrorState::Synced : state;
   return mirror;
 }
 

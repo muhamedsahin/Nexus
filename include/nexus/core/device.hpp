@@ -16,8 +16,12 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/core/error.hpp"
+
+#include <cctype>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace nexus {
 
@@ -73,8 +77,14 @@ struct DeviceRef {
   static constexpr DeviceRef hybrid() noexcept { return DeviceRef{DeviceKind::Cpu, -2}; }
 
   [[nodiscard]] constexpr bool is_host() const noexcept { return kind == DeviceKind::Cpu; }
+  [[nodiscard]] constexpr bool is_unified() const noexcept {
+    return kind == DeviceKind::Cpu || kind == DeviceKind::Metal;
+  }
   [[nodiscard]] constexpr bool is_accelerator() const noexcept { return kind != DeviceKind::Cpu; }
   [[nodiscard]] constexpr bool is_hybrid() const noexcept { return kind == DeviceKind::Cpu && index == -2; }
+
+  /// "cuda:0", "rocm:0", "hip:0", "vulkan:0", "mps:0", "metal:0", "dml:0", "tpu:0", "pjrt:0", "cpu" cozumler.
+  [[nodiscard]] static DeviceRef parse(std::string_view spec);
 
   friend constexpr bool operator==(DeviceRef lhs, DeviceRef rhs) noexcept {
     return lhs.kind == rhs.kind && lhs.index == rhs.index;
@@ -117,6 +127,67 @@ inline std::string DeviceRef::to_string() const {
     text += std::to_string(index);
   }
   return text;
+}
+
+inline DeviceRef DeviceRef::parse(std::string_view spec) {
+  while (!spec.empty() && std::isspace(static_cast<unsigned char>(spec.front()))) spec.remove_prefix(1);
+  while (!spec.empty() && std::isspace(static_cast<unsigned char>(spec.back()))) spec.remove_suffix(1);
+  if (spec.empty()) {
+    throw TensorError("Nexus: bos cihaz dizgesi cozumlenemez");
+  }
+  const std::size_t colon = spec.find(':');
+  const std::string_view prefix = colon == std::string_view::npos ? spec : spec.substr(0, colon);
+  std::string lower;
+  lower.reserve(prefix.size());
+  for (char ch : prefix) {
+    lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+  }
+  if (lower == "hybrid") {
+    if (colon != std::string_view::npos) {
+      throw TensorError("Nexus: hybrid cihazi indeks almaz");
+    }
+    return DeviceRef::hybrid();
+  }
+  int idx = 0;
+  if (colon != std::string_view::npos) {
+    const std::string_view idx_str = spec.substr(colon + 1);
+    if (idx_str.empty()) {
+      throw TensorError("Nexus: cihaz indeks kismi bos: " + std::string(spec));
+    }
+    int parsed = 0;
+    for (char ch : idx_str) {
+      if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        throw TensorError("Nexus: gecersiz cihaz indeksi: " + std::string(spec));
+      }
+      parsed = parsed * 10 + (ch - '0');
+    }
+    idx = parsed;
+  }
+  if (lower == "cpu" || lower == "host") {
+    return DeviceRef::cpu();
+  }
+  if (lower == "cuda" || lower == "gpu") {
+    return DeviceRef::cuda(idx);
+  }
+  if (lower == "rocm" || lower == "hip") {
+    return DeviceRef::rocm(idx);
+  }
+  if (lower == "vulkan" || lower == "vk" || lower == "spirv") {
+    return DeviceRef::vulkan(idx);
+  }
+  if (lower == "metal" || lower == "mps") {
+    return DeviceRef::metal(idx);
+  }
+  if (lower == "directml" || lower == "dml" || lower == "dx12") {
+    return DeviceRef::directml(idx);
+  }
+  if (lower == "tpu" || lower == "pjrt" || lower == "xla" || lower == "openxla") {
+    return DeviceRef::tpu(idx);
+  }
+  if (lower == "npu") {
+    return DeviceRef::npu(idx);
+  }
+  throw TensorError("Nexus: bilinmeyen cihaz turu: " + std::string(spec));
 }
 
 using Device = DeviceRef;
