@@ -61,6 +61,7 @@ Variable ParamFactory::normal(const std::string& name, std::vector<std::int64_t>
   Shape shape{std::move(dims)};
   std::vector<float> values(static_cast<std::size_t>(shape.numel()));
   for (float& v : values) {
+    if (zero_) break;  // FAZ 17: yuklenecek agirliklar (vector zaten sifir)
     double z = gaussian();
     if (c_->init_truncated) {
       while (std::fabs(z) > 2.0) {
@@ -280,10 +281,13 @@ nxs::LayerSpec DecoderBlock::nxs_moe_spec() const {
 }
 
 // ---- LanguageModel ----------------------------------------------------------------------
-LanguageModel::LanguageModel(const LmConfig& config) : config_(config) {
+LanguageModel::LanguageModel(const LmConfig& config) : LanguageModel(config, false) {}
+
+LanguageModel::LanguageModel(const LmConfig& config, bool zero_init) : config_(config) {
   validate(config_);
   const LmConfig& c = config_;
   ParamFactory f(config_, &params_);
+  f.set_zero_init(zero_init);
   const std::int64_t d = c.d_model;
   const std::int64_t Vp = c.padded_vocab();
   wte_ = f.normal("wte", {Vp, d}, c.init_std, true);

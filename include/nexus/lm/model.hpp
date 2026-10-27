@@ -121,6 +121,8 @@ class DecoderBlock {
 class LanguageModel {
  public:
   explicit LanguageModel(const LmConfig& config);
+  /// FAZ 17: zero_init = true: rastgele baslatma atlanir (agirliklar sonra yuklenecek: HF / GGUF ice aktarma).
+  LanguageModel(const LmConfig& config, bool zero_init);
 
   [[nodiscard]] const LmConfig& config() const noexcept { return config_; }
   /// logits [B*T, padded_vocab]; dolgu sutunlari -inf.
@@ -187,8 +189,10 @@ class ParamFactory {
                             float lr_mult = 1.0f);
   autograd::Variable constant(const std::string& name, std::vector<std::int64_t> dims, float value);
   [[nodiscard]] float width_mult() const noexcept { return width_mult_; }
+  void set_zero_init(bool z) noexcept { zero_ = z; }
 
  private:
+  bool zero_ = false;
   const LmConfig* c_;
   std::vector<NamedParam>* out_;
   std::uint64_t state_;

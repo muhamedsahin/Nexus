@@ -268,7 +268,10 @@ void bind_env(py::module_& rl, const char* name) {
 
 }  // namespace
 
+void bind_faz17(py::module_& m);  // interop.cpp
+
 PYBIND11_MODULE(_core, m) {
+    bind_faz17(m);
     nexus_optim::ThreadPool::use_caller_thread();
     m.doc() = "Nexus Python kabugu. Cagri adlari C++ yuzeyinin kendisidir.";
     m.attr("__version__") = "1.0.0";

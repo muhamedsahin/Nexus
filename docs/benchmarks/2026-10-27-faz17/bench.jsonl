@@ -1,0 +1,6 @@
+{"mode": "bench_hf_load", "mmap": true, "bytes": 2200096768, "open_ms": 1.0, "total_ms": 3969.6, "gb_s": 0.554}
+{"mode": "bench_hf_load", "mmap": false, "bytes": 2200096768, "open_ms": 3308.6, "total_ms": 6316.7, "gb_s": 0.348}
+{"mode": "bench_gguf_export", "model": "TinyLlama-1.1B", "type": "F16", "bytes": 2201016864, "ms": 10973, "kv": 22, "tensors": "F16x156 F32x45 ", "logit_rel_vs_fp32": -1.0000, "argmax_same": 0, "format_rel": -1.0e+00}
+{"mode": "bench_gguf_export", "model": "TinyLlama-1.1B", "type": "Q8_0", "bytes": 1169807904, "ms": 10367, "kv": 22, "tensors": "F32x45 Q8_0x156 ", "logit_rel_vs_fp32": 0.0456, "argmax_same": 8, "format_rel": -1.0e+00}
+{"mode": "bench_gguf_export", "model": "TinyLlama-1.1B", "type": "Q4_0", "bytes": 619829792, "ms": 6294, "kv": 22, "tensors": "F32x45 Q4_0x156 ", "logit_rel_vs_fp32": 0.6548, "argmax_same": 7, "format_rel": 6.1e-07}
+{"mode": "bench_onnx_export", "model": "TinyLlama-1.1B", "nodes": 2114, "model_bytes": 173716, "data_bytes": 4400717824, "ms": 3764, "rel_vs_nexus": 9.58e-07}

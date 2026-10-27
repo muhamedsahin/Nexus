@@ -1,0 +1,21 @@
+nexus C:\Users\muham\Desktop\Nexus\python\src\nexus\__init__.py, python 3.14.8, torch 2.14.1+cu132
+  PASS  test_dlpack_torch (CPU): torch -> nexus ayni isaretci
+  PASS  nexus'ta yerinde islem torch'ta gorunur (sifir kopya)
+  PASS  nexus -> torch ayni isaretci
+  PASS  numpy goruntusu sifir kopya
+  PASS  kaynak silindikten sonra veri gecerli (sahiplik dogru)
+  info  float64 -> Nexus interop: DLPack: yalniz float32 (kod 2, 64 bit gelmis); donusturme yapilmaz
+  info  bitisik olmayan -> Nexus interop: DLPack: bitisik olmayan adimlar (eksen 1); once .contiguous() cagirin
+  PASS  uyumsuz dtype / adim acik hata (kopyaya dusme yok)
+  PASS  tuketilmis kapsul ikinci kez kullanilamaz
+  PASS  test_dlpack_torch (CUDA): torch -> nexus ayni aygit isaretcisi
+  PASS  nexus CUDA cekirdegi (add_) torch tensorunu yerinde degistirdi
+  PASS  nexus -> torch (CUDA) ayni isaretci
+  PASS  nexus.lm: build / logits / KV onbellekli generate
+  PASS  nexus.config preset / sayim
+  PASS  safetensors yaz (nexus) -> oku (nexus + bagimsiz)
+{"tiny": "qwen2", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_py_4gsrsk8s\\qwen"}
+  PASS  python: load_hf (qwen2/v1) logitleri referansla 1.2e-06
+  PASS  python: export_gguf (Q8_0) -> import_gguf == bagimsiz GGUF okuyucu (1.4e-07)
+  PASS  python: export_gguf / export_onnx
+test_faz17.py: 16 gecti, 0 basarisiz (0.5 s)

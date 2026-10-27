@@ -1,0 +1,16 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start 110: test_kv_cache_matches_full_cpu
+1/5 Test #110: test_kv_cache_matches_full_cpu ...   Passed    1.44 sec
+    Start 112: test_safetensors_roundtrip
+2/5 Test #112: test_safetensors_roundtrip .......   Passed    0.47 sec
+    Start 113: test_hf_templates
+3/5 Test #113: test_hf_templates ................   Passed   84.62 sec
+    Start 115: test_gguf_roundtrip
+4/5 Test #115: test_gguf_roundtrip ..............   Passed   61.44 sec
+    Start 116: test_onnx_roundtrip
+5/5 Test #116: test_onnx_roundtrip ..............   Passed  193.30 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) = 341.44 sec

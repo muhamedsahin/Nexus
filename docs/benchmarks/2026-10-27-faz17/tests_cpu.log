@@ -1,0 +1,96 @@
+  PASS  test_safetensors_roundtrip (mmap): F32/F16/BF16/I64/bos, metadata
+  PASS  test_safetensors_roundtrip (tam kopya): F32/F16/BF16/I64/bos, metadata
+  info  baslik_boyu            -> Nexus interop: safetensors: C:\Users\muham\AppData\Local\Temp\nexus_faz17_st\baslik_boyu.safetensors: baslik b
+  info  kesik_dosya            -> Nexus interop: safetensors: ids: aralik veri bolgesi disinda
+  info  dtype_bilinmeyen       -> Nexus interop: safetensors: bilinmeyen dtype 'Q4'
+  info  sekil_uyusmaz          -> Nexus interop: safetensors: w: sekil x dtype boyutu araliga esit degil
+  info  negatif_boyut          -> Nexus interop: safetensors: w: negatif boyut
+  info  tasma                  -> Nexus interop: safetensors: w: sekil tasmasi
+  info  json_bozuk             -> Nexus interop: C:\Users\muham\AppData\Local\Temp\nexus_faz17_st\json_bozuk.safetensors: JSON kapanmamis dize (
+  info  ust_uste_aralik        -> Nexus interop: safetensors: h: sekil x dtype boyutu araliga esit degil
+  PASS  bozuk / kotu niyetli safetensors (8 durum) acik hatayla reddedilir
+test_phase17_interop: 3 gecti, 0 basarisiz
+{"tiny": "llama", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_llama"}
+{"tokens": 16, "vocab": 211, "argmax_last": 51}
+  info  llama    sablon llama/v1, 21 tensor; Nexus vs torch FP64 goreli 7.4e-07; save_hf -> load_hf bit bit (pencere 0, qkv_bias 0, bagli 0)
+  PASS  HF llama/v1: logitler <= 1e-4, gidis-donus bit bit
+{"tiny": "mistral", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_mistral"}
+{"tokens": 16, "vocab": 211, "argmax_last": 27}
+  info  mistral  sablon mistral/v1, 21 tensor; Nexus vs torch FP64 goreli 7.4e-07; save_hf -> load_hf bit bit (pencere 7, qkv_bias 0, bagli 0)
+  PASS  HF mistral/v1: logitler <= 1e-4, gidis-donus bit bit
+{"tiny": "qwen2", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_qwen2"}
+{"tokens": 16, "vocab": 211, "argmax_last": 80}
+  info  qwen2    sablon qwen2/v1, 26 tensor; Nexus vs torch FP64 goreli 1.1e-06; save_hf -> load_hf bit bit (pencere 0, qkv_bias 1, bagli 1)
+  PASS  HF qwen2/v1: logitler <= 1e-4, gidis-donus bit bit
+{"tiny": "llama", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_bad"}
+  info  hidden_act gelu            -> Nexus interop: HF: hidden_act 'gelu' desteklenmez (silu)
+  info  mimari GPT-NeoX            -> Nexus interop: HF: desteklenmeyen mimari 'GPTNeoXForCausalLM' (llama/v1, mistral/v1, qwen2/v1)
+  info  sekil uyusmazligi          -> Nexus interop: HF: model.layers.0.mlp.gate_proj.weight sekli [128 64 ], beklenen [96 64 ]
+  PASS  desteklenmeyen mimari / aktivasyon / sekil acik hata
+test_phase17_interop: 4 gecti, 0 basarisiz
+  info  mmap: 201 tensor, 2.20 GB (BF16), acma+dogrulama 1 ms, toplam 3970 ms (0.55 GB/s okunan), 1100.0M parametre
+{"mode": "bench_hf_load", "mmap": true, "bytes": 2200096768, "open_ms": 1.0, "total_ms": 3969.6, "gb_s": 0.554}
+{"tokens": 16, "vocab": 32000, "argmax_last": 10600}
+  info  TinyLlama-1.1B (llama/v1, 22 katman, GQA 32/4): 16 token ileri 1784 ms; Nexus FP32 vs bagimsiz torch FP64 goreli 1.39e-06; argmax 16/16
+  PASS  test_hf_import_logits: hazir LLaMA (TinyLlama-1.1B) logitleri referansla <= 1e-4
+  info  tam kopya: 201 tensor, 2.20 GB (BF16), acma+dogrulama 3309 ms, toplam 6317 ms (0.35 GB/s okunan), 1100.0M parametre
+{"mode": "bench_hf_load", "mmap": false, "bytes": 2200096768, "open_ms": 3308.6, "total_ms": 6316.7, "gb_s": 0.348}
+test_phase17_interop: 1 gecti, 0 basarisiz
+{"tiny": "llama", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_gguf\\hf"}
+{"gguf": "tiny_F32.gguf", "kv": 15, "tensors": 21, "types": [0], "tokens_meta": 0, "arch": "llama"}
+  info  F32    406080 bayt, 21 tensor, 15 KV; C++ okuyucu: surum 3, mimari llama, 21 tensor; bagimsiz Python okuyucu + ileri gecis vs GGUF'tan ice aktarilan Nexus 9.3e-07; nicemleme hatasi (orijinale gore) 9.31e-07
+  PASS  test_gguf_roundtrip (dosya duzeyi) F32: Nexus -> GGUF -> bagimsiz okuyucu == Nexus ice aktarma (<= 1e-4)
+{"gguf": "tiny_F16.gguf", "kv": 15, "tensors": 21, "types": [0, 1], "tokens_meta": 0, "arch": "llama"}
+  info  F16    204608 bayt, 21 tensor, 15 KV; C++ okuyucu: surum 3, mimari llama, 21 tensor; bagimsiz Python okuyucu + ileri gecis vs GGUF'tan ice aktarilan Nexus 8.3e-07; nicemleme hatasi (orijinale gore) 1.59e-03
+  PASS  test_gguf_roundtrip (dosya duzeyi) F16: Nexus -> GGUF -> bagimsiz okuyucu == Nexus ice aktarma (<= 1e-4)
+{"gguf": "tiny_Q8_0.gguf", "kv": 15, "tensors": 21, "types": [0, 8], "tokens_meta": 0, "arch": "llama"}
+  info  Q8_0   110208 bayt, 21 tensor, 15 KV; C++ okuyucu: surum 3, mimari llama, 21 tensor; bagimsiz Python okuyucu + ileri gecis vs GGUF'tan ice aktarilan Nexus 1.2e-06; nicemleme hatasi (orijinale gore) 3.52e-02
+  PASS  test_gguf_roundtrip (dosya duzeyi) Q8_0: Nexus -> GGUF -> bagimsiz okuyucu == Nexus ice aktarma (<= 1e-4)
+{"gguf": "tiny_Q4_0.gguf", "kv": 15, "tensors": 21, "types": [0, 2], "tokens_meta": 0, "arch": "llama"}
+  info  Q4_0    59840 bayt, 21 tensor, 15 KV; C++ okuyucu: surum 3, mimari llama, 21 tensor; bagimsiz Python okuyucu + ileri gecis vs GGUF'tan ice aktarilan Nexus 8.2e-07; nicemleme hatasi (orijinale gore) 5.39e-01
+  PASS  test_gguf_roundtrip (dosya duzeyi) Q4_0: Nexus -> GGUF -> bagimsiz okuyucu == Nexus ice aktarma (<= 1e-4)
+  info  blok nicemleme en buyuk hata: Q8_0 0.0155 (amax/254 = 0.0157), Q4_0 0.4328 (asimetrik: amax/8 = 0.5000)
+  PASS  Q8_0 hatasi <= amax/254; Q4_0 (d = max/-8, seviyeler -8..7) <= amax/8
+{"mode": "bench_gguf_export", "model": "TinyLlama-1.1B", "type": "F16", "bytes": 2201016864, "ms": 10973, "kv": 22, "tensors": "F16x156 F32x45 ", "logit_rel_vs_fp32": -1.0000, "argmax_same": 0, "format_rel": -1.0e+00}
+{"gguf": "tinyllama_Q8_0.gguf", "kv": 22, "tensors": 201, "types": [0, 8], "tokens_meta": 32000, "arch": "llama"}
+{"mode": "bench_gguf_export", "model": "TinyLlama-1.1B", "type": "Q8_0", "bytes": 1169807904, "ms": 10367, "kv": 22, "tensors": "F32x45 Q8_0x156 ", "logit_rel_vs_fp32": 0.0456, "argmax_same": 8, "format_rel": -1.0e+00}
+{"gguf": "tinyllama_Q4_0.gguf", "kv": 22, "tensors": 201, "types": [0, 2], "tokens_meta": 32000, "arch": "llama"}
+  PASS  TinyLlama Q4_0 GGUF: bagimsiz okuyucu == Nexus ice aktarma (<= 1e-4)
+{"mode": "bench_gguf_export", "model": "TinyLlama-1.1B", "type": "Q4_0", "bytes": 619829792, "ms": 6294, "kv": 22, "tensors": "F32x45 Q4_0x156 ", "logit_rel_vs_fp32": 0.6548, "argmax_same": 7, "format_rel": 6.1e-07}
+test_phase17_interop: 6 gecti, 0 basarisiz
+{"onnx": "m17.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m17.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+  info  gpt2 tipi , opset 17: 111 ONNX dugumu (85 IR dugumu), 103 baslatici, model 450352 + veri 0 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.1e-06
+  PASS  test_onnx_roundtrip: gpt2 tipi (ogrenilen konum, LayerNorm + bias, GELU, bagli) opset 17 <= 1e-4 (dinamik batch/seq)
+{"onnx": "m17_ext.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m17_ext.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+  info  gpt2 tipi , opset 17 dis veri: 111 ONNX dugumu (85 IR dugumu), 103 baslatici, model 14609 + veri 446464 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.1e-06
+  PASS  test_onnx_roundtrip: gpt2 tipi (ogrenilen konum, LayerNorm + bias, GELU, bagli) opset 17 (dis veri) <= 1e-4 (dinamik batch/seq)
+{"onnx": "m18.onnx", "opset": 18, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m18.onnx", "opset": 18, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+  info  gpt2 tipi , opset 18: 111 ONNX dugumu (85 IR dugumu), 103 baslatici, model 450352 + veri 0 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.1e-06
+  PASS  test_onnx_roundtrip: gpt2 tipi (ogrenilen konum, LayerNorm + bias, GELU, bagli) opset 18 <= 1e-4 (dinamik batch/seq)
+{"onnx": "m18_ext.onnx", "opset": 18, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m18_ext.onnx", "opset": 18, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+  info  gpt2 tipi , opset 18 dis veri: 111 ONNX dugumu (85 IR dugumu), 103 baslatici, model 14609 + veri 446464 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.1e-06
+  PASS  test_onnx_roundtrip: gpt2 tipi (ogrenilen konum, LayerNorm + bias, GELU, bagli) opset 18 (dis veri) <= 1e-4 (dinamik batch/seq)
+{"onnx": "m17.onnx", "opset": 17, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m17.onnx", "opset": 17, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+  info  llama tipi, opset 17: 214 ONNX dugumu (75 IR dugumu), 171 baslatici, model 414781 + veri 0 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.4e-06
+  PASS  test_onnx_roundtrip: llama tipi (RoPE, RMSNorm, SwiGLU, GQA 4/2) opset 17 <= 1e-4 (dinamik batch/seq)
+{"onnx": "m17_ext.onnx", "opset": 17, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m17_ext.onnx", "opset": 17, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+  info  llama tipi, opset 17 dis veri: 214 ONNX dugumu (75 IR dugumu), 171 baslatici, model 17693 + veri 405760 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.4e-06
+  PASS  test_onnx_roundtrip: llama tipi (RoPE, RMSNorm, SwiGLU, GQA 4/2) opset 17 (dis veri) <= 1e-4 (dinamik batch/seq)
+{"onnx": "m18.onnx", "opset": 18, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m18.onnx", "opset": 18, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+  info  llama tipi, opset 18: 214 ONNX dugumu (75 IR dugumu), 176 baslatici, model 414821 + veri 0 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.4e-06
+  PASS  test_onnx_roundtrip: llama tipi (RoPE, RMSNorm, SwiGLU, GQA 4/2) opset 18 <= 1e-4 (dinamik batch/seq)
+{"onnx": "m18_ext.onnx", "opset": 18, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m18_ext.onnx", "opset": 18, "nodes": 214, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+  info  llama tipi, opset 18 dis veri: 214 ONNX dugumu (75 IR dugumu), 176 baslatici, model 17733 + veri 405760 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 1.4e-06
+  PASS  test_onnx_roundtrip: llama tipi (RoPE, RMSNorm, SwiGLU, GQA 4/2) opset 18 (dis veri) <= 1e-4 (dinamik batch/seq)
+{"onnx": "tinyllama.onnx", "opset": 17, "nodes": 2114, "ops": ["Add", "Concat", "Div", "Expand", "Gather", "Gemm", "Greater", "MatMul", "Mod", "Mul", "Range", "ReduceMean", "Reshape", "Shape", "Sigmoid", "Slice", "Softmax", "Sqrt", "Squeeze", "Sub", "Transpose", "Unsqueeze", "Where"]}
+{"mode": "bench_onnx_export", "model": "TinyLlama-1.1B", "nodes": 2114, "model_bytes": 173716, "data_bytes": 4400717824, "ms": 3764, "rel_vs_nexus": 9.58e-07}
+  PASS  TinyLlama -> ONNX (dis veri, FP32 yorumlayici) == Nexus (<= 1e-4)
+test_phase17_interop: 9 gecti, 0 basarisiz

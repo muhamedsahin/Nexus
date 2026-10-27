@@ -75,6 +75,12 @@ add_library(nexus STATIC
     src/dist/watchdog.cpp
     src/ckpt/checkpoint.cpp
     src/ckpt/sha256.cpp
+    src/interop/json.cpp
+    src/interop/safetensors.cpp
+    src/interop/hf.cpp
+    src/interop/gguf.cpp
+    src/interop/onnx.cpp
+    src/interop/dlpack.cpp
     src/compile/ir.cpp
     src/compile/trace.cpp
     src/compile/passes.cpp

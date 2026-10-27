@@ -272,3 +272,25 @@ nexus_configure_target(test_phase16_infer)
 add_test(NAME test_kv_cache_matches_full_cpu COMMAND test_phase16_infer kvcache)
 add_test(NAME test_kv_cache_generate_cpu COMMAND test_phase16_infer generate)
 set_tests_properties(test_kv_cache_matches_full_cpu test_kv_cache_generate_cpu PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+
+# FAZ 17 (CPU): birlikte calisabilirlik — safetensors, HF ice/disa aktarma (llama/mistral/qwen2), GGUF, ONNX.
+add_executable(test_phase17_interop test_phase17_interop.cpp)
+target_link_libraries(test_phase17_interop PRIVATE nexus::nexus nexus_test_support)
+target_compile_definitions(test_phase17_interop PRIVATE
+    NEXUS_PARITY_PYTHON="${_nexus_parity_python}"
+    NEXUS_FAZ17_SCRIPT="${CMAKE_SOURCE_DIR}/benchmarks/runner/faz17_ref.py")
+nexus_configure_target(test_phase17_interop)
+add_test(NAME test_safetensors_roundtrip COMMAND test_phase17_interop safetensors)
+add_test(NAME test_hf_templates COMMAND test_phase17_interop hf_tiny)
+add_test(NAME test_hf_import_logits COMMAND test_phase17_interop hf_tinyllama)
+add_test(NAME test_gguf_roundtrip COMMAND test_phase17_interop gguf)
+add_test(NAME test_onnx_roundtrip COMMAND test_phase17_interop onnx)
+set_tests_properties(test_safetensors_roundtrip test_hf_templates test_hf_import_logits test_gguf_roundtrip test_onnx_roundtrip PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+# Python: DLPack sifir kopya (torch CPU + CUDA), nexus.lm / nexus.interop. _core.cp314 build-py'de derlenir
+# (NEXUS_BUILD_PYTHON); yoksa 77 (SKIP). torch'lu yorumlayici: .bench-venv-cuda (CUDA testleri icin).
+if(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv-cuda/Scripts/python.exe")
+    add_test(NAME test_dlpack_torch COMMAND "${CMAKE_SOURCE_DIR}/.bench-venv-cuda/Scripts/python.exe"
+        "${CMAKE_SOURCE_DIR}/python/tests/test_faz17.py")
+    set_tests_properties(test_dlpack_torch PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python/src"
+        TIMEOUT 600 SKIP_RETURN_CODE 77)
+endif()

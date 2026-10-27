@@ -1,4 +1,4 @@
-# Nexus Python kabugu. Yorumlayici Anaconda 3.11 olmalidir.
+# Nexus Python kabugu. Yorumlayici CPython 3.14 (Anaconda 3.11 2026-10-25'te kaldirildi; FAZ 17).
 #
 # Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
 # 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -16,9 +16,14 @@ FetchContent_MakeAvailable(pybind11)
 
 pybind11_add_module(_core
     bindings/module.cpp
-    bindings/image_write.cpp)
+    bindings/image_write.cpp
+    bindings/interop.cpp)
 target_include_directories(_core PRIVATE "${CMAKE_SOURCE_DIR}/lib/NexusData/third_party/stb")
 target_link_libraries(_core PRIVATE nexus::nexus)
+if(TARGET nexus::cuda)  # FAZ 17: DLPack CUDA tensorlerinde islem
+    target_link_libraries(_core PRIVATE nexus::cuda)
+    target_compile_definitions(_core PRIVATE NEXUS_PY_CUDA=1)
+endif()
 target_compile_features(_core PRIVATE cxx_std_20)
 if(MSVC)
     target_compile_options(_core PRIVATE /bigobj /EHsc /utf-8)
