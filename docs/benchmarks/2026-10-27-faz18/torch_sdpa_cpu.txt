@@ -1,0 +1,8 @@
+  info  T=  512 full   fwd     3.290 ms  fwd+bwd     8.469 ms
+  info  T=  512 causal fwd     2.113 ms  fwd+bwd     8.281 ms
+  info  T= 1024 full   fwd     7.199 ms  fwd+bwd    32.526 ms
+  info  T= 1024 causal fwd     5.700 ms  fwd+bwd    26.735 ms
+  info  T= 2048 full   fwd    27.587 ms  fwd+bwd   124.353 ms
+  info  T= 2048 causal fwd    18.354 ms  fwd+bwd    79.044 ms
+  info  T= 4096 full   fwd   107.327 ms  fwd+bwd   469.437 ms
+  info  T= 4096 causal fwd    60.250 ms  fwd+bwd   274.669 ms

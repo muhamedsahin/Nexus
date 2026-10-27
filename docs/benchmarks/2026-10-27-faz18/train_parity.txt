@@ -1,0 +1,6 @@
+  info  4 katman d=256 T=128 B=4, 60 adim: kayip 5.5891 -> 1.7430 (eski) / 1.7430 (yeni); en kotu adim bagil fark 1.04e-06
+  info  adim suresi: eski skaler GEMM 588.8 ms, AVX2 GEMM 196.7 ms (2.99x) [olcum gurultulu; rapor AC'de]
+  PASS  ilk kayip ayni (ayni baslatma, yalniz toplama sirasi farkli)
+  PASS  test_cpu_train_parity: kayip egrisi eski GEMM'e <= 1e-3 bagil
+  PASS  yeni GEMM ile model ogreniyor
+test_phase18_cpu: 3 gecti, 0 basarisiz

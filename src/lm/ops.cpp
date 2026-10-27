@@ -1,6 +1,6 @@
 /**
  * @file ops.cpp
- * @brief FAZ 6.A/6.B: RoPE, SwiGLU/GeGLU, GQA flash dikkat ve qk_norm autograd op'lari.
+ * @brief FAZ 6.A/6.B ve FAZ 18: RoPE, SwiGLU/GeGLU (AVX2 + paralel), GQA flash dikkat ve qk_norm autograd op'lari.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -11,11 +11,18 @@
 
 #include "nexus/attention/cpu.hpp"
 #include "nexus/core/error.hpp"
+#include "nexus/cpu/gemm.hpp"
+#include "nexus/cpu/threads.hpp"
 #include "nexus/fused/training.hpp"
 #include "nexus_model/core/kernels.hpp"
 
 #include <cmath>
+#include <cstring>
 #include <utility>
+
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
 
 namespace nexus {
 namespace lm {
@@ -23,6 +30,18 @@ namespace lm {
 namespace ag = autograd;
 using ag::Shape;
 using ag::Variable;
+
+namespace {
+
+inline bool need_grad_any(std::initializer_list<const Variable*> vars) noexcept {
+  if (!ag::grad_enabled()) return false;
+  for (const Variable* v : vars) {
+    if (v != nullptr && v->has_data() && v->requires_grad()) return true;
+  }
+  return false;
+}
+
+}  // namespace
 
 Variable rope(const Variable& x, int heads, int head_dim, std::shared_ptr<const std::vector<int>> positions,
               std::shared_ptr<const RopeCache> cache) {
@@ -34,6 +53,9 @@ Variable rope(const Variable& x, int heads, int head_dim, std::shared_ptr<const 
   const int rows = static_cast<int>(s.dims[0]);
   std::vector<float> out = x.values();
   rope_apply(out.data(), rows, heads, head_dim, positions->data(), *cache, false);
+  if (!need_grad_any({&x})) {
+    return Variable::make(std::move(out), s, false);
+  }
   return ag::custom_function("lm_rope", {x}, std::move(out), s,
                              [rows, heads, head_dim, positions, cache, s](const Variable& g) {
                                std::vector<float> dx = g.values();
@@ -54,15 +76,20 @@ Variable linear(const Variable& x, const Variable& w, const Variable& b) {
     throw TensorError("Nexus lm::linear: bias boyu out olmali");
   }
   std::vector<float> y(static_cast<std::size_t>(n) * out);
-  nexus_model::kernels::gemm_nn(x.values().data(), w.values().data(), y.data(), n, in, out);
-  if (has_b) {
-    const float* bv = b.values().data();
-    for (int r = 0; r < n; ++r) {
-      float* yr = y.data() + static_cast<std::size_t>(r) * out;
-      for (int j = 0; j < out; ++j) {
-        yr[j] += bv[j];
-      }
-    }
+  nexus::cpu::GemmArgs g;
+  g.M = n;
+  g.N = out;
+  g.K = in;
+  g.A = x.values().data();
+  g.lda = in;
+  g.B = w.values().data();
+  g.ldb = out;
+  g.C = y.data();
+  g.ldc = out;
+  g.bias = has_b ? b.values().data() : nullptr;
+  nexus::cpu::gemm(g);
+  if (!need_grad_any({&x, &w, has_b ? &b : nullptr})) {
+    return Variable::make(std::move(y), Shape{{n, out}}, false);
   }
   // Kayit saved-tensor kancasindan gecer: checkpoint/offload bu tensorleri yonetebilir.
   const ag::SavedTensor xs = ag::save_variable(x);
@@ -71,21 +98,54 @@ Variable linear(const Variable& x, const Variable& w, const Variable& b) {
   if (has_b) {
     inputs.push_back(b);
   }
-  return ag::custom_function("lm_linear", inputs, std::move(y), Shape{{n, out}}, [xs, ws, n, in, out, has_b](const Variable& g) {
+  return ag::custom_function("lm_linear", inputs, std::move(y), Shape{{n, out}}, [xs, ws, n, in, out, has_b](const Variable& grad) {
     const Variable xv = ag::restore_variable(xs, "lm_linear");
     const Variable wv = ag::restore_variable(ws, "lm_linear");
-    const float* dy = g.values().data();
-    std::vector<float> dx(static_cast<std::size_t>(n) * in, 0.0f);
-    std::vector<float> dw(static_cast<std::size_t>(in) * out, 0.0f);
-    nexus_model::kernels::gemm_nt_accum(dy, wv.values().data(), dx.data(), n, out, in);  // dx = dy W^T
-    nexus_model::kernels::gemm_tn_accum(xv.values().data(), dy, dw.data(), in, n, out);  // dW = x^T dy
+    const float* dy = grad.values().data();
+    std::vector<float> dx(static_cast<std::size_t>(n) * in);
+    std::vector<float> dw(static_cast<std::size_t>(in) * out);
+    {
+      nexus::cpu::GemmArgs gd;
+      gd.M = n;
+      gd.N = in;
+      gd.K = out;
+      gd.A = dy;
+      gd.lda = out;
+      gd.B = wv.values().data();
+      gd.ldb = out;
+      gd.b_trans = true;
+      gd.C = dx.data();
+      gd.ldc = in;
+      nexus::cpu::gemm(gd);  // dx = dy W^T
+    }
+    {
+      nexus::cpu::GemmArgs gw;
+      gw.M = in;
+      gw.N = out;
+      gw.K = n;
+      gw.A = xv.values().data();
+      gw.lda = in;
+      gw.a_trans = true;
+      gw.B = dy;
+      gw.ldb = out;
+      gw.C = dw.data();
+      gw.ldc = out;
+      nexus::cpu::gemm(gw);  // dW = x^T dy
+    }
     std::vector<Variable> grads{Variable::make(std::move(dx), xv.shape(), false),
                                 Variable::make(std::move(dw), wv.shape(), false)};
     if (has_b) {
       std::vector<float> db(static_cast<std::size_t>(out), 0.0f);
       for (int r = 0; r < n; ++r) {
-        for (int j = 0; j < out; ++j) {
-          db[static_cast<std::size_t>(j)] += dy[static_cast<std::size_t>(r) * out + j];
+        const float* dyr = dy + static_cast<std::size_t>(r) * out;
+        int j = 0;
+#if defined(__AVX2__)
+        for (; j + 8 <= out; j += 8) {
+          _mm256_storeu_ps(db.data() + j, _mm256_add_ps(_mm256_loadu_ps(db.data() + j), _mm256_loadu_ps(dyr + j)));
+        }
+#endif
+        for (; j < out; ++j) {
+          db[static_cast<std::size_t>(j)] += dyr[j];
         }
       }
       grads.push_back(Variable::make(std::move(db), Shape{{out}}, false));
@@ -101,18 +161,45 @@ Variable linear_t(const Variable& x, const Variable& w) {
   const int n = static_cast<int>(x.shape().dims[0]);
   const int in = static_cast<int>(w.shape().dims[1]);
   const int out = static_cast<int>(w.shape().dims[0]);
-  std::vector<float> y(static_cast<std::size_t>(n) * out, 0.0f);
-  nexus_model::kernels::gemm_nt_accum(x.values().data(), w.values().data(), y.data(), n, in, out);
+  std::vector<float> y(static_cast<std::size_t>(n) * out);
+  nexus::cpu::GemmArgs g;
+  g.M = n;
+  g.N = out;
+  g.K = in;
+  g.A = x.values().data();
+  g.lda = in;
+  g.B = w.values().data();
+  g.ldb = in;
+  g.b_trans = true;
+  g.C = y.data();
+  g.ldc = out;
+  nexus::cpu::gemm(g);
+  if (!need_grad_any({&x, &w})) {
+    return Variable::make(std::move(y), Shape{{n, out}}, false);
+  }
   const ag::SavedTensor xs = ag::save_variable(x);
   const ag::SavedTensor ws = ag::save_variable(w);
-  return ag::custom_function("lm_linear_t", {x, w}, std::move(y), Shape{{n, out}}, [xs, ws, n, in, out](const Variable& g) {
+  return ag::custom_function("lm_linear_t", {x, w}, std::move(y), Shape{{n, out}}, [xs, ws, n, in, out](const Variable& grad) {
     const Variable xv = ag::restore_variable(xs, "lm_linear_t");
     const Variable wv = ag::restore_variable(ws, "lm_linear_t");
-    const float* dy = g.values().data();
+    const float* dy = grad.values().data();
     std::vector<float> dx(static_cast<std::size_t>(n) * in);
-    std::vector<float> dw(static_cast<std::size_t>(out) * in, 0.0f);
-    nexus_model::kernels::gemm_nn(dy, wv.values().data(), dx.data(), n, out, in);        // dx = dy W
-    nexus_model::kernels::gemm_tn_accum(dy, xv.values().data(), dw.data(), out, n, in);  // dW = dy^T x
+    std::vector<float> dw(static_cast<std::size_t>(out) * in);
+    nexus::cpu::gemm_nn(dy, wv.values().data(), dx.data(), n, out, in);  // dx = dy W
+    {
+      nexus::cpu::GemmArgs gw;
+      gw.M = out;
+      gw.N = in;
+      gw.K = n;
+      gw.A = dy;
+      gw.lda = out;
+      gw.a_trans = true;
+      gw.B = xv.values().data();
+      gw.ldb = in;
+      gw.C = dw.data();
+      gw.ldc = in;
+      nexus::cpu::gemm(gw);  // dW = dy^T x
+    }
     return std::vector<Variable>{Variable::make(std::move(dx), xv.shape(), false),
                                  Variable::make(std::move(dw), wv.shape(), false)};
   });
@@ -138,19 +225,11 @@ void act(float a, float* f, float* df) {
 }
 
 template <bool Silu>
-Variable gated(const Variable& x, const char* name) {
-  const Shape& s = x.shape();
-  if (s.rank() != 2 || s.dims[1] % 2 != 0) {
-    throw TensorError(std::string("Nexus lm::") + name + ": x [N, 2F] bekler");
-  }
-  const std::int64_t n = s.dims[0];
-  const std::int64_t f = s.dims[1] / 2;
-  const std::vector<float>& xv = x.values();
-  std::vector<float> out(static_cast<std::size_t>(n * f));
-  for (std::int64_t r = 0; r < n; ++r) {
-    const float* a = xv.data() + r * 2 * f;
+void gated_rows_fwd(const float* xv, float* out, std::int64_t r0, std::int64_t r1, std::int64_t f) {
+  for (std::int64_t r = r0; r < r1; ++r) {
+    const float* a = xv + r * 2 * f;
     const float* b = a + f;
-    float* y = out.data() + r * f;
+    float* y = out + r * f;
     for (std::int64_t i = 0; i < f; ++i) {
       float fa = 0.0f;
       float dfa = 0.0f;
@@ -158,25 +237,58 @@ Variable gated(const Variable& x, const char* name) {
       y[i] = fa * b[i];
     }
   }
+}
+
+template <bool Silu>
+void gated_rows_bwd(const float* xv, const float* gv, float* dx, std::int64_t r0, std::int64_t r1, std::int64_t f) {
+  for (std::int64_t r = r0; r < r1; ++r) {
+    const float* a = xv + r * 2 * f;
+    const float* b = a + f;
+    const float* gy = gv + r * f;
+    float* da = dx + r * 2 * f;
+    float* db = da + f;
+    for (std::int64_t i = 0; i < f; ++i) {
+      float fa = 0.0f;
+      float dfa = 0.0f;
+      act<Silu>(a[i], &fa, &dfa);
+      da[i] = gy[i] * b[i] * dfa;
+      db[i] = gy[i] * fa;
+    }
+  }
+}
+
+template <bool Silu>
+Variable gated(const Variable& x, const char* name) {
+  const Shape& s = x.shape();
+  if (s.rank() != 2 || s.dims[1] % 2 != 0) {
+    throw TensorError(std::string("Nexus lm::") + name + ": x [N, 2F] bekler");
+  }
+  const std::int64_t n = s.dims[0];
+  const std::int64_t f = s.dims[1] / 2;
+  const float* xv = x.values().data();
+  std::vector<float> out(static_cast<std::size_t>(n * f));
+  if (n * f >= 8192 && n >= 2) {
+    cpu::Pool::instance().run(static_cast<std::size_t>(n), [&](int, std::size_t r0, std::size_t r1) {
+      gated_rows_fwd<Silu>(xv, out.data(), static_cast<std::int64_t>(r0), static_cast<std::int64_t>(r1), f);
+    });
+  } else {
+    gated_rows_fwd<Silu>(xv, out.data(), 0, n, f);
+  }
+  if (!need_grad_any({&x})) {
+    return Variable::make(std::move(out), Shape{{n, f}}, false);
+  }
   const ag::SavedTensor saved = ag::save_variable(x);
   return ag::custom_function(name, {x}, std::move(out), Shape{{n, f}}, [saved, n, f, s, name](const Variable& g) {
     const Variable xr = ag::restore_variable(saved, name);
-    const std::vector<float>& xv2 = xr.values();
-    const std::vector<float>& gv = g.values();
+    const float* xv2 = xr.values().data();
+    const float* gv = g.values().data();
     std::vector<float> dx(static_cast<std::size_t>(n * 2 * f));
-    for (std::int64_t r = 0; r < n; ++r) {
-      const float* a = xv2.data() + r * 2 * f;
-      const float* b = a + f;
-      const float* gy = gv.data() + r * f;
-      float* da = dx.data() + r * 2 * f;
-      float* db = da + f;
-      for (std::int64_t i = 0; i < f; ++i) {
-        float fa = 0.0f;
-        float dfa = 0.0f;
-        act<Silu>(a[i], &fa, &dfa);
-        da[i] = gy[i] * b[i] * dfa;
-        db[i] = gy[i] * fa;
-      }
+    if (n * f >= 8192 && n >= 2) {
+      cpu::Pool::instance().run(static_cast<std::size_t>(n), [&](int, std::size_t r0, std::size_t r1) {
+        gated_rows_bwd<Silu>(xv2, gv, dx.data(), static_cast<std::int64_t>(r0), static_cast<std::int64_t>(r1), f);
+      });
+    } else {
+      gated_rows_bwd<Silu>(xv2, gv, dx.data(), 0, n, f);
     }
     return std::vector<Variable>{Variable::make(std::move(dx), s, false)};
   });
@@ -214,6 +326,13 @@ Variable attention(const Variable& q, const Variable& k, const Variable& v, cons
   p.offset = a.offset;
   p.alibi_slopes = a.alibi_slopes ? a.alibi_slopes->data() : nullptr;
   p.set_contiguous_bthd();
+  if (!need_grad_any({&q, &k, &v})) {
+    std::vector<float> o(static_cast<std::size_t>(q.numel()));
+    std::vector<float> lse(static_cast<std::size_t>(rows) * a.heads);
+    attention::flash_attention_forward_cpu(o.data(), lse.data(), q.values().data(), k.values().data(),
+                                           v.values().data(), p);
+    return Variable::make(std::move(o), q.shape(), false);
+  }
   auto o = std::make_shared<std::vector<float>>(static_cast<std::size_t>(q.numel()));
   auto lse = std::make_shared<std::vector<float>>(static_cast<std::size_t>(rows) * a.heads);
   attention::flash_attention_forward_cpu(o->data(), lse->data(), q.values().data(), k.values().data(),

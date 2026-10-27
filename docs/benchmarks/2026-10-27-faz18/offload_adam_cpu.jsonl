@@ -1,0 +1,2 @@
+{"mode": "bench_offload_adam", "params": 130023424, "grad": "f32", "old_ms": 288.4, "old_threads": 16, "new_ms": 211.4, "new_threads": 8, "speedup": 1.36, "new_gb_s": 20.9}
+{"mode": "bench_offload_adam", "params": 130023424, "grad": "bf16", "old_ms": 277.6, "old_threads": 16, "new_ms": 191.1, "new_threads": 8, "speedup": 1.45, "new_gb_s": 20.4}

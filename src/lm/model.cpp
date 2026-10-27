@@ -1,6 +1,7 @@
 /**
  * @file model.cpp
- * @brief FAZ 6.C-6.F: DecoderBlock, LanguageModel, baslatma/muP, AdamW gruplari, NXS.
+ * @brief FAZ 6.C-6.F ve FAZ 18.5: DecoderBlock, LanguageModel, baslatma/muP, AdamW gruplari, NXS
+ *        ve sifir-ayirmali (zero-allocation) FP32 / BF16 / INT8 / INT4 CPU cikarim motoru.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -9,16 +10,24 @@
 
 #include "nexus/lm/model.hpp"
 
+#include "nexus/attention/cpu.hpp"
 #include "nexus/core/error.hpp"
+#include "nexus/cpu/gemm.hpp"
+#include "nexus/cpu/threads.hpp"
 #include "nexus/fused/fused.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <map>
 #include <span>
 #include <utility>
+
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
 
 namespace nexus {
 namespace lm {
@@ -33,6 +42,232 @@ const Variable* grad_of(const Variable& v) {
   const auto& meta = v.meta();
   return meta && meta->grad && meta->grad->has_data() ? meta->grad.get() : nullptr;
 }
+
+#if defined(__AVX2__)
+inline float hsum256_ps(__m256 v) noexcept {
+  __m128 s = _mm_add_ps(_mm256_castps256_ps128(v), _mm256_extractf128_ps(v, 1));
+  s = _mm_hadd_ps(s, s);
+  s = _mm_hadd_ps(s, s);
+  return _mm_cvtss_f32(s);
+}
+
+inline __m256 fast_exp256_ps(__m256 x) noexcept {
+  x = _mm256_min_ps(_mm256_max_ps(x, _mm256_set1_ps(-87.33654f)), _mm256_set1_ps(88.37626f));
+  __m256 fx = _mm256_floor_ps(_mm256_fmadd_ps(x, _mm256_set1_ps(1.44269504088896341f), _mm256_set1_ps(0.5f)));
+  x = _mm256_fnmadd_ps(fx, _mm256_set1_ps(0.693359375f), x);
+  x = _mm256_fnmadd_ps(fx, _mm256_set1_ps(-2.12194440e-4f), x);
+  __m256 y = _mm256_set1_ps(1.9875691500e-4f);
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(1.3981999507e-3f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(8.3334519073e-3f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(4.1665795894e-2f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(1.6666665459e-1f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(5.0000001201e-1f));
+  y = _mm256_fmadd_ps(y, _mm256_mul_ps(x, x), _mm256_add_ps(x, _mm256_set1_ps(1.0f)));
+  const __m256i n = _mm256_slli_epi32(_mm256_add_epi32(_mm256_cvtps_epi32(fx), _mm256_set1_epi32(127)), 23);
+  return _mm256_mul_ps(y, _mm256_castsi256_ps(n));
+}
+#endif
+
+// Hizli AVX2 RMSNorm / LayerNorm (in-place veya ayri tampon).
+void norm_rows_cpu(const float* x, const float* w, const float* b, float* y, int rows, int cols, float eps,
+                   bool rms) noexcept {
+  for (int r = 0; r < rows; ++r) {
+    const float* xr = x + static_cast<std::size_t>(r) * cols;
+    float* yr = y + static_cast<std::size_t>(r) * cols;
+    if (rms) {
+      float sum_sq = 0.0f;
+      int j = 0;
+#if defined(__AVX2__)
+      __m256 vsq = _mm256_setzero_ps();
+      for (; j + 8 <= cols; j += 8) {
+        const __m256 vx = _mm256_loadu_ps(xr + j);
+        vsq = _mm256_fmadd_ps(vx, vx, vsq);
+      }
+      sum_sq = hsum256_ps(vsq);
+#endif
+      for (; j < cols; ++j) sum_sq += xr[j] * xr[j];
+      const float inv = 1.0f / std::sqrt(sum_sq / static_cast<float>(cols) + eps);
+      j = 0;
+#if defined(__AVX2__)
+      const __m256 vinv = _mm256_set1_ps(inv);
+      for (; j + 8 <= cols; j += 8) {
+        _mm256_storeu_ps(yr + j, _mm256_mul_ps(_mm256_mul_ps(_mm256_loadu_ps(xr + j), vinv), _mm256_loadu_ps(w + j)));
+      }
+#endif
+      for (; j < cols; ++j) yr[j] = xr[j] * inv * w[j];
+    } else {
+      float sum = 0.0f;
+      int j = 0;
+#if defined(__AVX2__)
+      __m256 vs = _mm256_setzero_ps();
+      for (; j + 8 <= cols; j += 8) vs = _mm256_add_ps(vs, _mm256_loadu_ps(xr + j));
+      sum = hsum256_ps(vs);
+#endif
+      for (; j < cols; ++j) sum += xr[j];
+      const float mean = sum / static_cast<float>(cols);
+      float var_sum = 0.0f;
+      j = 0;
+#if defined(__AVX2__)
+      const __m256 vmean = _mm256_set1_ps(mean);
+      __m256 vv = _mm256_setzero_ps();
+      for (; j + 8 <= cols; j += 8) {
+        const __m256 d = _mm256_sub_ps(_mm256_loadu_ps(xr + j), vmean);
+        vv = _mm256_fmadd_ps(d, d, vv);
+      }
+      var_sum = hsum256_ps(vv);
+#endif
+      for (; j < cols; ++j) {
+        const float d = xr[j] - mean;
+        var_sum += d * d;
+      }
+      const float inv = 1.0f / std::sqrt(var_sum / static_cast<float>(cols) + eps);
+      j = 0;
+#if defined(__AVX2__)
+      const __m256 vinv = _mm256_set1_ps(inv);
+      for (; j + 8 <= cols; j += 8) {
+        __m256 v = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(xr + j), vmean), vinv);
+        v = _mm256_mul_ps(v, _mm256_loadu_ps(w + j));
+        if (b) v = _mm256_add_ps(v, _mm256_loadu_ps(b + j));
+        _mm256_storeu_ps(yr + j, v);
+      }
+#endif
+      for (; j < cols; ++j) {
+        yr[j] = (xr[j] - mean) * inv * w[j] + (b ? b[j] : 0.0f);
+      }
+    }
+  }
+}
+
+void add_inplace_cpu(float* dst, const float* src, std::size_t n) noexcept {
+  std::size_t i = 0;
+#if defined(__AVX2__)
+  for (; i + 16 <= n; i += 16) {
+    _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i), _mm256_loadu_ps(src + i)));
+    _mm256_storeu_ps(dst + i + 8, _mm256_add_ps(_mm256_loadu_ps(dst + i + 8), _mm256_loadu_ps(src + i + 8)));
+  }
+  for (; i + 8 <= n; i += 8) {
+    _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i), _mm256_loadu_ps(src + i)));
+  }
+#endif
+  for (; i < n; ++i) dst[i] += src[i];
+}
+
+void mlp_act_cpu(const float* up, float* out, int rows, int F, MlpKind kind) noexcept {
+  constexpr float kInvSqrt2 = 0.70710678118654752f;
+  if (kind == MlpKind::Gelu) {
+    const std::size_t total = static_cast<std::size_t>(rows) * F;
+    for (std::size_t i = 0; i < total; ++i) {
+      const float a = up[i];
+      out[i] = a * 0.5f * (1.0f + std::erf(a * kInvSqrt2));
+    }
+    return;
+  }
+  for (int r = 0; r < rows; ++r) {
+    const float* a = up + static_cast<std::size_t>(r) * 2 * F;
+    const float* b = a + F;
+    float* y = out + static_cast<std::size_t>(r) * F;
+    int i = 0;
+    if (kind == MlpKind::SwiGlu) {
+#if defined(__AVX2__)
+      const __m256 one = _mm256_set1_ps(1.0f);
+      const __m256 zero = _mm256_setzero_ps();
+      for (; i + 8 <= F; i += 8) {
+        const __m256 va = _mm256_loadu_ps(a + i);
+        const __m256 vb = _mm256_loadu_ps(b + i);
+        const __m256 sg = _mm256_div_ps(one, _mm256_add_ps(one, fast_exp256_ps(_mm256_sub_ps(zero, va))));
+        _mm256_storeu_ps(y + i, _mm256_mul_ps(_mm256_mul_ps(va, sg), vb));
+      }
+#endif
+      for (; i < F; ++i) {
+        const float sg = 1.0f / (1.0f + std::exp(-a[i]));
+        y[i] = (a[i] * sg) * b[i];
+      }
+    } else {
+      for (; i < F; ++i) {
+        const float cdf = 0.5f * (1.0f + std::erf(a[i] * kInvSqrt2));
+        y[i] = (a[i] * cdf) * b[i];
+      }
+    }
+  }
+}
+
+// Tek-token (Tq == 1, batch == 1) GQA dikkat: KV onbellegini kopyalamadan dogrudan ck/cv uzerinde calisir.
+void decode_attention_1tok_cpu(float* out, const float* q, const float* ck, const float* cv, int H, int Hk, int D,
+                               int tk, float scale, int window, float softcap, const float* alibi_slopes) {
+  const int group = H / Hk;
+  const int qpos = tk - 1;
+  const int j_lo = window > 0 ? std::max(0, qpos - window + 1) : 0;
+  const int span = tk - j_lo;
+
+  auto run_head = [&](int h) {
+    const int hk = h / group;
+    const float* qi = q + static_cast<std::size_t>(h) * D;
+    float* oi = out + static_cast<std::size_t>(h) * D;
+    if (span <= 0) {
+      std::memset(oi, 0, static_cast<std::size_t>(D) * sizeof(float));
+      return;
+    }
+    thread_local std::vector<float> scores;
+    if (static_cast<int>(scores.size()) < span) scores.resize(static_cast<std::size_t>(span));
+    const float slope = alibi_slopes ? alibi_slopes[h] : 0.0f;
+    float m = -std::numeric_limits<float>::infinity();
+    for (int j = j_lo; j < tk; ++j) {
+      const float* kj = ck + (static_cast<std::size_t>(j) * Hk + hk) * D;
+      float dot = 0.0f;
+      int d = 0;
+#if defined(__AVX2__)
+      __m256 vdot0 = _mm256_setzero_ps(), vdot1 = _mm256_setzero_ps();
+      for (; d + 16 <= D; d += 16) {
+        vdot0 = _mm256_fmadd_ps(_mm256_loadu_ps(qi + d), _mm256_loadu_ps(kj + d), vdot0);
+        vdot1 = _mm256_fmadd_ps(_mm256_loadu_ps(qi + d + 8), _mm256_loadu_ps(kj + d + 8), vdot1);
+      }
+      for (; d + 8 <= D; d += 8) {
+        vdot0 = _mm256_fmadd_ps(_mm256_loadu_ps(qi + d), _mm256_loadu_ps(kj + d), vdot0);
+      }
+      dot = hsum256_ps(_mm256_add_ps(vdot0, vdot1));
+#endif
+      for (; d < D; ++d) dot += qi[d] * kj[d];
+      float s = dot * scale;
+      if (softcap > 0.0f) s = softcap * std::tanh(s / softcap);
+      if (alibi_slopes) s += slope * static_cast<float>(j - qpos);
+      scores[static_cast<std::size_t>(j - j_lo)] = s;
+      m = std::max(m, s);
+    }
+    float l = 0.0f;
+    for (int idx = 0; idx < span; ++idx) {
+      const float p = std::exp(scores[static_cast<std::size_t>(idx)] - m);
+      scores[static_cast<std::size_t>(idx)] = p;
+      l += p;
+    }
+    const float inv_l = l > 0.0f ? (1.0f / l) : 0.0f;
+    std::memset(oi, 0, static_cast<std::size_t>(D) * sizeof(float));
+    for (int idx = 0; idx < span; ++idx) {
+      const float p = scores[static_cast<std::size_t>(idx)] * inv_l;
+      const float* vj = cv + (static_cast<std::size_t>(j_lo + idx) * Hk + hk) * D;
+      int d = 0;
+#if defined(__AVX2__)
+      const __m256 vp = _mm256_set1_ps(p);
+      for (; d + 16 <= D; d += 16) {
+        _mm256_storeu_ps(oi + d, _mm256_fmadd_ps(vp, _mm256_loadu_ps(vj + d), _mm256_loadu_ps(oi + d)));
+        _mm256_storeu_ps(oi + d + 8, _mm256_fmadd_ps(vp, _mm256_loadu_ps(vj + d + 8), _mm256_loadu_ps(oi + d + 8)));
+      }
+      for (; d + 8 <= D; d += 8) {
+        _mm256_storeu_ps(oi + d, _mm256_fmadd_ps(vp, _mm256_loadu_ps(vj + d), _mm256_loadu_ps(oi + d)));
+      }
+#endif
+      for (; d < D; ++d) oi[d] += p * vj[d];
+    }
+  };
+
+  if (H >= 8 && span >= 32) {
+    cpu::Pool::instance().run(static_cast<std::size_t>(H), [&](int, std::size_t b, std::size_t e) {
+      for (std::size_t h = b; h < e; ++h) run_head(static_cast<int>(h));
+    });
+  } else {
+    for (int h = 0; h < H; ++h) run_head(h);
+  }
+}
+
 }  // namespace
 
 // ---- ParamFactory: platformdan bagimsiz RNG (splitmix64 + Box-Muller, FP64) -------------
@@ -280,6 +515,166 @@ nxs::LayerSpec DecoderBlock::nxs_moe_spec() const {
                        nxs::boolean("shared_expert", c_.moe_shared_expert), nxs::boolean("noisy", c_.moe_noisy)});
 }
 
+// ---- FAZ 18.5: Sifir-ayirmali CPU Cikarim Motoru (FP32 / BF16 / INT8 / INT4) -------------
+struct PreparedWeight {
+  int K = 0;  // in_features
+  int N = 0;  // out_features
+  CpuWeightMode mode = CpuWeightMode::Auto;
+  bool b_trans = false;
+  const float* raw_f32 = nullptr;         // Auto modunda dogrudan Variable belleği
+  std::vector<float> f32_nt;              // F32 modunda [N, K] devriklenmis (M=1'de birim adimli akis)
+  std::vector<std::uint16_t> bf16_nt;     // BF16 modunda [N, K] devriklenmis
+  cpu::PackedS8 s8;                       // INT8 modunda [ceil(N/16)][Kp/4][16][4]
+  cpu::PackedQ4 q4;                       // INT4 modunda [ceil(N/16)][Kp/8][16][4]
+
+  [[nodiscard]] std::size_t bytes() const noexcept {
+    switch (mode) {
+      case CpuWeightMode::Auto:
+        return static_cast<std::size_t>(K) * N * sizeof(float);
+      case CpuWeightMode::F32:
+        return f32_nt.size() * sizeof(float);
+      case CpuWeightMode::BF16:
+        return bf16_nt.size() * sizeof(std::uint16_t);
+      case CpuWeightMode::INT8:
+        return s8.data.size() * sizeof(std::int8_t) + s8.scale.size() * sizeof(float);
+      case CpuWeightMode::INT4:
+        return q4.data.size() * sizeof(std::uint8_t) + q4.scale.size() * sizeof(float);
+    }
+    return 0;
+  }
+
+  static PreparedWeight build(const float* src, int K, int N, bool src_is_nt, CpuWeightMode mode) {
+    PreparedWeight pw;
+    pw.K = K;
+    pw.N = N;
+    pw.mode = mode;
+    if (mode == CpuWeightMode::Auto) {
+      pw.raw_f32 = src;
+      pw.b_trans = src_is_nt;
+      return pw;
+    }
+    if (mode == CpuWeightMode::F32 || mode == CpuWeightMode::BF16) {
+      pw.b_trans = true;
+      std::vector<float> nt(static_cast<std::size_t>(N) * K);
+      if (src_is_nt) {
+        std::memcpy(nt.data(), src, nt.size() * sizeof(float));
+      } else {
+        cpu::Pool::instance().run(static_cast<std::size_t>(N), [&](int, std::size_t nb, std::size_t ne) {
+          for (std::size_t n = nb; n < ne; ++n) {
+            float* dst = nt.data() + n * static_cast<std::size_t>(K);
+            for (int k = 0; k < K; ++k) {
+              dst[k] = src[static_cast<std::size_t>(k) * N + n];
+            }
+          }
+        });
+      }
+      if (mode == CpuWeightMode::F32) {
+        pw.f32_nt = std::move(nt);
+      } else {
+        pw.bf16_nt = cpu::to_bf16(nt.data(), nt.size());
+      }
+      return pw;
+    }
+    if (mode == CpuWeightMode::INT8) {
+      pw.s8 = cpu::pack_s8(src, N, K, src_is_nt);
+      return pw;
+    }
+    pw.q4 = cpu::pack_q4(src, N, K, src_is_nt);
+    return pw;
+  }
+};
+
+struct LanguageModel::CpuInferenceState {
+  struct LayerWeights {
+    PreparedWeight qkv;
+    PreparedWeight o;
+    PreparedWeight up;
+    PreparedWeight down;
+  };
+  CpuWeightMode mode = CpuWeightMode::Auto;
+  std::vector<LayerWeights> layers;
+  PreparedWeight lm_head;
+  std::size_t total_bytes = 0;
+};
+
+namespace {
+
+struct FastInferenceScratch {
+  std::vector<float> x;
+  std::vector<float> h;
+  std::vector<float> qkv;
+  std::vector<float> q;
+  std::vector<float> k;
+  std::vector<float> v;
+  std::vector<float> attn_out;
+  std::vector<float> lse;
+  std::vector<float> up;
+  std::vector<float> act;
+  std::vector<float> tmp_d;
+  std::vector<std::int8_t> aq;
+  std::vector<float> sa;
+
+  void ensure(int N, int d, int qkv_dim, int H, int Hk, int D, int up_dim, int F, int max_K) {
+    const auto sz = [](int a, int b) { return static_cast<std::size_t>(a) * static_cast<std::size_t>(b); };
+    if (x.size() < sz(N, d)) x.resize(sz(N, d));
+    if (h.size() < sz(N, d)) h.resize(sz(N, d));
+    if (qkv.size() < sz(N, qkv_dim)) qkv.resize(sz(N, qkv_dim));
+    if (N > 1) {
+      if (q.size() < sz(N, H * D)) q.resize(sz(N, H * D));
+      if (k.size() < sz(N, Hk * D)) k.resize(sz(N, Hk * D));
+      if (v.size() < sz(N, Hk * D)) v.resize(sz(N, Hk * D));
+      if (lse.size() < sz(N, H)) lse.resize(sz(N, H));
+    }
+    if (attn_out.size() < sz(N, H * D)) attn_out.resize(sz(N, H * D));
+    if (up.size() < sz(N, up_dim)) up.resize(sz(N, up_dim));
+    if (act.size() < sz(N, F)) act.resize(sz(N, F));
+    if (tmp_d.size() < sz(N, d)) tmp_d.resize(sz(N, d));
+    const int kp8 = (max_K + 7) / 8 * 8;
+    if (aq.size() < sz(N, kp8)) aq.resize(sz(N, kp8));
+    if (sa.size() < static_cast<std::size_t>(N)) sa.resize(static_cast<std::size_t>(N));
+  }
+};
+
+thread_local FastInferenceScratch t_infer_scratch;
+
+void run_prepared_linear(const float* A, int M, const PreparedWeight& W, const float* bias, float* C,
+                         FastInferenceScratch& sc) {
+  if (W.mode == CpuWeightMode::INT8) {
+    cpu::quantize_rows_s8(A, M, W.K, W.K, sc.aq.data(), W.s8.Kp, sc.sa.data());
+    cpu::gemm_s8(sc.aq.data(), sc.sa.data(), M, W.s8, C, W.N, bias);
+    return;
+  }
+  if (W.mode == CpuWeightMode::INT4) {
+    cpu::quantize_rows_s8(A, M, W.K, W.K, sc.aq.data(), W.q4.Kp, sc.sa.data());
+    cpu::gemm_q4(sc.aq.data(), sc.sa.data(), M, W.q4, C, W.N, bias);
+    return;
+  }
+  cpu::GemmArgs g;
+  g.M = M;
+  g.N = W.N;
+  g.K = W.K;
+  g.A = A;
+  g.lda = W.K;
+  g.b_trans = W.b_trans;
+  g.ldb = W.b_trans ? W.K : W.N;
+  g.C = C;
+  g.ldc = W.N;
+  g.bias = bias;
+  if (W.mode == CpuWeightMode::BF16) {
+    g.B = W.bf16_nt.data();
+    g.btype = cpu::BType::BF16;
+  } else if (W.mode == CpuWeightMode::F32) {
+    g.B = W.f32_nt.data();
+    g.btype = cpu::BType::F32;
+  } else {
+    g.B = W.raw_f32;
+    g.btype = cpu::BType::F32;
+  }
+  cpu::gemm(g);
+}
+
+}  // namespace
+
 // ---- LanguageModel ----------------------------------------------------------------------
 LanguageModel::LanguageModel(const LmConfig& config) : LanguageModel(config, false) {}
 
@@ -316,6 +711,47 @@ LanguageModel::LanguageModel(const LmConfig& config, bool zero_init) : config_(c
   if (c.pos == PosKind::Alibi) {
     alibi_ = std::make_shared<const std::vector<float>>(alibi_slopes(c.n_head));
   }
+}
+
+void LanguageModel::prepare_cpu_inference(CpuWeightMode mode) const {
+  cpu_mode_ = mode;
+  auto st = std::make_shared<CpuInferenceState>();
+  st->mode = mode;
+  const int d = config_.d_model;
+  const int H = config_.n_head;
+  const int Hk = config_.kv_heads();
+  const int D = config_.hdim();
+  const int F = config_.d_ff;
+  const int qkv_dim = (H + 2 * Hk) * D;
+  const int up_dim = config_.gated_mlp() ? 2 * F : F;
+  const int Vp = config_.padded_vocab();
+
+  st->layers.resize(blocks_.size());
+  std::size_t total = 0;
+  for (std::size_t l = 0; l < blocks_.size(); ++l) {
+    const DecoderBlock& blk = blocks_[l];
+    if (blk.moe_) continue;
+    auto& lw = st->layers[l];
+    lw.qkv = PreparedWeight::build(blk.qkvw_.values().data(), d, qkv_dim, /*src_is_nt=*/false, mode);
+    lw.o = PreparedWeight::build(blk.ow_.values().data(), H * D, d, /*src_is_nt=*/false, mode);
+    lw.up = PreparedWeight::build(blk.upw_.values().data(), d, up_dim, /*src_is_nt=*/false, mode);
+    lw.down = PreparedWeight::build(blk.downw_.values().data(), F, d, /*src_is_nt=*/false, mode);
+    total += lw.qkv.bytes() + lw.o.bytes() + lw.up.bytes() + lw.down.bytes();
+  }
+  const Variable& hw = config_.tie_embeddings ? wte_ : head_;
+  // Cikis basligi (lm_head) logit dagilimina dogrudan etki ettiginden INT4 modunda Q8_0 (INT8) tutulur (GGUF Q4_K standardi).
+  const CpuWeightMode head_mode = (mode == CpuWeightMode::INT4) ? CpuWeightMode::INT8 : mode;
+  st->lm_head = PreparedWeight::build(hw.values().data(), d, Vp, /*src_is_nt=*/true, head_mode);
+  total += st->lm_head.bytes();
+  st->total_bytes = total;
+  cpu_infer_ = std::move(st);
+}
+
+std::size_t LanguageModel::cpu_inference_weight_bytes() const noexcept {
+  if (cpu_infer_) return cpu_infer_->total_bytes;
+  std::size_t n = 0;
+  for (const NamedParam& p : params_) n += p.value.values().size() * sizeof(float);
+  return n;
 }
 
 std::int64_t LanguageModel::num_parameters() const noexcept {
@@ -370,6 +806,204 @@ Variable LanguageModel::embed(const std::vector<std::int32_t>& tokens, int batch
   return x;
 }
 
+Variable LanguageModel::forward_cpu_fast(const std::vector<std::int32_t>& tokens, int batch, int time,
+                                         const ForwardOptions& o) const {
+  const LmConfig& c = config_;
+  const int N = batch * time;
+  const int d = c.d_model;
+  const int H = c.n_head;
+  const int Hk = c.kv_heads();
+  const int D = c.hdim();
+  const int F = c.d_ff;
+  const int qkv_dim = (H + 2 * Hk) * D;
+  const int up_dim = c.gated_mlp() ? 2 * F : F;
+  const int Vp = c.padded_vocab();
+  const bool rms = (c.norm == NormKind::RmsNorm);
+  const int pos_offset = o.cache ? o.cache->length : o.position_offset;
+
+  if (c.pos == PosKind::Learned && pos_offset + time > c.max_position) {
+    throw TensorError("Nexus lm: ogrenilen konum kodu: offset + T > max_position");
+  }
+  if (rope_) {
+    rope_->ensure(time + pos_offset);
+  }
+  std::vector<int> pos(static_cast<std::size_t>(N));
+  for (int b = 0; b < batch; ++b) {
+    for (int t = 0; t < time; ++t) {
+      pos[static_cast<std::size_t>(b) * time + t] = t + pos_offset;
+    }
+  }
+
+  FastInferenceScratch& sc = t_infer_scratch;
+  sc.ensure(N, d, qkv_dim, H, Hk, D, up_dim, F, std::max({d, H * D, F}));
+
+  // 1. Gomme (Embedding)
+  const float* wte_ptr = wte_.values().data();
+  const float* wpe_ptr = (c.pos == PosKind::Learned && wpe_.has_data()) ? wpe_.values().data() : nullptr;
+  for (int r = 0; r < N; ++r) {
+    float* xr = sc.x.data() + static_cast<std::size_t>(r) * d;
+    std::memcpy(xr, wte_ptr + static_cast<std::size_t>(tokens[static_cast<std::size_t>(r)]) * d,
+                static_cast<std::size_t>(d) * sizeof(float));
+    if (wpe_ptr) {
+      add_inplace_cpu(xr, wpe_ptr + static_cast<std::size_t>(pos[static_cast<std::size_t>(r)]) * d,
+                      static_cast<std::size_t>(d));
+    } else if (c.pos == PosKind::Sinusoidal) {
+      const double pval = pos[static_cast<std::size_t>(r)];
+      for (int i = 0; i < d; ++i) {
+        const double angle = pval / std::pow(10000.0, static_cast<double>(i / 2 * 2) / d);
+        xr[i] += static_cast<float>(i % 2 == 0 ? std::sin(angle) : std::cos(angle));
+      }
+    }
+  }
+
+  const CpuInferenceState* st = cpu_infer_.get();
+
+  // 2. Kod cozucu bloklar (Decoder blocks)
+  for (std::size_t l = 0; l < blocks_.size(); ++l) {
+    const DecoderBlock& blk = blocks_[l];
+    norm_rows_cpu(sc.x.data(), blk.n1w_.values().data(), blk.n1b_.has_data() ? blk.n1b_.values().data() : nullptr,
+                  sc.h.data(), N, d, c.norm_eps, rms);
+
+    const float* qkv_bias = blk.qkvb_.has_data() ? blk.qkvb_.values().data() : nullptr;
+    if (st) {
+      run_prepared_linear(sc.h.data(), N, st->layers[l].qkv, qkv_bias, sc.qkv.data(), sc);
+    } else {
+      PreparedWeight pw = PreparedWeight::build(blk.qkvw_.values().data(), d, qkv_dim, false, CpuWeightMode::Auto);
+      run_prepared_linear(sc.h.data(), N, pw, qkv_bias, sc.qkv.data(), sc);
+    }
+
+    float* q_ptr = nullptr;
+    float* k_ptr = nullptr;
+    float* v_ptr = nullptr;
+    if (N == 1) {
+      q_ptr = sc.qkv.data();
+      k_ptr = sc.qkv.data() + static_cast<std::size_t>(H) * D;
+      v_ptr = sc.qkv.data() + static_cast<std::size_t>(H + Hk) * D;
+    } else {
+      q_ptr = sc.q.data();
+      k_ptr = sc.k.data();
+      v_ptr = sc.v.data();
+      for (int r = 0; r < N; ++r) {
+        const float* src = sc.qkv.data() + static_cast<std::size_t>(r) * qkv_dim;
+        std::memcpy(q_ptr + static_cast<std::size_t>(r) * H * D, src, static_cast<std::size_t>(H * D) * sizeof(float));
+        std::memcpy(k_ptr + static_cast<std::size_t>(r) * Hk * D, src + static_cast<std::size_t>(H) * D,
+                    static_cast<std::size_t>(Hk * D) * sizeof(float));
+        std::memcpy(v_ptr + static_cast<std::size_t>(r) * Hk * D, src + static_cast<std::size_t>(H + Hk) * D,
+                    static_cast<std::size_t>(Hk * D) * sizeof(float));
+      }
+    }
+
+    if (c.qk_norm) {
+      norm_rows_cpu(q_ptr, blk.qn_.values().data(), nullptr, q_ptr, N * H, D, c.norm_eps, /*rms=*/true);
+      norm_rows_cpu(k_ptr, blk.kn_.values().data(), nullptr, k_ptr, N * Hk, D, c.norm_eps, /*rms=*/true);
+    }
+    if (c.pos == PosKind::Rope) {
+      rope_apply(q_ptr, N, H, D, pos.data(), *rope_, false);
+      rope_apply(k_ptr, N, Hk, D, pos.data(), *rope_, false);
+    }
+
+    const float* k_attn = k_ptr;
+    const float* v_attn = v_ptr;
+    int tk = time;
+    if (o.cache != nullptr) {
+      std::vector<float>& ck = o.cache->k[l];
+      std::vector<float>& cv = o.cache->v[l];
+      const std::size_t add_len = static_cast<std::size_t>(N) * Hk * D;
+      if (ck.capacity() < ck.size() + add_len) {
+        ck.reserve(std::max(ck.size() + add_len, static_cast<std::size_t>(256) * Hk * D));
+        cv.reserve(std::max(cv.size() + add_len, static_cast<std::size_t>(256) * Hk * D));
+      }
+      ck.insert(ck.end(), k_ptr, k_ptr + add_len);
+      cv.insert(cv.end(), v_ptr, v_ptr + add_len);
+      tk = static_cast<int>(ck.size() / (static_cast<std::size_t>(Hk) * D));
+      k_attn = ck.data();
+      v_attn = cv.data();
+    }
+
+    const float attn_scale = c.init == InitKind::MuP ? (1.0f / static_cast<float>(D))
+                                                     : (1.0f / std::sqrt(static_cast<float>(D)));
+    if (batch == 1 && time == 1) {
+      decode_attention_1tok_cpu(sc.attn_out.data(), q_ptr, k_attn, v_attn, H, Hk, D, tk, attn_scale, c.window,
+                                c.attn_softcap, alibi_ ? alibi_->data() : nullptr);
+    } else {
+      AttentionParams p;
+      p.batch = batch;
+      p.heads = H;
+      p.kv_heads = Hk;
+      p.tq = time;
+      p.tk = tk;
+      p.head_dim = D;
+      p.dtype = DType::F32;
+      p.scale = c.init == InitKind::MuP ? 1.0f / static_cast<float>(D) : 0.0f;
+      p.causal = true;
+      p.window = c.window;
+      p.softcap = c.attn_softcap;
+      p.alibi_slopes = alibi_ ? alibi_->data() : nullptr;
+      p.set_contiguous_bthd();
+      attention::flash_attention_forward_cpu(sc.attn_out.data(), sc.lse.data(), q_ptr, k_attn, v_attn, p);
+    }
+
+    const float* o_bias = blk.ob_.has_data() ? blk.ob_.values().data() : nullptr;
+    if (st) {
+      run_prepared_linear(sc.attn_out.data(), N, st->layers[l].o, o_bias, sc.tmp_d.data(), sc);
+    } else {
+      PreparedWeight pw = PreparedWeight::build(blk.ow_.values().data(), H * D, d, false, CpuWeightMode::Auto);
+      run_prepared_linear(sc.attn_out.data(), N, pw, o_bias, sc.tmp_d.data(), sc);
+    }
+    add_inplace_cpu(sc.x.data(), sc.tmp_d.data(), static_cast<std::size_t>(N) * d);
+
+    norm_rows_cpu(sc.x.data(), blk.n2w_.values().data(), blk.n2b_.has_data() ? blk.n2b_.values().data() : nullptr,
+                  sc.h.data(), N, d, c.norm_eps, rms);
+
+    const float* up_bias = blk.upb_.has_data() ? blk.upb_.values().data() : nullptr;
+    if (st) {
+      run_prepared_linear(sc.h.data(), N, st->layers[l].up, up_bias, sc.up.data(), sc);
+    } else {
+      PreparedWeight pw = PreparedWeight::build(blk.upw_.values().data(), d, up_dim, false, CpuWeightMode::Auto);
+      run_prepared_linear(sc.h.data(), N, pw, up_bias, sc.up.data(), sc);
+    }
+
+    mlp_act_cpu(sc.up.data(), sc.act.data(), N, F, c.mlp);
+
+    const float* down_bias = blk.downb_.has_data() ? blk.downb_.values().data() : nullptr;
+    if (st) {
+      run_prepared_linear(sc.act.data(), N, st->layers[l].down, down_bias, sc.tmp_d.data(), sc);
+    } else {
+      PreparedWeight pw = PreparedWeight::build(blk.downw_.values().data(), F, d, false, CpuWeightMode::Auto);
+      run_prepared_linear(sc.act.data(), N, pw, down_bias, sc.tmp_d.data(), sc);
+    }
+    add_inplace_cpu(sc.x.data(), sc.tmp_d.data(), static_cast<std::size_t>(N) * d);
+  }
+
+  // 3. Son norm + LM Head
+  norm_rows_cpu(sc.x.data(), nfw_.values().data(), nfb_.has_data() ? nfb_.values().data() : nullptr, sc.h.data(), N, d,
+                c.norm_eps, rms);
+
+  std::vector<float> out_logits(static_cast<std::size_t>(N) * Vp);
+  if (st) {
+    run_prepared_linear(sc.h.data(), N, st->lm_head, nullptr, out_logits.data(), sc);
+  } else {
+    const Variable& hw = c.tie_embeddings ? wte_ : head_;
+    PreparedWeight pw = PreparedWeight::build(hw.values().data(), d, Vp, true, CpuWeightMode::Auto);
+    run_prepared_linear(sc.h.data(), N, pw, nullptr, out_logits.data(), sc);
+  }
+
+  if (c.init == InitKind::MuP) {
+    const float mup_scale = 1.0f / (static_cast<float>(c.d_model) / c.mup_base_width);
+    for (float& v : out_logits) v *= mup_scale;
+  }
+  if (Vp > c.vocab_size) {
+    for (int r = 0; r < N; ++r) {
+      float* row = out_logits.data() + static_cast<std::size_t>(r) * Vp;
+      std::fill(row + c.vocab_size, row + Vp, -std::numeric_limits<float>::infinity());
+    }
+  }
+  if (o.cache != nullptr) {
+    o.cache->length += time;
+  }
+  return Variable::make(std::move(out_logits), Shape{{N, Vp}}, false);
+}
+
 Variable LanguageModel::logits(const std::vector<std::int32_t>& tokens, int batch, int time,
                                const ForwardOptions& o) const {
   return forward_logits(tokens, batch, time, o, nullptr);
@@ -391,6 +1025,16 @@ Variable LanguageModel::forward_logits(const std::vector<std::int32_t>& tokens, 
     if (static_cast<int>(o.cache->k.size()) != config_.n_layer) throw TensorError("Nexus lm: KV onbellegi baska bir modelden");
     oc.position_offset = o.cache->length;
   }
+
+  // FAZ 18.5: Egitim disinda (KV onbellekli cozme, prepare_cpu_inference cagrildiysa veya NoGradGuard altinda)
+  // yogun on-normalizasyonlu modeller icin sifir-ayirmali hizli CPU cikarim motoru.
+  const bool can_fast_cpu = !o.training && aux == nullptr && config_.prenorm && !config_.parallel_block &&
+                            config_.moe_experts == 0 &&
+                            (o.cache != nullptr || cpu_infer_ != nullptr || !ag::grad_enabled());
+  if (can_fast_cpu) {
+    return forward_cpu_fast(tokens, batch, time, o);
+  }
+
   BlockContext ctx;
   ctx.cache = o.cache;
   ctx.batch = batch;

@@ -8,6 +8,7 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/cpu/gemm.hpp"
 #include "nexus/moe/moe.hpp"
 
 #include "nexus/core/fp8.hpp"
@@ -120,7 +121,7 @@ Routing route(const float* x, const float* router_w, const float* noise_w, std::
   r.N = N;
   const std::size_t NE = static_cast<std::size_t>(N) * E;
   r.logits.resize(NE);
-  K::gemm_nn(x, router_w, r.logits.data(), static_cast<int>(N), d, E);
+  nexus::cpu::gemm_nn(x, router_w, r.logits.data(), static_cast<int>(N), d, E);
   r.probs.resize(NE);
   double zsum = 0.0;
   std::vector<double> P(static_cast<std::size_t>(E), 0.0);
@@ -143,7 +144,7 @@ Routing route(const float* x, const float* router_w, const float* noise_w, std::
   if (noisy) {
     r.noise_pre.resize(NE);
     r.noise_eps.resize(NE);
-    K::gemm_nn(x, noise_w, r.noise_pre.data(), static_cast<int>(N), d, E);
+    nexus::cpu::gemm_nn(x, noise_w, r.noise_pre.data(), static_cast<int>(N), d, E);
     for (std::size_t i = 0; i < NE; ++i) {
       r.noise_eps[i] = static_cast<float>(gaussian(seed, i));
       r.select[i] += r.noise_eps[i] * softplus(r.noise_pre[i]);
@@ -242,7 +243,7 @@ namespace {
 
 void expert_forward_one(const float* xp, std::int64_t n, const float* up, const float* down, int d, int F, float* h, float* a,
                         float* yp) {
-  K::gemm_nn(xp, up, h, static_cast<int>(n), d, 2 * F);
+  nexus::cpu::gemm_nn(xp, up, h, static_cast<int>(n), d, 2 * F);
   for (std::int64_t r = 0; r < n; ++r) {
     const float* hr = h + r * 2 * F;
     float* ar = a + r * F;
@@ -252,7 +253,7 @@ void expert_forward_one(const float* xp, std::int64_t n, const float* up, const 
       ar[i] = f * hr[F + i];
     }
   }
-  K::gemm_nn(a, down, yp, static_cast<int>(n), F, d);
+  nexus::cpu::gemm_nn(a, down, yp, static_cast<int>(n), F, d);
 }
 
 }  // namespace
@@ -293,8 +294,8 @@ void experts_backward(const float* dyp, const std::int64_t* off, int E, const fl
     const float* a = c.a.data() + o * F;
     const float* x = c.xp.data() + o * d;
     std::vector<float> da(static_cast<std::size_t>(n) * F, 0.0f), dh(static_cast<std::size_t>(n) * 2 * F);
-    K::gemm_nt_accum(dy, down + e * wd, da.data(), static_cast<int>(n), d, F);
-    K::gemm_tn_accum(a, dy, ddown + e * wd, F, static_cast<int>(n), d);
+    nexus::cpu::gemm_nt_accum(dy, down + e * wd, da.data(), static_cast<int>(n), d, F);
+    nexus::cpu::gemm_tn_accum(a, dy, ddown + e * wd, F, static_cast<int>(n), d);
     for (std::int64_t r = 0; r < n; ++r) {
       const float* hr = h + r * 2 * F;
       for (int i = 0; i < F; ++i) {
@@ -305,10 +306,10 @@ void experts_backward(const float* dyp, const std::int64_t* off, int E, const fl
         dh[static_cast<std::size_t>(r * 2 * F + F + i)] = g * f;
       }
     }
-    K::gemm_tn_accum(x, dh.data(), dup + e * wu, d, static_cast<int>(n), 2 * F);
+    nexus::cpu::gemm_tn_accum(x, dh.data(), dup + e * wu, d, static_cast<int>(n), 2 * F);
     float* dx = dxp + o * d;
     std::fill(dx, dx + n * d, 0.0f);
-    K::gemm_nt_accum(dh.data(), up + e * wu, dx, static_cast<int>(n), 2 * F, d);
+    nexus::cpu::gemm_nt_accum(dh.data(), up + e * wu, dx, static_cast<int>(n), 2 * F, d);
   });
 }
 
@@ -451,11 +452,11 @@ void router_backward(const Routing& r, const float* x, const float* router_w, co
       const float sg = 1.0f / (1.0f + std::exp(-r.noise_pre[i]));
       dpre[i] = dsel[i] * r.noise_eps[i] * sg;
     }
-    K::gemm_tn_accum(x, dpre.data(), dnoise, d, static_cast<int>(N), E);
-    K::gemm_nt_accum(dpre.data(), noise_w, dx, static_cast<int>(N), E, d);
+    nexus::cpu::gemm_tn_accum(x, dpre.data(), dnoise, d, static_cast<int>(N), E);
+    nexus::cpu::gemm_nt_accum(dpre.data(), noise_w, dx, static_cast<int>(N), E, d);
   }
-  K::gemm_tn_accum(x, dl.data(), drouter, d, static_cast<int>(N), E);
-  K::gemm_nt_accum(dl.data(), router_w, dx, static_cast<int>(N), E, d);
+  nexus::cpu::gemm_tn_accum(x, dl.data(), drouter, d, static_cast<int>(N), E);
+  nexus::cpu::gemm_nt_accum(dl.data(), router_w, dx, static_cast<int>(N), E, d);
 }
 
 void layer_backward(const float* dy, const LayerCache& c, const float* router_w, const float* noise_w, const float* up,

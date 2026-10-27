@@ -1,0 +1,16 @@
+{"mode": "bench_cpu_flash", "threads": 8, "T": 512, "causal": false, "fwd_ms": 5.408, "fwd_bwd_ms": 19.061}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 512, "causal": true, "fwd_ms": 2.717, "fwd_bwd_ms": 10.419}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 1024, "causal": false, "fwd_ms": 16.540, "fwd_bwd_ms": 51.627}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 1024, "causal": true, "fwd_ms": 7.448, "fwd_bwd_ms": 26.186}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 2048, "causal": false, "fwd_ms": 57.568, "fwd_bwd_ms": 207.557}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 2048, "causal": true, "fwd_ms": 32.635, "fwd_bwd_ms": 118.817}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 4096, "causal": false, "fwd_ms": 256.397, "fwd_bwd_ms": 945.269}
+{"mode": "bench_cpu_flash", "threads": 8, "T": 4096, "causal": true, "fwd_ms": 126.695, "fwd_bwd_ms": 466.360}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 512, "causal": false, "fwd_ms": 4.538, "fwd_bwd_ms": 13.665}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 512, "causal": true, "fwd_ms": 1.906, "fwd_bwd_ms": 6.293}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 1024, "causal": false, "fwd_ms": 10.512, "fwd_bwd_ms": 41.772}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 1024, "causal": true, "fwd_ms": 7.120, "fwd_bwd_ms": 22.447}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 2048, "causal": false, "fwd_ms": 44.419, "fwd_bwd_ms": 152.590}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 2048, "causal": true, "fwd_ms": 23.694, "fwd_bwd_ms": 81.256}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 4096, "causal": false, "fwd_ms": 167.774, "fwd_bwd_ms": 661.547}
+{"mode": "bench_cpu_flash", "threads": 16, "T": 4096, "causal": true, "fwd_ms": 87.849, "fwd_bwd_ms": 336.743}

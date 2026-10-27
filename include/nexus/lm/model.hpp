@@ -2,7 +2,8 @@
 
 /**
  * @file model.hpp
- * @brief FAZ 6.C-6.F: DecoderBlock (NXS tur 34), LanguageModel (tur 35), baslatma, muP, kurucu.
+ * @brief FAZ 6.C-6.F ve FAZ 18.5: DecoderBlock (NXS tur 34), LanguageModel (tur 35), baslatma, muP,
+ *        ve sifir-ayirmali (zero-allocation) FP32 / BF16 / INT8 / INT4 CPU cikarim motoru.
  *
  * On-normalizasyon (varsayilan):
  *   h = x + Attn(N1(x));  y = h + MLP(N2(h))
@@ -51,6 +52,15 @@ struct NamedParam {
   float lr_mult = 1.0f;  // muP
 };
 
+/// FAZ 18.5: CPU uzerinde cikarim (inference) icin agirlik niceleme / veri turu secimi.
+enum class CpuWeightMode : std::uint8_t {
+  Auto = 0,  // varsayilan (F32 agirliklar, KV-cache ve NoGrad yolunda sifir-ayirmali yurutme)
+  F32 = 1,   // devriklenmis [N, K] FP32 GEMV/GEMM
+  BF16 = 2,  // [N, K] BF16 paketli, FP32 biriktiricili AVX2 FMA
+  INT8 = 3,  // kanal-simetrik INT8 (`cpu::PackedS8` + `gemm_s8`)
+  INT4 = 4,  // kanal-simetrik 4-bit nibble-seritli INT4 (`cpu::PackedQ4` + `gemm_q4`)
+};
+
 /// FAZ 16: artimli cozme icin KV onbellegi (CPU, bitisik, batch 1). Katman basina [uzunluk, Hkv*D] K ve V
 /// (RoPE ve qk_norm SONRASI). forward(options.cache) yeni tokenlari ekler; konum ofseti = onceki uzunluk.
 struct KvCache {
@@ -91,6 +101,7 @@ struct BlockContext {
 };
 
 class ParamFactory;
+class LanguageModel;
 
 class DecoderBlock {
  public:
@@ -102,6 +113,7 @@ class DecoderBlock {
   [[nodiscard]] int index() const noexcept { return index_; }
 
  private:
+  friend class LanguageModel;
   [[nodiscard]] autograd::Variable norm(const autograd::Variable& x, const autograd::Variable& w,
                                         const autograd::Variable& b) const;
   [[nodiscard]] autograd::Variable linear(const autograd::Variable& x, const autograd::Variable& w,
@@ -120,6 +132,8 @@ class DecoderBlock {
 
 class LanguageModel {
  public:
+  struct CpuInferenceState;
+
   explicit LanguageModel(const LmConfig& config);
   /// FAZ 17: zero_init = true: rastgele baslatma atlanir (agirliklar sonra yuklenecek: HF / GGUF ice aktarma).
   LanguageModel(const LmConfig& config, bool zero_init);
@@ -133,6 +147,11 @@ class LanguageModel {
   /// Kaydirilmis CE (fused::cross_entropy_shifted).
   [[nodiscard]] autograd::Variable loss(const std::vector<std::int32_t>& tokens, int batch, int time,
                                         const ForwardOptions& options = {}) const;
+
+  /// FAZ 18.5: Agirliklari secilen CPU cikarim bicimine (F32 / BF16 / INT8 / INT4) hazirlar ve paketler.
+  void prepare_cpu_inference(CpuWeightMode mode = CpuWeightMode::F32) const;
+  [[nodiscard]] CpuWeightMode cpu_weight_mode() const noexcept { return cpu_mode_; }
+  [[nodiscard]] std::size_t cpu_inference_weight_bytes() const noexcept;
 
   [[nodiscard]] const std::vector<NamedParam>& parameters() const noexcept { return params_; }
   [[nodiscard]] std::int64_t num_parameters() const noexcept;
@@ -152,6 +171,8 @@ class LanguageModel {
  private:
   [[nodiscard]] autograd::Variable forward_logits(const std::vector<std::int32_t>& tokens, int batch, int time,
                                                   const ForwardOptions& options, std::vector<autograd::Variable>* aux) const;
+  [[nodiscard]] autograd::Variable forward_cpu_fast(const std::vector<std::int32_t>& tokens, int batch, int time,
+                                                    const ForwardOptions& options) const;
   [[nodiscard]] autograd::Variable embed(const std::vector<std::int32_t>& tokens, int batch, int time,
                                          const ForwardOptions& options) const;
 
@@ -162,6 +183,8 @@ class LanguageModel {
   std::shared_ptr<RopeCache> rope_;
   std::shared_ptr<const std::vector<float>> alibi_;
   mutable std::vector<MoeLayerStats> moe_stats_;
+  mutable CpuWeightMode cpu_mode_ = CpuWeightMode::Auto;
+  mutable std::shared_ptr<CpuInferenceState> cpu_infer_;
 };
 
 [[nodiscard]] LanguageModel build(const LmConfig& config);

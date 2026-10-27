@@ -10,6 +10,7 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/cpu/gemm.hpp"
 #include "nexus/dist/parallel_lm.hpp"
 
 #include "nexus/attention/cpu.hpp"
@@ -395,9 +396,9 @@ struct ParallelLm::Impl {
     y.assign(static_cast<std::size_t>(N) * out, 0.0f);
     gather_rows(x, in, xfull, [&](int src, const float* rows) {
       if (src < 0) {
-        K::gemm_nn(rows, w, y.data(), static_cast<int>(N), in, out);
+        nexus::cpu::gemm_nn(rows, w, y.data(), static_cast<int>(N), in, out);
       } else {
-        K::gemm_nn(rows, w, y.data() + static_cast<std::size_t>(src) * Ns * out, static_cast<int>(Ns), in, out);
+        nexus::cpu::gemm_nn(rows, w, y.data() + static_cast<std::size_t>(src) * Ns * out, static_cast<int>(Ns), in, out);
       }
     });
     if (b != nullptr) add_bias(y.data(), b, N, out);
@@ -406,7 +407,7 @@ struct ParallelLm::Impl {
   /// Row-parallel: a [N, in] -> y [R, out] (indirgenmis) + b.
   void row_forward(const float* a, int in, const float* w, const float* b, int out, float* y) {
     reduce_rows(out, y, [&](std::int64_t row0, std::int64_t rows, float* dst) {
-      K::gemm_nn(a + row0 * in, w, dst, static_cast<int>(rows), in, out);
+      nexus::cpu::gemm_nn(a + row0 * in, w, dst, static_cast<int>(rows), in, out);
     });
     if (b != nullptr) add_bias(y, b, R, out);
   }
@@ -414,7 +415,7 @@ struct ParallelLm::Impl {
   /// Column-parallel geri (giris yolu): dy [N, out] -> dx [R, in] (indirgenmis).
   void col_backward_input(const float* dy, int out, const float* w, int in, float* dx) {
     reduce_rows(in, dx, [&](std::int64_t row0, std::int64_t rows, float* dst) {
-      K::gemm_nt_accum(dy + row0 * out, w, dst, static_cast<int>(rows), out, in);
+      nexus::cpu::gemm_nt_accum(dy + row0 * out, w, dst, static_cast<int>(rows), out, in);
     });
   }
 
@@ -424,9 +425,9 @@ struct ParallelLm::Impl {
     da.assign(static_cast<std::size_t>(N) * in, 0.0f);
     gather_rows(dz, out, dzfull, [&](int src, const float* rows) {
       if (src < 0) {
-        K::gemm_nt_accum(rows, w, da.data(), static_cast<int>(N), out, in);
+        nexus::cpu::gemm_nt_accum(rows, w, da.data(), static_cast<int>(N), out, in);
       } else {
-        K::gemm_nt_accum(rows, w, da.data() + static_cast<std::size_t>(src) * Ns * in, static_cast<int>(Ns), out, in);
+        nexus::cpu::gemm_nt_accum(rows, w, da.data() + static_cast<std::size_t>(src) * Ns * in, static_cast<int>(Ns), out, in);
       }
     });
   }
@@ -549,13 +550,13 @@ struct ParallelLm::Impl {
 
   void layer_backward_weight(int l, LayerAct& s) {
     const LayerIdx& L = layers.at(l);
-    K::gemm_tn_accum(s.actv.data(), s.ddown.data(), Gd(L.dw), Fl, static_cast<int>(N), d);
+    nexus::cpu::gemm_tn_accum(s.actv.data(), s.ddown.data(), Gd(L.dw), Fl, static_cast<int>(N), d);
     if (L.db >= 0) col_sum(s.ddown.data() + row_of(0) * d, Gd(L.db), R, d);
-    K::gemm_tn_accum(s.h2full.data(), s.dup.data(), Gd(L.upw), d, static_cast<int>(N), upw);
+    nexus::cpu::gemm_tn_accum(s.h2full.data(), s.dup.data(), Gd(L.upw), d, static_cast<int>(N), upw);
     if (L.upb >= 0) col_sum(s.dup.data(), Gd(L.upb), N, upw);
-    K::gemm_tn_accum(s.o.data(), s.dofull.data(), Gd(L.ow), Hl * D, static_cast<int>(N), d);
+    nexus::cpu::gemm_tn_accum(s.o.data(), s.dofull.data(), Gd(L.ow), Hl * D, static_cast<int>(N), d);
     if (L.ob >= 0) col_sum(s.dofull.data() + row_of(0) * d, Gd(L.ob), R, d);
-    K::gemm_tn_accum(s.hfull.data(), s.dqkv.data(), Gd(L.qkvw), d, static_cast<int>(N), qkvw);
+    nexus::cpu::gemm_tn_accum(s.hfull.data(), s.dqkv.data(), Gd(L.qkvw), d, static_cast<int>(N), qkvw);
     if (L.qkvb >= 0) col_sum(s.dqkv.data(), Gd(L.qkvb), N, qkvw);
     s = LayerAct{};
   }
@@ -618,9 +619,9 @@ struct ParallelLm::Impl {
     const float* head = W(ch.head);
     gather_rows(hf.data(), d, a.hffull, [&](int src, const float* rows) {
       if (src < 0) {
-        K::gemm_nt_accum(rows, head, logits.data(), static_cast<int>(N), d, Vs);
+        nexus::cpu::gemm_nt_accum(rows, head, logits.data(), static_cast<int>(N), d, Vs);
       } else {
-        K::gemm_nt_accum(rows, head, logits.data() + static_cast<std::size_t>(src) * Ns * Vs, static_cast<int>(Ns), d, Vs);
+        nexus::cpu::gemm_nt_accum(rows, head, logits.data() + static_cast<std::size_t>(src) * Ns * Vs, static_cast<int>(Ns), d, Vs);
       }
     });
     const int valid_cols = std::clamp(vocab - v0, 0, Vs);  // dolgu sutunlari -inf (yok sayilir)
@@ -668,7 +669,7 @@ struct ParallelLm::Impl {
     std::vector<float> dhf(static_cast<std::size_t>(R) * d);
     const float* head = W(ch.head);
     reduce_rows(d, dhf.data(), [&](std::int64_t row0, std::int64_t rows, float* dst) {
-      K::gemm_nn(a.dlogits.data() + row0 * Vs, head, dst, static_cast<int>(rows), Vs, d);
+      nexus::cpu::gemm_nn(a.dlogits.data() + row0 * Vs, head, dst, static_cast<int>(rows), Vs, d);
     });
     dx.assign(static_cast<std::size_t>(R) * d, 0.0f);
     norm_backward(rms, a.xf.data(), W(ch.nfw), a.mf.data(), a.sf.data(), dhf.data(), dx.data(), Gd(ch.nfw), Gd(ch.nfb), R, d);
@@ -676,7 +677,7 @@ struct ParallelLm::Impl {
   }
 
   void final_backward_weight(const ChunkDef& ch, ChunkAct& a) {
-    K::gemm_tn_accum(a.dlogits.data(), a.hffull.data(), Gd(ch.head), Vs, static_cast<int>(N), d);
+    nexus::cpu::gemm_tn_accum(a.dlogits.data(), a.hffull.data(), Gd(ch.head), Vs, static_cast<int>(N), d);
     a.dlogits.clear();
     a.hffull.clear();
   }

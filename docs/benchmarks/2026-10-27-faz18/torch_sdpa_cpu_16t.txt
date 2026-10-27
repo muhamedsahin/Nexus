@@ -1,0 +1,9 @@
+threads 16
+  info  T=  512 full   fwd     2.946 ms  fwd+bwd    14.993 ms
+  info  T=  512 causal fwd     2.870 ms  fwd+bwd     8.449 ms
+  info  T= 1024 full   fwd     7.206 ms  fwd+bwd    40.698 ms
+  info  T= 1024 causal fwd     6.756 ms  fwd+bwd    28.201 ms
+  info  T= 2048 full   fwd    34.583 ms  fwd+bwd   141.927 ms
+  info  T= 2048 causal fwd    18.312 ms  fwd+bwd    85.591 ms
+  info  T= 4096 full   fwd    93.011 ms  fwd+bwd   502.499 ms
+  info  T= 4096 causal fwd    60.122 ms  fwd+bwd   318.404 ms

@@ -235,7 +235,7 @@ add_test(NAME test_compile_export_stablehlo COMMAND test_phase13_compile export)
 set_tests_properties(test_compile_numerics test_fusion_kernel_count test_dynamic_shape_no_recompile test_cache_hit_zero_compile
     test_compile_min_cut_memory test_compile_comm_reorder test_compile_export_stablehlo PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
 
-# FAZ 14 (CPU): MoE — yonlendirici, kapasite, gruplu GEMM, yuk dengeleme, uzman paralelligi, dar uzman agirliklari.
+# FAZ 14 (CPU): MoE â€” yonlendirici, kapasite, gruplu GEMM, yuk dengeleme, uzman paralelligi, dar uzman agirliklari.
 add_executable(test_phase14_moe test_phase14_moe.cpp)
 target_link_libraries(test_phase14_moe PRIVATE nexus::nexus nexus_test_support)
 nexus_configure_target(test_phase14_moe)
@@ -251,7 +251,7 @@ set_tests_properties(test_load_balance_in_range PROPERTIES SKIP_RETURN_CODE 77)
 set_tests_properties(test_moe_router_deterministic test_moe_k1_equals_dense test_moe_grad_numerics test_grouped_gemm_vs_loop
     test_load_balance_in_range test_ep_equivalence test_moe_quantized_experts test_moe_config_roundtrip PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
 
-# FAZ 15 (CPU): dayaniklilik — NXS3 tam durum kaydi, RNG, parcali kayit, yeniden parcalama, cokme, bekci, elastik.
+# FAZ 15 (CPU): dayaniklilik â€” NXS3 tam durum kaydi, RNG, parcali kayit, yeniden parcalama, cokme, bekci, elastik.
 add_executable(test_phase15_durability test_phase15_durability.cpp)
 target_link_libraries(test_phase15_durability PRIVATE nexus::nexus nexus_test_support)
 nexus_configure_target(test_phase15_durability)
@@ -273,7 +273,7 @@ add_test(NAME test_kv_cache_matches_full_cpu COMMAND test_phase16_infer kvcache)
 add_test(NAME test_kv_cache_generate_cpu COMMAND test_phase16_infer generate)
 set_tests_properties(test_kv_cache_matches_full_cpu test_kv_cache_generate_cpu PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
 
-# FAZ 17 (CPU): birlikte calisabilirlik — safetensors, HF ice/disa aktarma (llama/mistral/qwen2), GGUF, ONNX.
+# FAZ 17 (CPU): birlikte calisabilirlik â€” safetensors, HF ice/disa aktarma (llama/mistral/qwen2), GGUF, ONNX.
 add_executable(test_phase17_interop test_phase17_interop.cpp)
 target_link_libraries(test_phase17_interop PRIVATE nexus::nexus nexus_test_support)
 target_compile_definitions(test_phase17_interop PRIVATE
@@ -294,3 +294,38 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/.bench-venv-cuda/Scripts/python.exe")
     set_tests_properties(test_dlpack_torch PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python/src"
         TIMEOUT 600 SKIP_RETURN_CODE 77)
 endif()
+
+# FAZ 18 (CPU): ozellik algilama, AVX2/AVX512/VNNI GEMM (FP32/BF16/FP16/INT8/INT4), sabitli havuz / NUMA, CPU FlashAttention, egitim, kuantize cikarim, nexus::compile fusion.
+add_executable(test_phase18_cpu test_phase18_cpu.cpp)
+target_link_libraries(test_phase18_cpu PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_phase18_cpu)
+add_test(NAME test_cpu_features COMMAND test_phase18_cpu features)
+add_test(NAME test_cpu_gemm_vs_ref COMMAND test_phase18_cpu gemm)
+add_test(NAME test_cpu_gemm_avx2_vs_ref COMMAND test_phase18_cpu gemm_avx2)
+add_test(NAME test_cpu_gemm_avx512_vs_ref COMMAND test_phase18_cpu gemm_avx512)
+add_test(NAME test_numa_affinity COMMAND test_phase18_cpu numa)
+add_test(NAME test_cpu_numa_and_pinning COMMAND test_phase18_cpu numa)
+add_test(NAME test_offload_adam_bitwise COMMAND test_phase18_cpu adam)
+add_test(NAME test_cpu_adam_step COMMAND test_phase18_cpu adam)
+add_test(NAME test_zero_offload_step COMMAND test_phase18_cpu offload)
+add_test(NAME test_cpu_flash_vs_math COMMAND test_phase18_cpu flash)
+add_test(NAME test_cpu_flash_attn_vs_ref COMMAND test_phase18_cpu flash)
+add_test(NAME test_cpu_train_parity COMMAND test_phase18_cpu train)
+add_test(NAME test_cpu_quantized_inference COMMAND test_phase18_cpu quant)
+add_test(NAME test_cpu_compile_fusion COMMAND test_phase18_cpu compile)
+set_tests_properties(
+    test_cpu_features
+    test_cpu_gemm_vs_ref
+    test_cpu_gemm_avx2_vs_ref
+    test_cpu_gemm_avx512_vs_ref
+    test_numa_affinity
+    test_cpu_numa_and_pinning
+    test_offload_adam_bitwise
+    test_cpu_adam_step
+    test_zero_offload_step
+    test_cpu_flash_vs_math
+    test_cpu_flash_attn_vs_ref
+    test_cpu_train_parity
+    test_cpu_quantized_inference
+    test_cpu_compile_fusion
+    PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

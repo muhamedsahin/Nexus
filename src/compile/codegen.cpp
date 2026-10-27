@@ -1,6 +1,7 @@
 /**
  * @file codegen.cpp
- * @brief FAZ 13.4: fuzyon kumeleri -> CPU (AVX2/SVML C++) ve CUDA kaynagi; CPU JIT (cl.exe -> DLL, disk onbellegi).
+ * @brief FAZ 13.4 & FAZ 18.6: fuzyon kumeleri -> CPU (AVX-512 / AVX2 + SVML C++) ve CUDA kaynagi;
+ *        CPU JIT (cl.exe -> DLL, disk onbellegi).
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -8,6 +9,8 @@
  */
 
 #include "nexus/compile/codegen.hpp"
+
+#include "nexus/cpu/features.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -93,7 +96,7 @@ std::string scalar_expr(const FusedOp::Inst& in, const std::vector<std::string>&
   }
 }
 
-/// AVX2 ifadesi (MSVC SVML).
+/// AVX2 ifadesi (MSVC SVML, 8-serit __m256).
 std::string vector_expr(const FusedOp::Inst& in, const std::vector<std::string>& a) {
   const std::string& x = a.empty() ? std::string() : a[0];
   const std::string y = a.size() > 1 ? a[1] : std::string();
@@ -127,6 +130,40 @@ std::string vector_expr(const FusedOp::Inst& in, const std::vector<std::string>&
   }
 }
 
+/// FAZ 18.6: AVX-512 ifadesi (MSVC SVML, 16-serit __m512).
+std::string vector512_expr(const FusedOp::Inst& in, const std::vector<std::string>& a) {
+  const std::string& x = a.empty() ? std::string() : a[0];
+  const std::string y = a.size() > 1 ? a[1] : std::string();
+  auto c = [](double v) { return "_mm512_set1_ps(" + lit(v) + ")"; };
+  switch (in.op) {
+    case Op::Add: case Op::BiasAdd: return "_mm512_add_ps(" + x + ", " + y + ")";
+    case Op::Sub: return "_mm512_sub_ps(" + x + ", " + y + ")";
+    case Op::Mul: return "_mm512_mul_ps(" + x + ", " + y + ")";
+    case Op::Div: return "_mm512_div_ps(" + x + ", " + y + ")";
+    case Op::Neg: return "_mm512_sub_ps(_mm512_setzero_ps(), " + x + ")";
+    case Op::Exp: return "_mm512_exp_ps(" + x + ")";
+    case Op::Log: return "_mm512_log_ps(" + x + ")";
+    case Op::Tanh: return "_mm512_tanh_ps(" + x + ")";
+    case Op::Sigmoid: return "nxv512_sigmoid(" + x + ")";
+    case Op::Gelu: return "nxv512_gelu(" + x + ")";
+    case Op::GeluTanh: return "nxv512_gelu_tanh(" + x + ")";
+    case Op::Silu: return "_mm512_mul_ps(" + x + ", nxv512_sigmoid(" + x + "))";
+    case Op::Relu: return "_mm512_max_ps(" + x + ", _mm512_setzero_ps())";
+    case Op::Square: return "_mm512_mul_ps(" + x + ", " + x + ")";
+    case Op::Sqrt: return "_mm512_sqrt_ps(" + x + ")";
+    case Op::Rsqrt: return "_mm512_div_ps(" + c(1.0) + ", _mm512_sqrt_ps(" + x + "))";
+    case Op::Scale: return "_mm512_mul_ps(" + x + ", " + c(in.a) + ")";
+    case Op::AddScalar: return "_mm512_add_ps(" + x + ", " + c(in.a) + ")";
+    case Op::GeluBwd: return "nxv512_gelu_bwd(" + x + ", " + y + ")";
+    case Op::GeluTanhBwd: return "nxv512_gelu_tanh_bwd(" + x + ", " + y + ")";
+    case Op::SiluBwd: return "nxv512_silu_bwd(" + x + ", " + y + ")";
+    case Op::SigmoidBwd: return "_mm512_mul_ps(_mm512_mul_ps(" + x + ", " + y + "), _mm512_sub_ps(" + c(1.0) + ", " + y + "))";
+    case Op::TanhBwd: return "_mm512_mul_ps(" + x + ", _mm512_sub_ps(" + c(1.0) + ", _mm512_mul_ps(" + y + ", " + y + ")))";
+    default:
+      throw std::runtime_error(std::string("Nexus codegen: fuzyonda desteklenmeyen op ") + to_string(in.op));
+  }
+}
+
 const char* kScalarHelpers = R"(
 static NX_INLINE float nx_silu_bwd(float dy, float x) { const float s = 1.0f / (1.0f + expf(-x)); return dy * s * (1.0f + x * (1.0f - s)); }
 static NX_INLINE float nx_gelu_tanh_bwd(float dy, float x) {
@@ -139,7 +176,7 @@ static NX_INLINE float nx_gelu_tanh_bwd(float dy, float x) {
 
 std::string cpu_source(const std::vector<const FusedOp*>& kernels) {
   std::ostringstream o;
-  o << "// Nexus FAZ 13 uretilmis CPU cekirdekleri (AVX2 + SVML)\n#include <immintrin.h>\n#include <math.h>\n";
+  o << "// Nexus FAZ 13 & FAZ 18.6 uretilmis CPU cekirdekleri (AVX-512 / AVX2 + SVML)\n#include <immintrin.h>\n#include <math.h>\n";
   o << "#define NX_INLINE __forceinline\n" << kScalarHelpers;
   o << R"(
 static NX_INLINE __m256 nxv_sigmoid(__m256 x) { const __m256 one = _mm256_set1_ps(1.0f);
@@ -157,39 +194,75 @@ static NX_INLINE __m256 nxv_silu_bwd(__m256 dy, __m256 x) { const __m256 one = _
   return _mm256_mul_ps(dy, _mm256_mul_ps(s, _mm256_add_ps(one, _mm256_mul_ps(x, _mm256_sub_ps(one, s))))); }
 static NX_INLINE __m256 nxv_gelu_tanh_bwd(__m256 dy, __m256 x) { float a[8], b[8]; _mm256_storeu_ps(a, dy); _mm256_storeu_ps(b, x);
   for (int i = 0; i < 8; ++i) a[i] = nx_gelu_tanh_bwd(a[i], b[i]); return _mm256_loadu_ps(a); }
+#if defined(__AVX512F__)
+static NX_INLINE __m512 nxv512_sigmoid(__m512 x) { const __m512 one = _mm512_set1_ps(1.0f);
+  return _mm512_div_ps(one, _mm512_add_ps(one, _mm512_exp_ps(_mm512_sub_ps(_mm512_setzero_ps(), x)))); }
+static NX_INLINE __m512 nxv512_gelu(__m512 x) { const __m512 h = _mm512_set1_ps(0.5f), one = _mm512_set1_ps(1.0f);
+  return _mm512_mul_ps(_mm512_mul_ps(h, x), _mm512_add_ps(one, _mm512_erf_ps(_mm512_mul_ps(x, _mm512_set1_ps(0.70710678118654752f))))); }
+static NX_INLINE __m512 nxv512_gelu_tanh(__m512 x) { const __m512 h = _mm512_set1_ps(0.5f), one = _mm512_set1_ps(1.0f);
+  const __m512 u = _mm512_mul_ps(_mm512_set1_ps(0.7978845608028654f), _mm512_add_ps(x, _mm512_mul_ps(_mm512_set1_ps(0.044715f), _mm512_mul_ps(x, _mm512_mul_ps(x, x)))));
+  return _mm512_mul_ps(_mm512_mul_ps(h, x), _mm512_add_ps(one, _mm512_tanh_ps(u))); }
+static NX_INLINE __m512 nxv512_gelu_bwd(__m512 dy, __m512 x) { const __m512 h = _mm512_set1_ps(0.5f), one = _mm512_set1_ps(1.0f);
+  const __m512 cdf = _mm512_mul_ps(h, _mm512_add_ps(one, _mm512_erf_ps(_mm512_mul_ps(x, _mm512_set1_ps(0.70710678118654752f)))));
+  const __m512 pdf = _mm512_exp_ps(_mm512_mul_ps(_mm512_set1_ps(-0.5f), _mm512_mul_ps(x, x)));
+  return _mm512_mul_ps(dy, _mm512_add_ps(cdf, _mm512_mul_ps(_mm512_mul_ps(x, _mm512_set1_ps(0.39894228040143268f)), pdf))); }
+static NX_INLINE __m512 nxv512_silu_bwd(__m512 dy, __m512 x) { const __m512 one = _mm512_set1_ps(1.0f), s = nxv512_sigmoid(x);
+  return _mm512_mul_ps(dy, _mm512_mul_ps(s, _mm512_add_ps(one, _mm512_mul_ps(x, _mm512_sub_ps(one, s))))); }
+static NX_INLINE __m512 nxv512_gelu_tanh_bwd(__m512 dy, __m512 x) { float a[16], b[16]; _mm512_storeu_ps(a, dy); _mm512_storeu_ps(b, x);
+  for (int i = 0; i < 16; ++i) a[i] = nx_gelu_tanh_bwd(a[i], b[i]); return _mm512_loadu_ps(a); }
+#endif
 )";
   for (const FusedOp* f : kernels) {
-   for (int variant = 0; variant < 2; ++variant) {  // 0: AVX2 + skaler kuyruk, 1: yalniz skaler ("_s", autotune)
-    const std::size_t nin = f->input_is_row.size();
-    o << "\nextern \"C\" __declspec(dllexport) void " << kernel_name(*f) << (variant ? "_s" : "")
-      << "(const float* const* in, float* const* out, long long rows, long long cols) {\n";
-    o << "  for (long long r = 0; r < rows; ++r) {\n    long long c = 0;\n    for (; " << (variant ? "false" : "c + 8 <= cols")
-      << "; c += 8) {\n";
-    for (std::size_t e = 0; e < nin; ++e) {
-      o << "      const __m256 x" << e << " = _mm256_loadu_ps(in[" << e << "] + " << (f->input_is_row[e] ? "c" : "r * cols + c")
-        << ");\n";
+    for (int variant = 0; variant < 2; ++variant) {  // 0: AVX-512/AVX2 + skaler kuyruk, 1: yalniz skaler ("_s", autotune)
+      const std::size_t nin = f->input_is_row.size();
+      auto arg = [&](int a, const char* pre) { return a < 0 ? std::string(pre) + std::to_string(-a - 1) : "t" + std::to_string(a); };
+      o << "\nextern \"C\" __declspec(dllexport) void " << kernel_name(*f) << (variant ? "_s" : "")
+        << "(const float* const* in, float* const* out, long long rows, long long cols) {\n";
+      o << "  for (long long r = 0; r < rows; ++r) {\n    long long c = 0;\n";
+      if (!variant) {
+        o << "#if defined(__AVX512F__)\n";
+        o << "    for (; c + 16 <= cols; c += 16) {\n";
+        for (std::size_t e = 0; e < nin; ++e) {
+          o << "      const __m512 x" << e << " = _mm512_loadu_ps(in[" << e << "] + "
+            << (f->input_is_row[e] ? "c" : "r * cols + c") << ");\n";
+        }
+        for (std::size_t k = 0; k < f->insts.size(); ++k) {
+          std::vector<std::string> a;
+          for (int x : f->insts[k].args) a.push_back(arg(x, "x"));
+          o << "      const __m512 t" << k << " = " << vector512_expr(f->insts[k], a) << ";\n";
+        }
+        for (std::size_t k = 0; k < f->outputs.size(); ++k) {
+          o << "      _mm512_storeu_ps(out[" << k << "] + r * cols + c, t" << f->outputs[k] << ");\n";
+        }
+        o << "    }\n#endif\n";
+      }
+      o << "    for (; " << (variant ? "false" : "c + 8 <= cols") << "; c += 8) {\n";
+      for (std::size_t e = 0; e < nin; ++e) {
+        o << "      const __m256 x" << e << " = _mm256_loadu_ps(in[" << e << "] + "
+          << (f->input_is_row[e] ? "c" : "r * cols + c") << ");\n";
+      }
+      for (std::size_t k = 0; k < f->insts.size(); ++k) {
+        std::vector<std::string> a;
+        for (int x : f->insts[k].args) a.push_back(arg(x, "x"));
+        o << "      const __m256 t" << k << " = " << vector_expr(f->insts[k], a) << ";\n";
+      }
+      for (std::size_t k = 0; k < f->outputs.size(); ++k) {
+        o << "      _mm256_storeu_ps(out[" << k << "] + r * cols + c, t" << f->outputs[k] << ");\n";
+      }
+      o << "    }\n    for (; c < cols; ++c) {\n";
+      for (std::size_t e = 0; e < nin; ++e) {
+        o << "      const float x" << e << " = in[" << e << "][" << (f->input_is_row[e] ? "c" : "r * cols + c") << "];\n";
+      }
+      for (std::size_t k = 0; k < f->insts.size(); ++k) {
+        std::vector<std::string> a;
+        for (int x : f->insts[k].args) a.push_back(arg(x, "x"));
+        o << "      const float t" << k << " = " << scalar_expr(f->insts[k], a) << ";\n";
+      }
+      for (std::size_t k = 0; k < f->outputs.size(); ++k) {
+        o << "      out[" << k << "][r * cols + c] = t" << f->outputs[k] << ";\n";
+      }
+      o << "    }\n  }\n}\n";
     }
-    auto arg = [&](int a, const char* pre) { return a < 0 ? std::string(pre) + std::to_string(-a - 1) : "t" + std::to_string(a); };
-    for (std::size_t k = 0; k < f->insts.size(); ++k) {
-      std::vector<std::string> a;
-      for (int x : f->insts[k].args) a.push_back(arg(x, "x"));
-      o << "      const __m256 t" << k << " = " << vector_expr(f->insts[k], a) << ";\n";
-    }
-    for (std::size_t k = 0; k < f->outputs.size(); ++k) {
-      o << "      _mm256_storeu_ps(out[" << k << "] + r * cols + c, t" << f->outputs[k] << ");\n";
-    }
-    o << "    }\n    for (; c < cols; ++c) {\n";
-    for (std::size_t e = 0; e < nin; ++e) {
-      o << "      const float x" << e << " = in[" << e << "][" << (f->input_is_row[e] ? "c" : "r * cols + c") << "];\n";
-    }
-    for (std::size_t k = 0; k < f->insts.size(); ++k) {
-      std::vector<std::string> a;
-      for (int x : f->insts[k].args) a.push_back(arg(x, "x"));
-      o << "      const float t" << k << " = " << scalar_expr(f->insts[k], a) << ";\n";
-    }
-    for (std::size_t k = 0; k < f->outputs.size(); ++k) o << "      out[" << k << "][r * cols + c] = t" << f->outputs[k] << ";\n";
-    o << "    }\n  }\n}\n";
-   }
   }
   return o.str();
 }
@@ -316,7 +389,8 @@ std::map<std::string, CpuKernelFn> CpuJit::load(const std::string& source, const
 #ifndef _WIN32
   throw std::runtime_error("Nexus CPU JIT: yalniz Windows (cl.exe) bu derlemede");
 #else
-  const std::string h = source_hash(source + "|cl /O2 /arch:AVX2 /LD v1");
+  const char* arch_flag = cpu::features().avx512f ? "/arch:AVX512" : "/arch:AVX2";
+  const std::string h = source_hash(source + "|cl /O2 " + arch_flag + " /LD v2");
   if (!dump_.empty()) {
     fs::create_directories(dump_);
     std::ofstream(fs::path(dump_) / ("cpu_" + h + ".cpp")) << source;
@@ -346,17 +420,17 @@ std::map<std::string, CpuKernelFn> CpuJit::load(const std::string& source, const
         }
         stats_.compile_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tc).count();
         std::ifstream in(txt);
-        std::ofstream out(envbat);
+        std::ofstream env_out(envbat);
         std::string line;
         while (std::getline(in, line)) {
           if (!line.empty() && line.back() == '\r') line.pop_back();
-          if (line.find('=') != std::string::npos && line.find('"') == std::string::npos) out << "set \"" << line << "\"\r\n";
+          if (line.find('=') != std::string::npos && line.find('"') == std::string::npos) env_out << "set \"" << line << "\"\r\n";
         }
       }
       {
         std::ofstream b(bat);
         b << "@echo off\r\ncall \"" << envbat.string() << "\"\r\n"
-          << "cl /nologo /O2 /arch:AVX2 /fp:precise /LD \"" << src.string() << "\" /Fe:\"" << dll.string() << "\" /Fo:\""
+          << "cl /nologo /O2 " << arch_flag << " /fp:precise /LD \"" << src.string() << "\" /Fe:\"" << dll.string() << "\" /Fo:\""
           << obj.string() << "\" > \"" << log.string() << "\" 2>&1\r\n";
       }
       const auto t0 = std::chrono::steady_clock::now();

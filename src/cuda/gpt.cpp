@@ -26,6 +26,7 @@
 #include "nexus/cuda/attention.hpp"
 #include "nexus/core/error.hpp"
 #include "nexus/core/half.hpp"
+#include "nexus/cpu/adam.hpp"
 #include "nexus/cuda/gemm.hpp"
 #include "nexus/fused/training.hpp"
 #include "nexus/prof/memory_ledger.hpp"
@@ -36,6 +37,7 @@
 #include <cmath>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <utility>
 #include <span>
@@ -280,6 +282,13 @@ struct GptModel::Offload {
   Stream copy;
   Event layer_ready[2], copy_done[2], grads_ready;
   bool slot_used[2] = {false, false};
+  struct Task {
+    std::size_t begin, length;
+    bool decay;
+  };
+  std::vector<Task> tasks;        // FAZ 18: sabit 1M'lik CPU AdamW gorevleri (ilk adimda kurulur)
+  std::vector<double> partial;    // gorev basina sum(g^2)
+  std::unique_ptr<cpu::Pool> pool;  // offload_threads != varsayilan havuz boyutu ise
   // RAII: kurucu yolda istisna (orn. host bad_alloc) olsa da pinned bellek ve kopya akisi birakilir.
   ~Offload() {
     try {
@@ -1516,24 +1525,6 @@ void GptModel::optimizer_step(const DeviceAdamWConfig& base) {
 
 namespace {
 
-// [0, count) gorevlerini n is parcacigina dagitir (adim basina bir kez: thread acma maliyeti saniyelik
-// CPU guncellemesi yaninda ihmal edilebilir).
-void parallel_tasks(int count, int threads, const std::function<void(int)>& fn) {
-  threads = std::max(1, std::min(threads, count));
-  std::atomic<int> next{0};
-  std::vector<std::thread> pool;
-  for (int t = 0; t < threads; ++t) {
-    pool.emplace_back([&] {
-      for (int i = next.fetch_add(1); i < count; i = next.fetch_add(1)) {
-        fn(i);
-      }
-    });
-  }
-  for (auto& th : pool) {
-    th.join();
-  }
-}
-
 float grad_at(const void* base, DType t, std::size_t i) {
   return t == DType::F32 ? static_cast<const float*>(base)[i]
                          : bfloat16_bits_to_float(static_cast<const std::uint16_t*>(base)[i]);
@@ -1541,60 +1532,53 @@ float grad_at(const void* base, DType t, std::size_t i) {
 
 }  // namespace
 
-// ZeroOffload: gradyanlar pinned host'ta. Global norm (FP64) -> kirpma -> parca parca CPU AdamW
-// (fused::adamw_multi_tensor, GPU cekirdegiyle ayni islem sirasi) -> BF16 RN golge -> H2D.
+// ZeroOffload: gradyanlar pinned host'ta. Global norm (FP64, sabit 1M'lik parcalar) -> kirpma -> parca parca
+// CPU AdamW + BF16 RNE golge tek geciste (FAZ 18: nexus::cpu::adamw_range, AVX2, fused::adamw_multi_tensor /
+// GPU cekirdegiyle ayni islem sirasi, FMA yok -> bit-bit ayni) -> H2D. Is parcaciklari: sabitli cpu::Pool;
+// gorevler atomik sayacla dagitilir (her gorevin sonucu yalniz kendi verisine bagli -> belirlenimci).
 void GptModel::cpu_optimizer_step(const DeviceAdamWConfig& base) {
   Offload& o = *offload_;
   const auto start = std::chrono::steady_clock::now();
   o.copy.synchronize();  // tum D2H tamam
-  const DType gdt = config_.offload_grad_dtype;
-  const int threads = config_.offload_threads > 0 ? config_.offload_threads
-                                                  : static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
-  constexpr std::size_t kTask = 1u << 20;
-  struct Task {
-    std::size_t begin, length;
-    bool decay;
-  };
-  std::vector<Task> tasks;
-  for (const GptParamInfo& p : params_info_) {
-    for (std::size_t i = 0; i < p.numel; i += kTask) {
-      tasks.push_back({p.offset + i, std::min(kTask, p.numel - i), p.decay});
+  const cpu::GradType gt = config_.offload_grad_dtype == DType::F32 ? cpu::GradType::F32 : cpu::GradType::BF16;
+  cpu::Pool* pool = &cpu::Pool::instance();
+  if (config_.offload_threads > 0 && config_.offload_threads != pool->size()) {
+    if (o.pool == nullptr) {
+      o.pool = std::make_unique<cpu::Pool>(config_.offload_threads);
     }
+    pool = o.pool.get();
   }
-  std::vector<double> partial(tasks.size(), 0.0);
-  parallel_tasks(static_cast<int>(tasks.size()), threads, [&](int t) {
-    double acc = 0.0;
-    const Task& task = tasks[static_cast<std::size_t>(t)];
-    for (std::size_t i = task.begin; i < task.begin + task.length; ++i) {
-      const double g = grad_at(o.pinned_grad, gdt, i);
-      acc += g * g;
+  if (o.tasks.empty()) {
+    constexpr std::size_t kTask = 1u << 20;
+    for (const GptParamInfo& p : params_info_) {
+      for (std::size_t i = 0; i < p.numel; i += kTask) {
+        o.tasks.push_back({p.offset + i, std::min(kTask, p.numel - i), p.decay});
+      }
     }
-    partial[static_cast<std::size_t>(t)] = acc;
+    o.partial.assign(o.tasks.size(), 0.0);
+  }
+  const std::size_t count = o.tasks.size();
+  std::atomic<std::size_t> next{0};
+  pool->each([&](int) {
+    for (std::size_t t = next.fetch_add(1); t < count; t = next.fetch_add(1)) {
+      const Offload::Task& task = o.tasks[t];
+      o.partial[t] = cpu::sq_norm_range(o.pinned_grad, gt, task.begin, task.begin + task.length);
+    }
   });
   double sq = 0.0;
-  for (const double x : partial) {
+  for (const double x : o.partial) {
     sq += x;
   }
   const double norm = std::sqrt(sq);
   const float clip = base.max_grad_norm > 0.0 ? static_cast<float>(std::min(1.0, base.max_grad_norm / (norm + 1.0e-6))) : 1.0f;
-  parallel_tasks(static_cast<int>(tasks.size()), threads, [&](int t) {
-    const Task& task = tasks[static_cast<std::size_t>(t)];
-    std::vector<float> g(task.length);
-    for (std::size_t i = 0; i < task.length; ++i) {
-      g[i] = grad_at(o.pinned_grad, gdt, task.begin + i) * clip;  // GPU: __fmul_rn(grad, clip)
-    }
-    fused::ParamSlot slot{o.master.data() + task.begin, g.data(), o.m.data() + task.begin, o.v.data() + task.begin,
-                          task.length};
-    fused::AdamWConfig c;
-    c.lr = base.lr;
-    c.beta1 = base.beta1;
-    c.beta2 = base.beta2;
-    c.eps = base.eps;
-    c.weight_decay = task.decay ? base.weight_decay : 0.0;
-    c.max_grad_norm = 0.0;
-    (void)fused::adamw_multi_tensor(std::span<const fused::ParamSlot>(&slot, 1), c, step_);
-    for (std::size_t i = 0; i < task.length; ++i) {
-      o.pinned_w[task.begin + i] = float_to_bfloat16_bits(o.master[task.begin + i]);
+  const cpu::AdamCoeffs coef = cpu::adam_coeffs(base.lr, base.beta1, base.beta2, base.eps, base.weight_decay, step_);
+  const bool wd = static_cast<float>(base.weight_decay) != 0.0f;
+  next.store(0);
+  pool->each([&](int) {
+    for (std::size_t t = next.fetch_add(1); t < count; t = next.fetch_add(1)) {
+      const Offload::Task& task = o.tasks[t];
+      cpu::adamw_range(o.master.data(), o.m.data(), o.v.data(), o.pinned_grad, gt, clip, coef, task.decay && wd, o.pinned_w,
+                       task.begin, task.begin + task.length);
     }
   });
   last_cpu_update_ms_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
@@ -1609,15 +1593,8 @@ void GptModel::sync_device_from_host_master(bool rebuild_bf16) {
   Offload& o = *offload_;
   cudaStream_t s = stream_.handle();
   if (rebuild_bf16) {
-    const int threads = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
-    const std::size_t n = num_params_;
-    const int parts = threads * 4;
-    parallel_tasks(parts, threads, [&](int t) {
-      const std::size_t a = n * static_cast<std::size_t>(t) / parts;
-      const std::size_t e = n * static_cast<std::size_t>(t + 1) / parts;
-      for (std::size_t i = a; i < e; ++i) {
-        o.pinned_w[i] = float_to_bfloat16_bits(o.master[i]);
-      }
+    cpu::Pool::instance().run(num_params_, [&](int, std::size_t a, std::size_t e) {
+      cpu::to_bf16_range(o.master.data() + a, o.pinned_w + a, e - a);
     });
   }
   // Onceki kopyalarin bitmesini bekle (pinned_w, pinned_grad ile ayni olabilir).

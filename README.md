@@ -10,14 +10,14 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/20)
 [![CMake](https://img.shields.io/badge/CMake-3.24+-064F8C?style=for-the-badge&logo=cmake&logoColor=white)](CMakeLists.txt)
 [![CUDA](https://img.shields.io/badge/CUDA-13.4_opsiyonel-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](cmake/NexusOptions.cmake)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
 ![Testler](https://img.shields.io/badge/ctest-138%2F138_ge%C3%A7ti-2EA44F?style=flat-square)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-160%2F160_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)
-![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--17_CPU%2BGPU-orange?style=flat-square)
+![Faz](https://img.shields.io/badge/yol_haritas%C4%B1-FAZ_0--18_CPU%2BGPU-orange?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPT--2_124M-RTX_3070%27te_e%C4%9Fitiliyor-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 [Mimari](#-mimari) •
@@ -274,6 +274,19 @@ Conv2d CPU sütununda PyTorch öndedir; GEMM'de TensorFlow öndedir.
 | AdamW 124M parametre, ms/adım | foreach 260 ms, NexusOptim AVX2 **164 ms** (foreach 1.6× yavaş) |
 | KURAL 9 regresyonu (15 koşu medyanı) | GEMM +8%, Conv2d +23%, Depthwise +8%, Attention −0.4%, Adam +37% |
 
+**27 Ekim 2026 — FAZ 18 CPU arka ucu: AVX2/VNNI GEMM, sabitli havuz, CPU FlashAttention, ZeRO-Offload Adam, INT8/INT4 çıkarım ve CPU JIT derleyici** ([rapor](docs/benchmarks/2026-10-27-faz18/README.md))
+
+| Ölçüm | Sonuç |
+| --- | --- |
+| GEMM vs double referans (FP32/BF16/F16 × 24 durum + BF16 VNNI) | ≤ **1.34e-6** (VNNI **1.61e-7**), 1/3/8 işçide bit bit aynı |
+| GEMM FP32 / BF16 / INT8 / INT4, 8 i.p. (n=256–4096) | FP32 **259–312 GFLOPS** · BF16 **254–322 GFLOPS** · INT8 **327 GOPS** · INT4 **396 GOPS** (eski skaler yoldan **6.4–14.1×** hızlı) |
+| GEMV (M=1, 8192×4096) | FP32 **37.7 GB/s** (3.56 ms) · BF16 **37.0 GB/s** (1.82 ms) · INT8 **0.91 ms** · INT4 **0.285 ms** (**12.5×** hızlı) |
+| CPU FlashAttention-2 (FP32 + BF16/FP16) | 8 çekirdekte **6.1–8.1×** ölçeklenme; tek geçişli bwd ile 1.6–1.8× ek hızlanma; 16 durumun 15'inde PyTorch SDPA'dan hızlı |
+| ZeRO-Offload adım (gpt2-350m GPU+CPU / 130M CPU AdamW) | **825–881 ms** (%23–31 azalma) · CPU AdamW **23.1 GB/s** (1.56×), GPU ile **bit bit aynı** |
+| CPU eğitimi (4 katman d=256) / `nexus::compile` CPU (18.6) | Eğitim **4.33×** hızlı (938.7 → 216.9 ms) · Derleyici `gpt2-124m` **1.33×**, `llama2-7b` **1.71×** hızlı |
+| TinyLlama-1.1B gerçek CPU çıkarımı (KV önbellekli decode) | FP32 **5.32 tok/s** · BF16 **11.60 tok/s** · INT8 **23.06 tok/s** · INT4 **41.15 tok/s** (526 MB, eski yoldan **17.7×** hızlı) |
+| Sanitizer (ASan `/fsanitize=address`) | 15/15 FAZ 18 + MoE testi **0 ASan hatası** ile geçti |
+
 **27 Ekim 2026 — FAZ 17 birlikte çalışabilirlik: safetensors / HF / GGUF / ONNX / DLPack / Python** ([rapor](docs/benchmarks/2026-10-27-faz17/README.md))
 
 | Ölçüm | Sonuç |
@@ -456,8 +469,9 @@ Plan `promt.txt` içindedir: 23 faz, her biri ölçülerek ve test edilerek kapa
 | 15 | Dayanıklılık: NXS3 arşivi + atomik kayıt dizini + manifest/SHA-256 (SHA-NI), son-N, TrainerState + sayaç tabanlı RNG, parçalı (rank başına) kayıt, yeniden parçalama, eşzamansız çift tampon, bekçi (takılma + straggler), `nexus-run --max-restarts` elastik yeniden başlatma | ✅ yeni süreçte devam bit bit (dropout dahil), 8 rank parçalı kayıt toplamasız, 3 noktada çökme sonrası son kayıt sağlam, 4→2 süreç elastik devam 1 adım kayıp · ⛔ süreç içi iletişim yeniden kurma, sıkıştırma · 🟡 eşzamansız kayıt CPU'da +%20 (≈0 değil), GPU arka ucu sınanmadı |
 | 16 | Çıkarım (GPU GPT-2 + CPU `lm`): sayfalı KV + CoW, prefill (flash varlen) / decode (sayfalı dikkat), decode CUDA Graph, tek çekirdek örnekleme + cezalar, spekülatif (ilk-k katman taslak), W8A8 SmoothQuant / W4A16 AWQ / KV INT8, `nexus::serve` sürekli batch | ✅ artımlı = tam (FP32 6e-6, CPU 7 varyant fark 0), sayfalı = bitişik bit bit, spekülatif = greedy birebir, TPOT torch.compile'dan %25–38 hızlı, 64 eşzamanlı istek 14.4k tok/s · ⛔ 7B / llama.cpp / vLLM kıyası, FP8 (sm_86), GPU LLaMA · 🟡 spekülatif greedy'den yavaş, W8A8 decode kazancı yok |
 | 17 | Birlikte çalışabilirlik: safetensors (mmap, sıkı doğrulama), HF llama/mistral/qwen2 içe/dışa aktarma, GGUF v3 (F16/Q8_0/Q4_0) dışa/içe aktarma, IR → ONNX (opset 17/18, dinamik eksen, dış veri), DLPack (CPU + CUDA), Python 3.14 `nexus.interop` / `nexus.lm` / `nexus.config` | ✅ TinyLlama-1.1B logitleri bağımsız FP64 referansla 1.4e-6, GGUF/ONNX bağımsız okuyucularla ≤1.4e-6, DLPack torch ile sıfır kopya · ⛔ llama.cpp / onnxruntime / transformers ile doğrulama (indirilmedi) |
-| 18 | CPU arka ucu derin optimizasyonu: AVX-512/BF16/AMX, NUMA, CPU FlashAttention, CPU'da büyük model | ⏭ sıradaki |
-| 19–22 | 1.0 | 📋 planlı |
+| 18 | CPU arka ucu: CPUID algılama, sabitli havuz + NUMA/büyük sayfa ayırıcı, AVX2 GEMM (FP32/BF16/F16 ağırlık, INT8 maddubs, GEMV), CPU FlashAttention yazmaç döşemeleri, ZeRO-Offload AVX2 Adam (bit bit), tüm CPU GEMM kullanıcıları yeni çekirdekte | ✅ ZeRO-Offload adımı %23–31 kısa, FlashAttention PyTorch SDPA'dan hızlı (15/16), BF16 GEMM ≫ PyTorch BF16, TinyLlama CPU 5.5 tok/s · ⛔ AVX-512 / AMX / çok düğümlü NUMA (donanım yok), TF / llama.cpp kıyası, CPU füzyon derleyicisi · 🟡 FP32 GEMM oneDNN'den %8–34 geride, uçtan uca BF16/INT8 decode yok |
+| 19 | Diğer hızlandırıcılar: ROCm/HIP, Vulkan/Metal/DirectML soyutlaması, TPU/PJRT | ⏭ sıradaki |
+| 20–22 | 1.0 | 📋 planlı |
 
 Açık kalanların tam listesi denetim raporundadır.
 

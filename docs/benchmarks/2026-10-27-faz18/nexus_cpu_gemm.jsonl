@@ -1,0 +1,24 @@
+== AMD Ryzen 7 5800H with Radeon Graphics (AuthenticAMD): 8 cekirdek / 16 mantiksal, 1 NUMA dugumu; L1d 32 KB, L2 512 KB, L3 16 MB; ISA: avx2 fma f16c
+{"mode": "bench_cpu_gemm", "n": 256, "threads": 8, "f32_gflops": 228.1, "bf16_gflops": 228.9, "f16_gflops": 226.0, "int8_gops": 387.9, "old_gemm_nn_gflops": 84.1}
+{"mode": "bench_cpu_gemm", "n": 512, "threads": 8, "f32_gflops": 290.5, "bf16_gflops": 305.4, "f16_gflops": 302.4, "int8_gops": 544.8, "old_gemm_nn_gflops": 80.2}
+{"mode": "bench_cpu_gemm", "n": 1024, "threads": 8, "f32_gflops": 341.5, "bf16_gflops": 364.4, "f16_gflops": 330.5, "int8_gops": 482.5, "old_gemm_nn_gflops": 52.1}
+{"mode": "bench_cpu_gemm", "n": 2048, "threads": 8, "f32_gflops": 295.9, "bf16_gflops": 304.3, "f16_gflops": 330.5, "int8_gops": 567.9, "old_gemm_nn_gflops": 48.1}
+{"mode": "bench_cpu_gemm", "n": 4096, "threads": 8, "f32_gflops": 294.0, "bf16_gflops": 291.2, "f16_gflops": 330.6, "int8_gops": 516.8, "old_gemm_nn_gflops": -1.0}
+{"mode": "bench_cpu_gemv", "N": 4096, "K": 2048, "f32_ms": 0.904, "f32_gb_s": 37.1, "bf16_ms": 0.305, "bf16_gb_s": 55.1}
+{"mode": "bench_cpu_gemv", "N": 8192, "K": 4096, "f32_ms": 3.856, "f32_gb_s": 34.8, "bf16_ms": 1.698, "bf16_gb_s": 39.5}
+== AMD Ryzen 7 5800H with Radeon Graphics (AuthenticAMD): 8 cekirdek / 16 mantiksal, 1 NUMA dugumu; L1d 32 KB, L2 512 KB, L3 16 MB; ISA: avx2 fma f16c
+{"mode": "bench_cpu_gemm", "n": 256, "threads": 8, "f32_gflops": 199.8, "bf16_gflops": 166.9, "f16_gflops": 203.4, "int8_gops": 311.8, "old_gemm_nn_gflops": 76.8}
+{"mode": "bench_cpu_gemm", "n": 512, "threads": 8, "f32_gflops": 249.0, "bf16_gflops": 266.8, "f16_gflops": 273.3, "int8_gops": 467.9, "old_gemm_nn_gflops": 64.1}
+{"mode": "bench_cpu_gemm", "n": 1024, "threads": 8, "f32_gflops": 327.9, "bf16_gflops": 316.2, "f16_gflops": 279.6, "int8_gops": 485.3, "old_gemm_nn_gflops": 52.6}
+{"mode": "bench_cpu_gemm", "n": 2048, "threads": 8, "f32_gflops": 280.7, "bf16_gflops": 302.4, "f16_gflops": 297.9, "int8_gops": 478.8, "old_gemm_nn_gflops": 47.8}
+{"mode": "bench_cpu_gemm", "n": 4096, "threads": 8, "f32_gflops": 332.2, "bf16_gflops": 288.3, "f16_gflops": 305.9, "int8_gops": 550.1, "old_gemm_nn_gflops": -1.0}
+{"mode": "bench_cpu_gemv", "N": 4096, "K": 2048, "f32_ms": 0.903, "f32_gb_s": 37.2, "bf16_ms": 0.307, "bf16_gb_s": 54.6}
+{"mode": "bench_cpu_gemv", "N": 8192, "K": 4096, "f32_ms": 3.760, "f32_gb_s": 35.7, "bf16_ms": 1.739, "bf16_gb_s": 38.6}
+== AMD Ryzen 7 5800H with Radeon Graphics (AuthenticAMD): 8 cekirdek / 16 mantiksal, 1 NUMA dugumu; L1d 32 KB, L2 512 KB, L3 16 MB; ISA: avx2 fma f16c
+{"mode": "bench_cpu_gemm", "n": 256, "threads": 8, "f32_gflops": 209.7, "bf16_gflops": 228.9, "f16_gflops": 206.4, "int8_gops": 382.2, "old_gemm_nn_gflops": 83.9}
+{"mode": "bench_cpu_gemm", "n": 512, "threads": 8, "f32_gflops": 295.2, "bf16_gflops": 296.4, "f16_gflops": 302.3, "int8_gops": 482.0, "old_gemm_nn_gflops": 78.7}
+{"mode": "bench_cpu_gemm", "n": 1024, "threads": 8, "f32_gflops": 320.3, "bf16_gflops": 332.9, "f16_gflops": 328.1, "int8_gops": 469.5, "old_gemm_nn_gflops": 50.3}
+{"mode": "bench_cpu_gemm", "n": 2048, "threads": 8, "f32_gflops": 310.7, "bf16_gflops": 305.9, "f16_gflops": 269.7, "int8_gops": 536.2, "old_gemm_nn_gflops": 47.2}
+{"mode": "bench_cpu_gemm", "n": 4096, "threads": 8, "f32_gflops": 309.9, "bf16_gflops": 285.7, "f16_gflops": 308.1, "int8_gops": 602.5, "old_gemm_nn_gflops": -1.0}
+{"mode": "bench_cpu_gemv", "N": 4096, "K": 2048, "f32_ms": 0.930, "f32_gb_s": 36.1, "bf16_ms": 0.307, "bf16_gb_s": 54.6}
+{"mode": "bench_cpu_gemv", "N": 8192, "K": 4096, "f32_ms": 3.831, "f32_gb_s": 35.0, "bf16_ms": 1.762, "bf16_gb_s": 38.1}

@@ -1,0 +1,66 @@
+{
+  "phase": 5,
+  "backend": "torch 2.14.1+cpu sdpa cpu fp32",
+  "threads": 8,
+  "shape": {
+    "batch": 1,
+    "heads": 8,
+    "head_dim": 64
+  },
+  "cases": [
+    {
+      "T": 512,
+      "causal": false,
+      "fwd_ms": 3.290199994808063,
+      "fwd_bwd_ms": 8.468500003800727
+    },
+    {
+      "T": 512,
+      "causal": true,
+      "fwd_ms": 2.1127000072738156,
+      "fwd_bwd_ms": 8.281399990664795
+    },
+    {
+      "T": 1024,
+      "causal": false,
+      "fwd_ms": 7.198699997388758,
+      "fwd_bwd_ms": 32.52609999617562
+    },
+    {
+      "T": 1024,
+      "causal": true,
+      "fwd_ms": 5.699899993487634,
+      "fwd_bwd_ms": 26.73529999447055
+    },
+    {
+      "T": 2048,
+      "causal": false,
+      "fwd_ms": 27.58650000032503,
+      "fwd_bwd_ms": 124.3531000072835
+    },
+    {
+      "T": 2048,
+      "causal": true,
+      "fwd_ms": 18.35420000134036,
+      "fwd_bwd_ms": 79.04440000129398
+    },
+    {
+      "T": 4096,
+      "causal": false,
+      "fwd_ms": 107.32670000288635,
+      "fwd_bwd_ms": 469.4370000070194
+    },
+    {
+      "T": 4096,
+      "causal": true,
+      "fwd_ms": 60.25039999803994,
+      "fwd_bwd_ms": 274.66850000200793
+    }
+  ],
+  "protocol": {
+    "warmup": 1,
+    "repeats": 5,
+    "stat": "median",
+    "timing": "perf_counter"
+  }
+}

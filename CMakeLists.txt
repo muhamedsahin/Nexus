@@ -81,6 +81,10 @@ add_library(nexus STATIC
     src/interop/gguf.cpp
     src/interop/onnx.cpp
     src/interop/dlpack.cpp
+    src/cpu/features.cpp
+    src/cpu/threads.cpp
+    src/cpu/gemm_avx2.cpp
+    src/cpu/adam_avx2.cpp
     src/compile/ir.cpp
     src/compile/trace.cpp
     src/compile/passes.cpp
@@ -112,9 +116,12 @@ if(NEXUS_ENABLE_AVX2)
     target_compile_definitions(nexus PUBLIC NEXUS_ENABLE_AVX2=1)
     # FAZ 5.8: CPU FlashAttention doseme donguleri AVX2/FMA ile vektorlesir.
     if(MSVC)
-        set_source_files_properties(src/attention/cpu.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+        set_source_files_properties(src/attention/cpu.cpp src/lm/ops.cpp src/lm/model.cpp src/compile/executor.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+        set_source_files_properties(src/cpu/gemm_avx2.cpp src/cpu/adam_avx2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
     else()
-        set_source_files_properties(src/attention/cpu.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma")
+        set_source_files_properties(src/attention/cpu.cpp src/lm/ops.cpp src/lm/model.cpp src/compile/executor.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma")
+        set_source_files_properties(src/cpu/gemm_avx2.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-mf16c")
+        set_source_files_properties(src/cpu/adam_avx2.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-ffp-contract=off")
     endif()
 endif()
 if(NEXUS_ENABLE_AVX512)

@@ -1,0 +1,7 @@
+{"mode": "bench_cpu_decode", "model": "TinyLlama-1.1B", "weights": "f32", "gemm": "avx2", "prompt": 16, "prefill_ms": 637.0, "decode_ms_per_token": 180.7, "tokens_per_s": 5.53, "weight_gb_s": 24.3}
+{"mode": "bench_cpu_decode", "model": "TinyLlama-1.1B", "weights": "f32", "gemm": "reference_scalar", "prompt": 16, "prefill_ms": 1702.3, "decode_ms_per_token": 429.1, "tokens_per_s": 2.33, "weight_gb_s": 10.3}
+  info  greedy tokenlari AVX2 vs eski GEMM: 32/32 ayni
+{"mode": "bench_cpu_gemv_layers", "model": "TinyLlama-1.1B", "weights": "f32", "layers": 22, "gemv_ms_per_token": 91.8, "gemv_tokens_per_s_ceiling": 10.9, "weight_gb_s": 42.2}
+{"mode": "bench_cpu_gemv_layers", "model": "TinyLlama-1.1B", "weights": "bf16", "layers": 22, "gemv_ms_per_token": 36.3, "gemv_tokens_per_s_ceiling": 27.6, "weight_gb_s": 53.4}
+{"mode": "bench_cpu_gemv_layers", "model": "TinyLlama-1.1B", "weights": "int8", "layers": 22, "gemv_ms_per_token": 14.3, "gemv_tokens_per_s_ceiling": 70.0, "weight_gb_s": 67.8}
+{"mode": "bench_cpu_gemv_layers", "model": "TinyLlama-1.1B", "weights": "f32_kn", "layers": 22, "gemv_ms_per_token": 88.3, "gemv_tokens_per_s_ceiling": 11.3, "weight_gb_s": 43.9}

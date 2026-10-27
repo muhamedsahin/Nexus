@@ -1,0 +1,21 @@
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 256, "f32_gflops": 315.7, "bf16_gflops": 0.96}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 512, "f32_gflops": 361.6, "bf16_gflops": 0.97}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 1024, "f32_gflops": 372.1, "bf16_gflops": 0.75}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 2048, "f32_gflops": 374.4}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 4096, "f32_gflops": 398.2}
+{"mode": "torch_cpu_gemv", "threads": 8, "N": 4096, "K": 2048, "f32_ms": 1.426, "f32_gb_s": 23.5, "bf16_ms": 0.409, "bf16_gb_s": 41.0}
+{"mode": "torch_cpu_gemv", "threads": 8, "N": 8192, "K": 4096, "f32_ms": 5.239, "f32_gb_s": 25.6, "bf16_ms": 1.746, "bf16_gb_s": 38.4}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 256, "f32_gflops": 313.6, "bf16_gflops": 0.81}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 512, "f32_gflops": 357.4, "bf16_gflops": 1.01}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 1024, "f32_gflops": 358.0, "bf16_gflops": 0.75}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 2048, "f32_gflops": 363.2}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 4096, "f32_gflops": 395.7}
+{"mode": "torch_cpu_gemv", "threads": 8, "N": 4096, "K": 2048, "f32_ms": 1.247, "f32_gb_s": 26.9, "bf16_ms": 0.421, "bf16_gb_s": 39.9}
+{"mode": "torch_cpu_gemv", "threads": 8, "N": 8192, "K": 4096, "f32_ms": 4.752, "f32_gb_s": 28.2, "bf16_ms": 1.656, "bf16_gb_s": 40.5}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 256, "f32_gflops": 328.3, "bf16_gflops": 0.96}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 512, "f32_gflops": 362.7, "bf16_gflops": 0.97}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 1024, "f32_gflops": 331.9, "bf16_gflops": 0.75}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 2048, "f32_gflops": 363.4}
+{"mode": "torch_cpu_gemm", "torch": "2.14.1+cpu", "threads": 8, "n": 4096, "f32_gflops": 394.9}
+{"mode": "torch_cpu_gemv", "threads": 8, "N": 4096, "K": 2048, "f32_ms": 1.412, "f32_gb_s": 23.8, "bf16_ms": 0.402, "bf16_gb_s": 41.8}
+{"mode": "torch_cpu_gemv", "threads": 8, "N": 8192, "K": 4096, "f32_ms": 5.186, "f32_gb_s": 25.9, "bf16_ms": 1.796, "bf16_gb_s": 37.4}

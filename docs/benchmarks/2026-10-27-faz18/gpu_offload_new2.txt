@@ -1,0 +1,37 @@
+  info  gpt2-350m  none      adamw32      beklenen= 8.62 GiB  tepe= 6.94 GiB      468.7 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  selective adamw32      beklenen= 8.62 GiB  tepe= 6.67 GiB      189.1 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  full      adamw32      beklenen= 6.00 GiB  tepe= 6.22 GiB      214.7 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  none      adamw8bit    beklenen= 6.64 GiB  tepe= 5.26 GiB      252.8 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  selective adamw8bit    beklenen= 6.64 GiB  tepe= 4.99 GiB      258.1 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  full      adamw8bit    beklenen= 4.01 GiB  tepe= 4.54 GiB      279.4 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  none      zero_offload beklenen= 3.33 GiB  tepe= 2.29 GiB      834.8 ms/adim (CPU   671.7 ms)  ok
+  info  gpt2-350m  selective zero_offload beklenen= 3.33 GiB  tepe= 2.02 GiB      855.1 ms/adim (CPU   701.9 ms)  ok
+  info  gpt2-350m  full      zero_offload beklenen= 0.71 GiB  tepe= 1.57 GiB      881.1 ms/adim (CPU   693.5 ms)  ok
+  info  gpt2-350m  none      adamw8bit_fused beklenen= 3.99 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  denenmedi (fused yalniz recompute ile anlamli)
+  info  gpt2-350m  selective adamw8bit_fused beklenen= 3.99 GiB  tepe= 2.30 GiB      269.0 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-350m  full      adamw8bit_fused beklenen= 1.37 GiB  tepe= 1.85 GiB      292.2 ms/adim (CPU     0.0 ms)  ok
+  info  gpt3-1.3b  none      adamw32      beklenen=25.49 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt3-1.3b  selective adamw32      beklenen=25.49 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt3-1.3b  full      adamw32      beklenen=22.12 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt3-1.3b  none      adamw8bit    beklenen=18.15 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt3-1.3b  selective adamw8bit    beklenen=18.15 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt3-1.3b  full      adamw8bit    beklenen=14.77 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt3-1.3b  none      zero_offload beklenen= 5.92 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  host bellegi yetersiz: gerek 17.1 GiB, bos 14.7 GiB (denenmedi)
+  info  gpt3-1.3b  selective zero_offload beklenen= 5.92 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  host bellegi yetersiz: gerek 17.1 GiB, bos 14.7 GiB (denenmedi)
+  info  gpt3-1.3b  full      zero_offload beklenen= 2.54 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  host bellegi yetersiz: gerek 17.1 GiB, bos 14.7 GiB (denenmedi)
+  info  gpt3-1.3b  none      adamw8bit_fused beklenen= 8.36 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  denenmedi (fused yalniz recompute ile anlamli)
+  info  gpt3-1.3b  selective adamw8bit_fused beklenen= 8.36 GiB  tepe= 6.84 GiB      920.7 ms/adim (CPU     0.0 ms)  ok
+  info  gpt3-1.3b  full      adamw8bit_fused beklenen= 4.99 GiB  tepe= 5.94 GiB      986.8 ms/adim (CPU     0.0 ms)  ok
+  info  gpt2-1.5b  none      adamw32      beklenen=34.46 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  selective adamw32      beklenen=34.46 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  full      adamw32      beklenen=26.26 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  none      adamw8bit    beklenen=25.76 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  selective adamw8bit    beklenen=25.76 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  full      adamw8bit    beklenen=17.55 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  none      zero_offload beklenen=11.25 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  selective zero_offload beklenen=11.25 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  full      zero_offload beklenen= 3.05 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  host bellegi yetersiz: gerek 20.3 GiB, bos 14.6 GiB (denenmedi)
+  info  gpt2-1.5b  none      adamw8bit_fused beklenen=14.15 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  selective adamw8bit_fused beklenen=14.15 GiB  tepe= 0.00 GiB        0.0 ms/adim (CPU     0.0 ms)  beklenen > 9 GiB: denenmedi
+  info  gpt2-1.5b  full      adamw8bit_fused beklenen= 5.95 GiB  tepe= 6.77 GiB     1181.0 ms/adim (CPU     0.0 ms)  ok
+  OK    FAZ 7 benchmark JSON yazildi (table)

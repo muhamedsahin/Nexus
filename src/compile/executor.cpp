@@ -1,7 +1,7 @@
 /**
  * @file executor.cpp
- * @brief FAZ 13: IR grafik yurutucusu (CPU) — statik arena (plan_memory), op cekirdekleri, JIT fuzyon cagrilari,
- *        asenkron iletisim (baslat: dugumde, bekle: ilk tuketicide).
+ * @brief FAZ 13 & FAZ 18.6: IR grafik yurutucusu (CPU) — statik arena (plan_memory), AVX2 + paralel
+ *        op cekirdekleri, cok is parcacikli JIT fuzyon cagrilari, kopyasiz AttentionQKV, asenkron iletisim.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -10,6 +10,8 @@
 
 #include "nexus/attention/cpu.hpp"
 #include "nexus/compile/compile.hpp"
+#include "nexus/cpu/gemm.hpp"
+#include "nexus/cpu/threads.hpp"
 #include "nexus/dist/process_group.hpp"
 #include "nexus/fused/training.hpp"
 #include "nexus/lm/rope.hpp"
@@ -22,6 +24,10 @@
 #include <limits>
 #include <set>
 #include <stdexcept>
+
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
 
 namespace nexus {
 namespace compile {
@@ -37,6 +43,31 @@ namespace {
 
 constexpr float kInvSqrt2 = 0.70710678118654752f;
 constexpr float kInvSqrt2Pi = 0.39894228040143268f;
+
+#if defined(__AVX2__)
+inline float hsum256_ps(__m256 v) noexcept {
+  __m128 s = _mm_add_ps(_mm256_castps256_ps128(v), _mm256_extractf128_ps(v, 1));
+  s = _mm_hadd_ps(s, s);
+  s = _mm_hadd_ps(s, s);
+  return _mm_cvtss_f32(s);
+}
+
+inline __m256 fast_exp256_ps(__m256 x) noexcept {
+  x = _mm256_min_ps(_mm256_max_ps(x, _mm256_set1_ps(-87.33654f)), _mm256_set1_ps(88.37626f));
+  __m256 fx = _mm256_floor_ps(_mm256_fmadd_ps(x, _mm256_set1_ps(1.44269504088896341f), _mm256_set1_ps(0.5f)));
+  x = _mm256_fnmadd_ps(fx, _mm256_set1_ps(0.693359375f), x);
+  x = _mm256_fnmadd_ps(fx, _mm256_set1_ps(-2.12194440e-4f), x);
+  __m256 y = _mm256_set1_ps(1.9875691500e-4f);
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(1.3981999507e-3f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(8.3334519073e-3f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(4.1665795894e-2f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(1.6666665459e-1f));
+  y = _mm256_fmadd_ps(y, x, _mm256_set1_ps(5.0000001201e-1f));
+  y = _mm256_fmadd_ps(y, _mm256_mul_ps(x, x), _mm256_add_ps(x, _mm256_set1_ps(1.0f)));
+  const __m256i n = _mm256_slli_epi32(_mm256_add_epi32(_mm256_cvtps_epi32(fx), _mm256_set1_epi32(127)), 23);
+  return _mm256_mul_ps(y, _mm256_castsi256_ps(n));
+}
+#endif
 
 float gelu_tanh_bwd(float dy, float x) {
   const float k = 0.7978845608028654f, u = k * (x + 0.044715f * x * x * x), t = std::tanh(u);
@@ -76,32 +107,60 @@ float scalar_op(Op op, float x, float y, double a) {
   }
 }
 
-void norm_fwd(bool rms, const float* x, const float* w, const float* b, float* y, std::int64_t rows, std::int64_t c, double eps) {
-  for (std::int64_t r = 0; r < rows; ++r) {
+void norm_fwd_rows(bool rms, const float* x, const float* w, const float* b, float* y, std::int64_t r0, std::int64_t r1,
+                   std::int64_t c, double eps) {
+  for (std::int64_t r = r0; r < r1; ++r) {
     const float* xr = x + r * c;
+    float* yr = y + r * c;
     double mu = 0.0;
     if (!rms) {
       for (std::int64_t i = 0; i < c; ++i) mu += xr[i];
       mu /= static_cast<double>(c);
     }
     double var = 0.0;
-    for (std::int64_t i = 0; i < c; ++i) var += (xr[i] - mu) * (xr[i] - mu);
+    for (std::int64_t i = 0; i < c; ++i) {
+      const double d = xr[i] - mu;
+      var += d * d;
+    }
     var /= static_cast<double>(c);
     const float rs = static_cast<float>(1.0 / std::sqrt(var + eps));
     const float m = static_cast<float>(mu);
-    for (std::int64_t i = 0; i < c; ++i) {
+    std::int64_t i = 0;
+#if defined(__AVX2__)
+    const __m256 vm = _mm256_set1_ps(m);
+    const __m256 vrs = _mm256_set1_ps(rs);
+    for (; i + 8 <= c; i += 8) {
+      const __m256 xh = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(xr + i), vm), vrs);
+      const __m256 vw = _mm256_loadu_ps(w + i);
+      const __m256 vo = b ? _mm256_fmadd_ps(xh, vw, _mm256_loadu_ps(b + i)) : _mm256_mul_ps(xh, vw);
+      _mm256_storeu_ps(yr + i, vo);
+    }
+#endif
+    for (; i < c; ++i) {
       const float xh = (xr[i] - m) * rs;
-      y[r * c + i] = b ? xh * w[i] + b[i] : xh * w[i];
+      yr[i] = b ? xh * w[i] + b[i] : xh * w[i];
     }
   }
 }
 
+void norm_fwd(bool rms, const float* x, const float* w, const float* b, float* y, std::int64_t rows, std::int64_t c,
+              double eps) {
+  if (rows * c >= 16384 && rows >= 4) {
+    cpu::Pool::instance().run(static_cast<std::size_t>(rows), [&](int, std::size_t r0, std::size_t r1) {
+      norm_fwd_rows(rms, x, w, b, y, static_cast<std::int64_t>(r0), static_cast<std::int64_t>(r1), c, eps);
+    });
+  } else {
+    norm_fwd_rows(rms, x, w, b, y, 0, rows, c, eps);
+  }
+}
+
 /// dx (yazilir) ve/veya dw, db (yazilir).
-void norm_bwd(bool rms, const float* dy, const float* x, const float* w, float* dx, float* dw, float* db, std::int64_t rows,
-              std::int64_t c, double eps) {
-  if (dw) std::fill(dw, dw + c, 0.0f);
-  if (db) std::fill(db, db + c, 0.0f);
-  std::vector<float> dxh(static_cast<std::size_t>(c));
+void norm_bwd(bool rms, const float* dy, const float* x, const float* w, float* dx, float* dw, float* db,
+              std::int64_t rows, std::int64_t c, double eps) {
+  if (dw) std::memset(dw, 0, static_cast<std::size_t>(c) * sizeof(float));
+  if (db) std::memset(db, 0, static_cast<std::size_t>(c) * sizeof(float));
+  thread_local std::vector<float> dxh;
+  if (dx && dxh.size() < static_cast<std::size_t>(c)) dxh.resize(static_cast<std::size_t>(c));
   for (std::int64_t r = 0; r < rows; ++r) {
     const float* xr = x + r * c;
     const float* dyr = dy + r * c;
@@ -111,7 +170,10 @@ void norm_bwd(bool rms, const float* dy, const float* x, const float* w, float* 
       mu /= static_cast<double>(c);
     }
     double var = 0.0;
-    for (std::int64_t i = 0; i < c; ++i) var += (xr[i] - mu) * (xr[i] - mu);
+    for (std::int64_t i = 0; i < c; ++i) {
+      const double d = xr[i] - mu;
+      var += d * d;
+    }
     var /= static_cast<double>(c);
     const float rs = static_cast<float>(1.0 / std::sqrt(var + eps));
     const float m = static_cast<float>(mu);
@@ -121,18 +183,64 @@ void norm_bwd(bool rms, const float* dy, const float* x, const float* w, float* 
       if (dw) dw[i] += dyr[i] * xh;
       if (db) db[i] += dyr[i];
       if (dx) {
-        dxh[static_cast<std::size_t>(i)] = dyr[i] * w[i];
-        s1 += dxh[static_cast<std::size_t>(i)];
-        s2 += static_cast<double>(dxh[static_cast<std::size_t>(i)]) * xh;
+        const float v = dyr[i] * w[i];
+        dxh[static_cast<std::size_t>(i)] = v;
+        s1 += v;
+        s2 += static_cast<double>(v) * xh;
       }
     }
     if (!dx) continue;
     const float a1 = rms ? 0.0f : static_cast<float>(s1 / static_cast<double>(c));
     const float a2 = static_cast<float>(s2 / static_cast<double>(c));
-    for (std::int64_t i = 0; i < c; ++i) {
-      const float xh = (xr[i] - m) * rs;
-      dx[r * c + i] = rs * (dxh[static_cast<std::size_t>(i)] - a1 - xh * a2);
+    float* dxr = dx + r * c;
+    std::int64_t i = 0;
+#if defined(__AVX2__)
+    const __m256 vm = _mm256_set1_ps(m);
+    const __m256 vrs = _mm256_set1_ps(rs);
+    const __m256 va1 = _mm256_set1_ps(a1);
+    const __m256 va2 = _mm256_set1_ps(a2);
+    for (; i + 8 <= c; i += 8) {
+      const __m256 xh = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(xr + i), vm), vrs);
+      const __m256 d = _mm256_fnmadd_ps(xh, va2, _mm256_sub_ps(_mm256_loadu_ps(dxh.data() + i), va1));
+      _mm256_storeu_ps(dxr + i, _mm256_mul_ps(vrs, d));
     }
+#endif
+    for (; i < c; ++i) {
+      const float xh = (xr[i] - m) * rs;
+      dxr[i] = rs * (dxh[static_cast<std::size_t>(i)] - a1 - xh * a2);
+    }
+  }
+}
+
+void add_arrays_cpu(float* dst, const float* a, const float* b, std::int64_t cnt) noexcept {
+  std::int64_t e = 0;
+#if defined(__AVX2__)
+  for (; e + 16 <= cnt; e += 16) {
+    _mm256_storeu_ps(dst + e, _mm256_add_ps(_mm256_loadu_ps(a + e), _mm256_loadu_ps(b + e)));
+    _mm256_storeu_ps(dst + e + 8, _mm256_add_ps(_mm256_loadu_ps(a + e + 8), _mm256_loadu_ps(b + e + 8)));
+  }
+  for (; e + 8 <= cnt; e += 8) {
+    _mm256_storeu_ps(dst + e, _mm256_add_ps(_mm256_loadu_ps(a + e), _mm256_loadu_ps(b + e)));
+  }
+#endif
+  for (; e < cnt; ++e) dst[e] = a[e] + b[e];
+}
+
+void sum_rows_cpu(const float* x, float* out, std::int64_t rows, std::int64_t cols) noexcept {
+  std::memset(out, 0, static_cast<std::size_t>(cols) * sizeof(float));
+  for (std::int64_t r = 0; r < rows; ++r) {
+    const float* xr = x + r * cols;
+    std::int64_t k = 0;
+#if defined(__AVX2__)
+    for (; k + 16 <= cols; k += 16) {
+      _mm256_storeu_ps(out + k, _mm256_add_ps(_mm256_loadu_ps(out + k), _mm256_loadu_ps(xr + k)));
+      _mm256_storeu_ps(out + k + 8, _mm256_add_ps(_mm256_loadu_ps(out + k + 8), _mm256_loadu_ps(xr + k + 8)));
+    }
+    for (; k + 8 <= cols; k += 8) {
+      _mm256_storeu_ps(out + k, _mm256_add_ps(_mm256_loadu_ps(out + k), _mm256_loadu_ps(xr + k)));
+    }
+#endif
+    for (; k < cols; ++k) out[k] += xr[k];
   }
 }
 
@@ -149,6 +257,56 @@ AttentionParams attn_params(std::int64_t B, std::int64_t T, std::int64_t H, std:
   p.causal = true;
   p.set_contiguous_bthd();
   return p;
+}
+
+void dispatch_fused_cpu(ir::CpuKernelFn fn, const ir::FusedOp& f, const std::vector<const float*>& ins,
+                        const std::vector<float*>& outs, long long rows, long long cols) {
+  const long long total = rows * cols;
+  if (total < 16384 || cpu::Pool::instance().size() <= 1) {
+    fn(ins.data(), outs.data(), rows, cols);
+    return;
+  }
+  const std::size_t nin = ins.size();
+  const std::size_t nout = outs.size();
+  if (rows >= static_cast<long long>(cpu::Pool::instance().size())) {
+    cpu::Pool::instance().run(static_cast<std::size_t>(rows), [&](int, std::size_t r0, std::size_t r1) {
+      const float* l_ins[16];
+      float* l_outs[8];
+      std::vector<const float*> v_ins;
+      std::vector<float*> v_outs;
+      const float** p_in = nin <= 16 ? l_ins : (v_ins.resize(nin), v_ins.data());
+      float** p_out = nout <= 8 ? l_outs : (v_outs.resize(nout), v_outs.data());
+      const long long off = static_cast<long long>(r0) * cols;
+      for (std::size_t e = 0; e < nin; ++e) {
+        p_in[e] = f.input_is_row[e] ? ins[e] : (ins[e] + off);
+      }
+      for (std::size_t k = 0; k < nout; ++k) {
+        p_out[k] = outs[k] + off;
+      }
+      fn(p_in, p_out, static_cast<long long>(r1 - r0), cols);
+    });
+    return;
+  }
+  if (rows == 1) {
+    // Tek satirlik (yayinsiz) duz vektor: 64-elemanlik bloklar halinde paralel parcala.
+    const long long blocks = (cols + 63) / 64;
+    cpu::Pool::instance().run(static_cast<std::size_t>(blocks), [&](int, std::size_t b0, std::size_t b1) {
+      const long long c0 = static_cast<long long>(b0) * 64;
+      const long long c1 = std::min(cols, static_cast<long long>(b1) * 64);
+      if (c0 >= c1) return;
+      const float* l_ins[16];
+      float* l_outs[8];
+      std::vector<const float*> v_ins;
+      std::vector<float*> v_outs;
+      const float** p_in = nin <= 16 ? l_ins : (v_ins.resize(nin), v_ins.data());
+      float** p_out = nout <= 8 ? l_outs : (v_outs.resize(nout), v_outs.data());
+      for (std::size_t e = 0; e < nin; ++e) p_in[e] = ins[e] + c0;
+      for (std::size_t k = 0; k < nout; ++k) p_out[k] = outs[k] + c0;
+      fn(p_in, p_out, 1, c1 - c0);
+    });
+    return;
+  }
+  fn(ins.data(), outs.data(), rows, cols);
 }
 
 }  // namespace
@@ -262,19 +420,18 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
       }
       case Op::BiasAdd: {
         const std::int64_t c = E(n.shape[1]);
+        const std::int64_t rows = cnt / c;
         const float* x = in(0);
         const float* bb = in(1);
-        for (std::int64_t e = 0; e < cnt; ++e) out[e] = x[e] + bb[e % c];
+        for (std::int64_t r = 0; r < rows; ++r) {
+          add_arrays_cpu(out + r * c, x + r * c, bb, c);
+        }
         break;
       }
       case Op::SumRows: {
         const std::int64_t c = E(n.shape[0]);
         const std::int64_t rows = ir::numel(shp(0), b) / c;
-        const float* x = in(0);
-        std::fill(out, out + c, 0.0f);
-        for (std::int64_t r = 0; r < rows; ++r) {
-          for (std::int64_t k = 0; k < c; ++k) out[k] += x[r * c + k];
-        }
+        sum_rows_cpu(in(0), out, rows, c);
         break;
       }
       case Op::MatMul: case Op::MatMulNT: case Op::MatMulTN: {
@@ -283,64 +440,105 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
         const float* accv = (fl & 1) ? in(static_cast<int>(n.in.size()) - 1) : nullptr;
         if (n.op == Op::MatMul) {
           const std::int64_t M = E(shp(0)[0]), Kd = E(shp(0)[1]), N = E(shp(1)[1]);
-          K::gemm_nn(in(0), in(1), out, static_cast<int>(M), static_cast<int>(Kd), static_cast<int>(N));
-          if (accv) {
-            for (std::int64_t e = 0; e < cnt; ++e) out[e] += accv[e];
-          }
+          if (accv && accv != out) std::memcpy(out, accv, static_cast<std::size_t>(cnt) * 4);
+          cpu::GemmArgs ga;
+          ga.M = static_cast<int>(M);
+          ga.N = static_cast<int>(N);
+          ga.K = static_cast<int>(Kd);
+          ga.A = in(0);
+          ga.lda = static_cast<int>(Kd);
+          ga.B = in(1);
+          ga.ldb = static_cast<int>(N);
+          ga.C = out;
+          ga.ldc = static_cast<int>(N);
+          ga.beta = accv ? 1.0f : 0.0f;
+          cpu::gemm(ga);
         } else if (n.op == Op::MatMulNT) {
           const std::int64_t M = E(shp(0)[0]), Kd = E(shp(0)[1]), N = E(shp(1)[0]);
-          if (accv) {
-            std::memcpy(out, accv, static_cast<std::size_t>(cnt) * 4);
-          } else {
-            std::fill(out, out + cnt, 0.0f);
-          }
-          K::gemm_nt_accum(in(0), in(1), out, static_cast<int>(M), static_cast<int>(Kd), static_cast<int>(N));
+          if (accv && accv != out) std::memcpy(out, accv, static_cast<std::size_t>(cnt) * 4);
+          cpu::GemmArgs ga;
+          ga.M = static_cast<int>(M);
+          ga.N = static_cast<int>(N);
+          ga.K = static_cast<int>(Kd);
+          ga.A = in(0);
+          ga.lda = static_cast<int>(Kd);
+          ga.B = in(1);
+          ga.ldb = static_cast<int>(Kd);
+          ga.b_trans = true;
+          ga.C = out;
+          ga.ldc = static_cast<int>(N);
+          ga.beta = accv ? 1.0f : 0.0f;
+          cpu::gemm(ga);
           if (fl & 4) {
             const float* pre = in(2);
             for (std::int64_t e = 0; e < cnt; ++e) out[e] = scalar_op(Op::GeluBwd, out[e], pre[e], 0.0);
           }
         } else {
           const std::int64_t Kd = E(shp(0)[0]), M = E(shp(0)[1]), N = E(shp(1)[1]);
-          if (accv) {
-            std::memcpy(out, accv, static_cast<std::size_t>(cnt) * 4);
-          } else {
-            std::fill(out, out + cnt, 0.0f);
-          }
-          K::gemm_tn_accum(in(0), in(1), out, static_cast<int>(M), static_cast<int>(Kd), static_cast<int>(N));
+          if (accv && accv != out) std::memcpy(out, accv, static_cast<std::size_t>(cnt) * 4);
+          cpu::GemmArgs ga;
+          ga.M = static_cast<int>(M);
+          ga.N = static_cast<int>(N);
+          ga.K = static_cast<int>(Kd);
+          ga.A = in(0);
+          ga.lda = static_cast<int>(M);
+          ga.a_trans = true;
+          ga.B = in(1);
+          ga.ldb = static_cast<int>(N);
+          ga.C = out;
+          ga.ldc = static_cast<int>(N);
+          ga.beta = accv ? 1.0f : 0.0f;
+          cpu::gemm(ga);
           if (fl & 2) {
             float* db = aux_ptr(i, 1, static_cast<std::size_t>(N));
-            const float* gy = in(1);
-            std::fill(db, db + N, 0.0f);
-            for (std::int64_t r = 0; r < Kd; ++r) {
-              for (std::int64_t c = 0; c < N; ++c) db[c] += gy[r * N + c];
-            }
+            sum_rows_cpu(in(1), db, Kd, N);
           }
         }
         break;
       }
       case Op::MatMulBias: {
         const std::int64_t M = E(shp(0)[0]), Kd = E(shp(0)[1]), N = E(shp(1)[1]);
-        K::gemm_nn(in(0), in(1), out, static_cast<int>(M), static_cast<int>(Kd), static_cast<int>(N));
-        const float* bb = in(2);
-        for (std::int64_t e = 0; e < cnt; ++e) out[e] += bb[e % N];
+        cpu::GemmArgs ga;
+        ga.M = static_cast<int>(M);
+        ga.N = static_cast<int>(N);
+        ga.K = static_cast<int>(Kd);
+        ga.A = in(0);
+        ga.lda = static_cast<int>(Kd);
+        ga.B = in(1);
+        ga.ldb = static_cast<int>(N);
+        ga.C = out;
+        ga.ldc = static_cast<int>(N);
+        ga.bias = in(2);
+        cpu::gemm(ga);
         break;
       }
       case Op::AttentionQKV: case Op::AttentionQKVBwd: {
         const std::int64_t H = n.ints[0], Hk = n.ints[1], D = n.ints[2], B = b.at(static_cast<int>(n.ints[3])), T = b.at(static_cast<int>(n.ints[4]));
-        const AttentionParams p = attn_params(B, T, H, Hk, D, n.a);
         const bool bwd = n.op == Op::AttentionQKVBwd;
         const float* qkv = in(bwd ? 1 : 0);
         const std::int64_t rows = B * T, w = (H + 2 * Hk) * D;
-        std::vector<float> q(static_cast<std::size_t>(rows * H * D)), k(static_cast<std::size_t>(rows * Hk * D)), v(k.size());
-        for (std::int64_t r = 0; r < rows; ++r) {
-          std::memcpy(q.data() + r * H * D, qkv + r * w, static_cast<std::size_t>(H * D) * 4);
-          std::memcpy(k.data() + r * Hk * D, qkv + r * w + H * D, static_cast<std::size_t>(Hk * D) * 4);
-          std::memcpy(v.data() + r * Hk * D, qkv + r * w + (H + Hk) * D, static_cast<std::size_t>(Hk * D) * 4);
-        }
         if (!bwd) {
+          // FAZ 18.6: ileri geciste qkv tamponunu kopyalamadan dogrudan adimli (strided) oku.
+          AttentionParams p = attn_params(B, T, H, Hk, D, n.a);
+          p.q_row_stride = w;
+          p.q_head_stride = D;
+          p.q_batch_stride = T * w;
+          p.k_row_stride = w;
+          p.k_head_stride = D;
+          p.k_batch_stride = T * w;
+          p.o_row_stride = H * D;
+          p.o_head_stride = D;
+          p.o_batch_stride = T * H * D;
           float* lse = aux_ptr(i, 1, static_cast<std::size_t>(B * H * T));
-          attention::flash_attention_forward_cpu(out, lse, q.data(), k.data(), v.data(), p, I.opt.attention_threads);
+          attention::flash_attention_forward_cpu(out, lse, qkv, qkv + H * D, qkv + (H + Hk) * D, p, I.opt.attention_threads);
         } else {
+          const AttentionParams p = attn_params(B, T, H, Hk, D, n.a);
+          std::vector<float> q(static_cast<std::size_t>(rows * H * D)), k(static_cast<std::size_t>(rows * Hk * D)), v(k.size());
+          for (std::int64_t r = 0; r < rows; ++r) {
+            std::memcpy(q.data() + r * H * D, qkv + r * w, static_cast<std::size_t>(H * D) * 4);
+            std::memcpy(k.data() + r * Hk * D, qkv + r * w + H * D, static_cast<std::size_t>(Hk * D) * 4);
+            std::memcpy(v.data() + r * Hk * D, qkv + r * w + (H + Hk) * D, static_cast<std::size_t>(Hk * D) * 4);
+          }
           std::vector<float> dq(q.size()), dk(k.size()), dv(v.size());
           attention::flash_attention_backward_cpu(dq.data(), dk.data(), dv.data(), in(0), q.data(), k.data(), v.data(), in(2), in(3),
                                                   p, I.opt.attention_threads);
@@ -393,17 +591,26 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
       case Op::BMMNT: {
         const std::int64_t G = E(shp(0)[0]), T = E(shp(0)[1]), D = E(shp(0)[2]), T2 = E(shp(1)[1]);
         for (std::int64_t q = 0; q < G; ++q) {
-          std::fill(out + q * T * T2, out + (q + 1) * T * T2, 0.0f);
-          K::gemm_nt_accum(in(0) + q * T * D, in(1) + q * T2 * D, out + q * T * T2, static_cast<int>(T), static_cast<int>(D),
-                           static_cast<int>(T2));
+          cpu::GemmArgs ga;
+          ga.M = static_cast<int>(T);
+          ga.N = static_cast<int>(T2);
+          ga.K = static_cast<int>(D);
+          ga.A = in(0) + q * T * D;
+          ga.lda = static_cast<int>(D);
+          ga.B = in(1) + q * T2 * D;
+          ga.ldb = static_cast<int>(D);
+          ga.b_trans = true;
+          ga.C = out + q * T * T2;
+          ga.ldc = static_cast<int>(T2);
+          cpu::gemm(ga);
         }
         break;
       }
       case Op::BMM: {
         const std::int64_t G = E(shp(0)[0]), T = E(shp(0)[1]), T2 = E(shp(0)[2]), D = E(shp(1)[2]);
         for (std::int64_t q = 0; q < G; ++q) {
-          K::gemm_nn(in(0) + q * T * T2, in(1) + q * T2 * D, out + q * T * D, static_cast<int>(T), static_cast<int>(T2),
-                     static_cast<int>(D));
+          nexus::cpu::gemm_nn(in(0) + q * T * T2, in(1) + q * T2 * D, out + q * T * D, static_cast<int>(T), static_cast<int>(T2),
+                              static_cast<int>(D));
         }
         break;
       }
@@ -443,8 +650,7 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
         float* db = (fl & 1) && n.op == Op::LayerNormBwdX && I.aux[i].size() > 2 && I.aux[i][2] >= 0 ? aux_ptr(i, 2, static_cast<std::size_t>(c)) : nullptr;
         norm_bwd(n.op == Op::RmsNormBwdX, in(0), in(1), in(2), out, dw, db, cnt / c, c, n.a);
         if (fl & 2) {
-          const float* add = in(static_cast<int>(n.in.size()) - 1);
-          for (std::int64_t e = 0; e < cnt; ++e) out[e] += add[e];
+          add_arrays_cpu(out, out, in(static_cast<int>(n.in.size()) - 1), cnt);
         }
         break;
       }
@@ -458,9 +664,7 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
       case Op::AddNorm: {
         const std::int64_t c = E(n.shape[1]);
         float* r = aux_ptr(i, 1, static_cast<std::size_t>(cnt));
-        const float* x = in(0);
-        const float* y = in(1);
-        for (std::int64_t e = 0; e < cnt; ++e) r[e] = x[e] + y[e];
+        add_arrays_cpu(r, in(0), in(1), cnt);
         norm_fwd(n.ints[0] == 1, r, in(2), n.ints[1] == 1 ? in(3) : nullptr, out, cnt / c, c, n.a);
         break;
       }
@@ -504,11 +708,11 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
         const std::int64_t c = E(n.shape[1]);
         const std::int64_t rows = E(shp(0)[0]);
         const std::int32_t* ids = I32(n.in[1]);
-        std::fill(out, out + cnt, 0.0f);
+        std::memset(out, 0, static_cast<std::size_t>(cnt) * sizeof(float));
         for (std::int64_t r = 0; r < rows; ++r) {
           const float* gr = in(0) + r * c;
           float* o = out + static_cast<std::int64_t>(ids[r]) * c;
-          for (std::int64_t k = 0; k < c; ++k) o[k] += gr[k];
+          add_arrays_cpu(o, o, gr, c);
         }
         break;
       }
@@ -542,21 +746,31 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
         const bool bwd = n.op == Op::FusedLinearCEBwd;
         float* dw = bwd ? aux_ptr(i, 1, static_cast<std::size_t>(Vp * C)) : nullptr;
         if (bwd) {
-          std::fill(dw, dw + Vp * C, 0.0f);
-          std::fill(out, out + rows * C, 0.0f);
+          std::memset(dw, 0, static_cast<std::size_t>(Vp * C) * sizeof(float));
+          std::memset(out, 0, static_cast<std::size_t>(rows * C) * sizeof(float));
         }
         const float scale = bwd && valid > 0 ? in(3)[0] / static_cast<float>(valid) : 0.0f;
         std::vector<float> lg(static_cast<std::size_t>(chunk * Vp));
         double loss = 0.0;
         for (std::int64_t r0 = 0; r0 < rows; r0 += chunk) {
           const std::int64_t R = std::min(chunk, rows - r0);
-          std::fill(lg.begin(), lg.begin() + R * Vp, 0.0f);
-          K::gemm_nt_accum(h + r0 * C, w, lg.data(), static_cast<int>(R), static_cast<int>(C), static_cast<int>(Vp));
+          cpu::GemmArgs ga;
+          ga.M = static_cast<int>(R);
+          ga.N = static_cast<int>(Vp);
+          ga.K = static_cast<int>(C);
+          ga.A = h + r0 * C;
+          ga.lda = static_cast<int>(C);
+          ga.B = w;
+          ga.ldb = static_cast<int>(C);
+          ga.b_trans = true;
+          ga.C = lg.data();
+          ga.ldc = static_cast<int>(Vp);
+          cpu::gemm(ga);
           for (std::int64_t r = 0; r < R; ++r) {
             float* x = lg.data() + r * Vp;
             const std::int32_t t = target(r0 + r);
             if (t == -100) {
-              std::fill(x, x + Vp, 0.0f);
+              std::memset(x, 0, static_cast<std::size_t>(Vp) * sizeof(float));
               continue;
             }
             float m = -std::numeric_limits<float>::infinity();
@@ -572,8 +786,8 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
             x[t] -= scale;
           }
           if (bwd) {
-            K::gemm_nn(lg.data(), w, out + r0 * C, static_cast<int>(R), static_cast<int>(Vp), static_cast<int>(C));
-            K::gemm_tn_accum(lg.data(), h + r0 * C, dw, static_cast<int>(Vp), static_cast<int>(R), static_cast<int>(C));
+            nexus::cpu::gemm_nn(lg.data(), w, out + r0 * C, static_cast<int>(R), static_cast<int>(Vp), static_cast<int>(C));
+            nexus::cpu::gemm_tn_accum(lg.data(), h + r0 * C, dw, static_cast<int>(Vp), static_cast<int>(R), static_cast<int>(C));
           }
         }
         if (!bwd) out[0] = valid > 0 ? static_cast<float>(loss / static_cast<double>(valid)) : 0.0f;
@@ -582,33 +796,70 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
       case Op::SwiGlu: case Op::SwiGluBwd: {
         const bool bwd = n.op == Op::SwiGluBwd;
         const float* u = bwd ? in(1) : in(0);
-        const std::int64_t F = E(bwd ? n.shape[1] : n.shape[1]) / (bwd ? 2 : 1);
+        const std::int64_t F = E(n.shape[1]) / (bwd ? 2 : 1);
         const std::int64_t rows = E(n.shape[0]);
-        for (std::int64_t r = 0; r < rows; ++r) {
-          const float* a = u + r * 2 * F;
-          const float* bb = a + F;
-          for (std::int64_t k = 0; k < F; ++k) {
-            const float sg = 1.0f / (1.0f + std::exp(-a[k]));
-            const float f = a[k] * sg;
-            if (!bwd) {
-              out[r * F + k] = f * bb[k];
-            } else {
-              const float gy = in(0)[r * F + k];
-              const float df = sg * (1.0f + a[k] * (1.0f - sg));
-              out[r * 2 * F + k] = gy * bb[k] * df;
-              out[r * 2 * F + F + k] = gy * f;
+        auto run_rows = [&](std::int64_t r0, std::int64_t r1) {
+          for (std::int64_t r = r0; r < r1; ++r) {
+            const float* a = u + r * 2 * F;
+            const float* bb = a + F;
+            std::int64_t k = 0;
+#if defined(__AVX2__)
+            const __m256 one = _mm256_set1_ps(1.0f);
+            const __m256 zero = _mm256_setzero_ps();
+            for (; k + 8 <= F; k += 8) {
+              const __m256 va = _mm256_loadu_ps(a + k);
+              const __m256 vbb = _mm256_loadu_ps(bb + k);
+              const __m256 sg = _mm256_div_ps(one, _mm256_add_ps(one, fast_exp256_ps(_mm256_sub_ps(zero, va))));
+              const __m256 vf = _mm256_mul_ps(va, sg);
+              if (!bwd) {
+                _mm256_storeu_ps(out + r * F + k, _mm256_mul_ps(vf, vbb));
+              } else {
+                const __m256 vgy = _mm256_loadu_ps(in(0) + r * F + k);
+                const __m256 vdf = _mm256_mul_ps(sg, _mm256_fmadd_ps(va, _mm256_sub_ps(one, sg), one));
+                _mm256_storeu_ps(out + r * 2 * F + k, _mm256_mul_ps(_mm256_mul_ps(vgy, vbb), vdf));
+                _mm256_storeu_ps(out + r * 2 * F + F + k, _mm256_mul_ps(vgy, vf));
+              }
+            }
+#endif
+            for (; k < F; ++k) {
+              const float sg = 1.0f / (1.0f + std::exp(-a[k]));
+              const float f = a[k] * sg;
+              if (!bwd) {
+                out[r * F + k] = f * bb[k];
+              } else {
+                const float gy = in(0)[r * F + k];
+                const float df = sg * (1.0f + a[k] * (1.0f - sg));
+                out[r * 2 * F + k] = gy * bb[k] * df;
+                out[r * 2 * F + F + k] = gy * f;
+              }
             }
           }
+        };
+        if (rows * F >= 8192 && rows >= 2) {
+          cpu::Pool::instance().run(static_cast<std::size_t>(rows), [&](int, std::size_t r0, std::size_t r1) {
+            run_rows(static_cast<std::int64_t>(r0), static_cast<std::int64_t>(r1));
+          });
+        } else {
+          run_rows(0, rows);
         }
         break;
       }
       case Op::LinearBiasGelu: {
         const std::int64_t M = E(shp(0)[0]), Kd = E(shp(0)[1]), N = E(shp(1)[1]);
         float* pre = aux_ptr(i, 1, static_cast<std::size_t>(cnt));
-        K::gemm_nn(in(0), in(1), pre, static_cast<int>(M), static_cast<int>(Kd), static_cast<int>(N));
-        const float* bb = in(2);
+        cpu::GemmArgs ga;
+        ga.M = static_cast<int>(M);
+        ga.N = static_cast<int>(N);
+        ga.K = static_cast<int>(Kd);
+        ga.A = in(0);
+        ga.lda = static_cast<int>(Kd);
+        ga.B = in(1);
+        ga.ldb = static_cast<int>(N);
+        ga.C = pre;
+        ga.ldc = static_cast<int>(N);
+        ga.bias = in(2);
+        cpu::gemm(ga);
         for (std::int64_t e = 0; e < cnt; ++e) {
-          pre[e] += bb[e % N];
           out[e] = 0.5f * pre[e] * (1.0f + std::erf(pre[e] * kInvSqrt2));
         }
         break;
@@ -642,14 +893,16 @@ std::vector<std::vector<float>> Executable::run(const Bindings& b, const std::ma
           double best[2] = {0, 0};
           for (int v = 0; v < 2; ++v) {
             const auto t0 = std::chrono::steady_clock::now();
-            for (int rep = 0; rep < 3; ++rep) I.kernels.at(v ? nm + "_s" : nm)(ins.data(), outs.data(), rows, cols);
+            for (int rep = 0; rep < 3; ++rep) {
+              dispatch_fused_cpu(I.kernels.at(v ? nm + "_s" : nm), f, ins, outs, rows, cols);
+            }
             best[v] = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
           }
           pick = I.scalar_choice.emplace(f.key, best[1] < best[0]).first;
           autotuned_ += 1;
         }
         const bool scalar = pick != I.scalar_choice.end() && pick->second;
-        I.kernels.at(scalar ? nm + "_s" : nm)(ins.data(), outs.data(), rows, cols);
+        dispatch_fused_cpu(I.kernels.at(scalar ? nm + "_s" : nm), f, ins, outs, rows, cols);
         break;
       }
       default: {

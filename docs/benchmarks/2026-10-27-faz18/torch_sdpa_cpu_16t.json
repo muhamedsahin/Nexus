@@ -1,0 +1,66 @@
+{
+  "phase": 5,
+  "backend": "torch 2.14.1+cpu sdpa cpu fp32",
+  "threads": 16,
+  "shape": {
+    "batch": 1,
+    "heads": 8,
+    "head_dim": 64
+  },
+  "cases": [
+    {
+      "T": 512,
+      "causal": false,
+      "fwd_ms": 2.9464999970514327,
+      "fwd_bwd_ms": 14.992900003562681
+    },
+    {
+      "T": 512,
+      "causal": true,
+      "fwd_ms": 2.8703999996650964,
+      "fwd_bwd_ms": 8.449300003121607
+    },
+    {
+      "T": 1024,
+      "causal": false,
+      "fwd_ms": 7.205500005511567,
+      "fwd_bwd_ms": 40.69750000780914
+    },
+    {
+      "T": 1024,
+      "causal": true,
+      "fwd_ms": 6.755700000212528,
+      "fwd_bwd_ms": 28.201199995237403
+    },
+    {
+      "T": 2048,
+      "causal": false,
+      "fwd_ms": 34.58340000361204,
+      "fwd_bwd_ms": 141.92689998890273
+    },
+    {
+      "T": 2048,
+      "causal": true,
+      "fwd_ms": 18.31240000319667,
+      "fwd_bwd_ms": 85.59050000621937
+    },
+    {
+      "T": 4096,
+      "causal": false,
+      "fwd_ms": 93.01069998764433,
+      "fwd_bwd_ms": 502.4989999947138
+    },
+    {
+      "T": 4096,
+      "causal": true,
+      "fwd_ms": 60.12179999379441,
+      "fwd_bwd_ms": 318.40410000586417
+    }
+  ],
+  "protocol": {
+    "warmup": 1,
+    "repeats": 5,
+    "stat": "median",
+    "timing": "perf_counter"
+  }
+}
