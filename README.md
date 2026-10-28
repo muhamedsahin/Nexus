@@ -2,6 +2,8 @@
 
 # ⚡ Nexus
 
+[Faz 21: tekrarlanabilir benchmark aracı, ölçüm protokolü ve sınırlar](docs/benchmarks/2026-10-28-faz21/README.md)
+
 ### Küçük tariften büyük modele: C++20 derin öğrenme ve pekiştirmeli öğrenme çerçevesi
 
 *Altı kütüphane, tek statik hedef `nexus::nexus`, aynı adları kullanan bir Python kabuğu.*
@@ -13,7 +15,7 @@
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](python/README.md)
 [![License](https://img.shields.io/badge/Lisans-Apache--2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
 
-![Testler](https://img.shields.io/badge/ctest-138%2F138_ge%C3%A7ti-2EA44F?style=flat-square)
+[![Benchmark CI](https://github.com/muhamedsahin/Nexus/actions/workflows/benchmark.yml/badge.svg)](https://github.com/muhamedsahin/Nexus/actions/workflows/benchmark.yml)
 ![ASan](https://img.shields.io/badge/ASan-temiz-2EA44F?style=flat-square)
 ![CUDA tests](https://img.shields.io/badge/CUDA_testleri-160%2F160_%2B_compute--sanitizer_temiz-76B900?style=flat-square)
 ![PyTorch parity](https://img.shields.io/badge/PyTorch_parity-kay%C4%B1p_6e--8-8A2BE2?style=flat-square)

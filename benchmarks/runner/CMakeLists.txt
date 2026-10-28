@@ -57,7 +57,11 @@ add_test(NAME bench_attention_cpu COMMAND bench_attention_cpu)
 set_tests_properties(bench_attention_cpu PROPERTIES TIMEOUT 600)
 
 # FAZ 1 + FAZ 3 GPU (ayirici, eleman eleman, cuBLASLt Linear, norm, CE, AdamW, GPT-2 124M).
+add_executable(bench_phase21 bench_phase21.cpp)
+target_link_libraries(bench_phase21 PRIVATE nexus::nexus)
+nexus_configure_target(bench_phase21)
 if(TARGET nexus_cuda)
+    target_link_libraries(bench_phase21 PRIVATE nexus::cuda)
     add_executable(bench_cuda_phase20 bench_cuda_phase20.cpp)
     target_link_libraries(bench_cuda_phase20 PRIVATE nexus::nexus nexus::cuda)
     nexus_configure_target(bench_cuda_phase20)

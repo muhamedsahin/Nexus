@@ -1,0 +1,41 @@
+name: Benchmark evidence
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/benchmark.yml'
+      - 'python/src/nexus_bench/**'
+      - 'benchmarks/runner/bench_phase21.cpp'
+      - 'tests/parity/test_phase21_bench.py'
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+permissions:
+  contents: read
+jobs:
+  evidence-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tests/parity/test_phase21_bench.py
+      - name: Build portable CPU measurement
+        run: >-
+          cmake -S . -B build-ci -DCMAKE_BUILD_TYPE=Release -DNEXUS_ENABLE_CUDA=OFF
+          -DNEXUS_ENABLE_AVX512=OFF -DNEXUS_ENABLE_VULKAN=OFF -DNEXUS_ENABLE_DIRECTML=OFF
+          -DNEXUS_BUILD_PYTHON=OFF
+      - run: cmake --build build-ci --target bench_phase21 --parallel 2
+      - name: Measure CPU without substituting GPU results
+        env:
+          OMP_NUM_THREADS: '8'
+        run: ./build-ci/benchmarks/runner/bench_phase21 > cpu-samples.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpu-benchmark-${{ github.sha }}
+          path: cpu-samples.jsonl
+          if-no-files-found: error

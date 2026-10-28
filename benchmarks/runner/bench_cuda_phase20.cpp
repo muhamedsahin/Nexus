@@ -73,7 +73,8 @@ void dump_init(nc::GptModel& model, const fs::path& path) {
   bool first = true;
   for (const auto& p : model.parameter_info()) {
     meta << (first ? "" : ",") << "{\"name\":\"" << p.name << "\",\"offset\":" << p.offset << ",\"shape\":[";
-    for (std::size_t i = 0; i < p.shape.size(); ++i) meta << (i ? "," : "") << p.shape[i];
+    for (std::size_t i = 0; i < p.shape.size(); ++i)
+      meta << (i ? "," : "") << ((p.name == "wte" && i == 0) ? c.vocab : p.shape[i]);
     meta << "]}";
     first = false;
   }
@@ -84,7 +85,7 @@ int run(int argc, char** argv) {
   std::map<std::string, std::string> opts;
   const std::set<std::string> allowed{"model", "tokens", "out", "steps", "stop-after", "seq", "micro",
       "precision", "optimizer", "lr", "warmup", "seed", "dump-init", "save", "resume",
-      "checkpoint-dir", "checkpoint-every"};
+      "checkpoint-dir", "checkpoint-every", "compile"};
   for (int i = 1; i < argc; i += 2) {
     const std::string key = argv[i];
     if (i + 1 >= argc || key.rfind("--", 0) || !allowed.count(key.substr(2)) || opts.count(key.substr(2)))
@@ -124,6 +125,8 @@ int run(int argc, char** argv) {
   if (optimizer != "adamw" && optimizer != "fused8" && optimizer != "offload")
     throw std::invalid_argument("optimizer: adamw | fused8 | offload");
   const bool fused = optimizer == "fused8";
+  const bool compiled = number("compile",0,0,1) != 0;
+  if (compiled && optimizer != "adamw") throw std::invalid_argument("compile requires standard AdamW");
   if (fused && (precision != "bf16" || opts.count("save") || opts.count("resume") || opts.count("dump-init") || opts.count("checkpoint-dir")))
     throw std::invalid_argument("fused8 requires BF16; checkpoint/parity export use the standard trainer");
   if (nc::device_count() == 0) return 77;
@@ -131,6 +134,7 @@ int run(int argc, char** argv) {
   config.compute_dtype = precision == "f32" ? nexus::DType::F32 : nexus::DType::BF16;
   config.recompute = nc::Recompute::Full;
   config.ce_chunk_rows = 256;
+  if (compiled) config.ce_chunk_rows = 0;  // Existing fused CE + cast path; 124M fits this device budget.
   config.deterministic = config.deterministic_attention = true;
   config.optimizer = fused ? nc::OptimizerKind::AdamW8bitFused : optimizer == "offload" ? nc::OptimizerKind::ZeroOffload : nc::OptimizerKind::AdamW;
   if (fused) { config.master = nc::MasterWeights::NoMaster; config.adam8_embedding_fp32 = false; }
@@ -155,13 +159,16 @@ int run(int argc, char** argv) {
     // Strict FP32 is not Tensor Core TF32: leave its peak unknown instead of using a false denominator.
     const double peak = precision == "bf16" ? nc::tensor_core_peak_flops(0, config.compute_dtype) : 0;
     out << "{\"type\":\"config\",\"model\":\"" << name << "\",\"precision\":\"" << precision
-        << "\",\"optimizer\":\"" << optimizer << "\",\"parameters\":" << model.num_parameters()
+        << "\",\"optimizer\":\"" << optimizer << "\",\"parameters\":"
+        << model.num_parameters()-static_cast<std::size_t>(model.config().padded_vocab()-config.vocab)*config.dim
         << ",\"layers\":" << config.layers << ",\"dim\":" << config.dim << ",\"heads\":" << config.heads
         << ",\"seq\":" << time << ",\"micro\":" << batch << ",\"schedule_steps\":" << steps << ",\"seed\":" << seed
         << ",\"peak_flops\":" << peak << ",\"device_state_bytes\":" << model.device_state_bytes()
-        << ",\"host_state_bytes\":" << model.host_state_bytes() << ",\"recompute\":\"full\""
+        << ",\"host_state_bytes\":" << model.host_state_bytes() << ",\"compiled\":" << (compiled ? "true" : "false")
+        << ",\"ce_chunk_rows\":" << model.config().ce_chunk_rows << ",\"recompute\":\"full\""
         << ",\"token_sha256\":\"" << source.state().substr(0, 64) << "\",\"lr\":" << lr
-        << ",\"warmup\":" << warmup << ",\"grad_clip\":\"" << (fused ? "previous-step-global-norm" : "current-step-global-norm") << "\"}\n";
+        << ",\"warmup\":" << warmup << ",\"cuda_build\":" << CUDART_VERSION
+        << ",\"grad_clip\":\"" << (fused ? "previous-step-global-norm" : "current-step-global-norm") << "\"}\n";
   };
   if (fused) {
     const nc::Stream stream;  // Borrowed CUDA default stream; no owned handle to leak on failure.
@@ -198,7 +205,7 @@ int run(int argc, char** argv) {
         .recompute(nt::RecomputePolicy::Full).deterministic(true).seed(seed)
         .micro_batch(batch).seq_len(time).global_batch_tokens(static_cast<std::int64_t>(batch) * time)
         .optimizer(nt::AdamW{lr, 0.9, 0.95, 1e-8, 0.1}).schedule(nt::WarmupCosine{warmup, steps, 0.1})
-        .grad_clip(1.0).nan_policy(nan).log_console(false);
+        .grad_clip(1.0).nan_policy(nan).log_console(false).compile(compiled,"max-autotune");
     if (opts.count("save") || opts.count("resume") || opts.count("checkpoint-dir")) {
       if (opts.count("save") && opts.count("resume") && opts.at("save") != opts.at("resume"))
         throw std::invalid_argument("save and resume must use the same checkpoint directory");
@@ -210,12 +217,15 @@ int run(int argc, char** argv) {
       checkpoint.keep = 2;
       std::ostringstream contract;
       contract << std::setprecision(17) << "phase20-v1 " << name << ' ' << precision << ' ' << optimizer << ' '
-               << steps << ' ' << warmup << ' ' << lr << ' ' << seed << ' ' << batch << ' ' << time;
+               << steps << ' ' << warmup << ' ' << lr << ' ' << seed << ' ' << batch << ' ' << time << ' ' << compiled;
       const fs::path contract_path = fs::path(checkpoint.dir) / "phase20-contract.txt";
       if (opts.count("resume") || fs::exists(contract_path)) {
         std::ifstream in(contract_path);
         const std::string saved((std::istreambuf_iterator<char>(in)), {});
-        if (saved != contract.str()) throw std::runtime_error("checkpoint recipe mismatch or missing contract");
+        const auto text=contract.str();
+        const auto legacy=text.substr(0,text.find_last_of(' '));  // Older recipes implicitly disabled compilation.
+        if (saved != text && (compiled || saved != legacy))
+          throw std::runtime_error("checkpoint recipe mismatch or missing contract");
       } else {
         fs::create_directories(checkpoint.dir);
         const auto text = contract.str();

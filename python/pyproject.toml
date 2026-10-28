@@ -10,10 +10,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "Muhammed Fatih Sahin"}]
 
+[project.scripts]
+nexus = "nexus_bench.cli:main"
+
 [tool.scikit-build]
 cmake.source-dir = ".."
 cmake.args = ["-DNEXUS_BUILD_PYTHON=ON", "-DNEXUS_BUILD_TESTS=OFF", "-DNEXUS_BUILD_BENCHMARKS=OFF"]
-wheel.packages = ["src/nexus"]
+wheel.packages = ["src/nexus", "src/nexus_bench"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

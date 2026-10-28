@@ -207,6 +207,7 @@ def main():
     out = {"framework": "nanoGPT/PyTorch " + torch.__version__, "compile": bool(args.compile), "precision": args.precision, "losses": losses,
            "ms": times, "peak_allocated_gb": pa / 1e9, "peak_reserved_gb": pr / 1e9,
            "parameter_count": sum(p.numel() for p in model.parameters()),
+           "cuda_build": int(torch.version.cuda.split('.')[0])*1000+int(torch.version.cuda.split('.')[1])*10,
            "lr": args.lr, "warmup": args.warmup, "target_tokens_per_step": B * (T - 1) * A,
            "gelu": "tanh (explicit Nexus compatibility adaptation)",
            "nanogpt_model_sha256": hashlib.sha256(open(nanogpt.__file__, "rb").read()).hexdigest()}

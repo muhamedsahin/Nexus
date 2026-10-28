@@ -368,6 +368,8 @@ set_tests_properties(
 set(NEXUS_XLA_PYTHON "" CACHE FILEPATH "Optional Python with jax/jaxlib for independent StableHLO verification")
 find_package(Python3 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME test_phase21_bench COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_phase21_bench.py")
+    set_tests_properties(test_phase21_bench PROPERTIES TIMEOUT 60)
     add_test(NAME test_phase20_evidence
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_phase20_evidence.py")
     set_tests_properties(test_phase20_evidence PROPERTIES TIMEOUT 60)
