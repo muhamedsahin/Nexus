@@ -144,10 +144,10 @@ def report(directory, document):
         s = row['summary']
         lines.append(f"| {row['case']} | {row['framework']} | {row['device']} | {row['dtype']} | "
                      f"{s['median_ms']:.6f} | {s['min_ms']:.6f} | {s['max_ms']:.6f} | {s['std_ms']:.6f} | {s['cv']:.3f} |")
-    lines += ['', '## Hedefler', '', '| Hedef | Cihaz | Durum | PyTorch/Nexus süre oranı |', '|---|---|---|---:|']
+    lines += ['', '## Hedefler', '', '| Hedef | Cihaz | Durum | PyTorch/Nexus süre oranı | Gerekçe |', '|---|---|---|---:|---|']
     for claim in claim_rows:
         ratio = claim.get('torch_over_nexus')
-        lines.append(f"| {claim['case']} | {claim.get('device', '')} | {claim['status']} | {ratio if ratio is not None else 'veri yok'} |")
+        lines.append(f"| {claim['case']} | {claim.get('device', '')} | {claim['status']} | {ratio if ratio is not None else 'veri yok'} | {claim['reason']} |")
     lines += ['', '## Sınırlar', '',
               'Kernel girdileri deterministik sabit değerlerdir; GEMM ve causal attention ileri/geri çıktıları analitik referansla sınanır.',
               'Bu mikro ölçümler uçtan uca eğitim veya dünyanın en hızlısı iddiası değildir.',
@@ -167,7 +167,24 @@ def report(directory, document):
                   '| Model | Framework | Tekrar | Medyan ms | İlk adım ms | Süre s |', '|---|---|---:|---:|---:|---:|']
         for r in training_result.get('runs',[]):
             lines.append(f"| {r['model']} | {r['framework']} | {r['repeat']} | {r['summary']['median_ms']:.3f} | {r['first_step_ms']:.3f} | {r['wall_s']:.1f} |")
-        lines += ['',str(training_result.get('124m_claim','')),str(training_result.get('1.3b_claim','')),'']
+        lines += ['', '| Model | Framework | Tekrar | Hedef token/s | Tepe ayrılmış GB | MFU tahmini | HFU tahmini | Kayıp farkı | Parity |',
+                  '|---|---|---:|---:|---:|---:|---:|---:|---|']
+        for r in training_result.get('runs',[]):
+            s = r['summary']
+            reserved = s.get('peak_reserved_bytes')
+            reserved = reserved / 1e9 if reserved is not None else r.get('peak_reserved_gb')
+            def formatted(value):
+                return 'veri yok' if value is None else f'{value:.6f}'
+            lines.append(f"| {r['model']} | {r['framework']} | {r['repeat']} | "
+                         f"{formatted(s.get('target_tokens_per_s'))} | {formatted(reserved)} | "
+                         f"{formatted(s.get('mfu_estimate'))} | {formatted(s.get('hfu_full_recompute_estimate'))} | "
+                         f"{formatted(r.get('max_loss_abs'))} | {r.get('parity_passed', 'referans değil')} |")
+        lines += ['', 'GB ondalıktır (10^9 bayt); ayrılmış bellek allocator rezervidir, sürücü toplamı değildir.',
+                  'MFU/HFU donanım sayacı değil FLOP modeli tahminidir; ham kayıttaki flops_method kullanılır.',
+                  'İlk adım derleme/capture ve hesaplamayı birlikte içerir; saf derleme süresi ölçülmedi.',
+                  'Kaynak satırı 1024 token, geçerli hedef 1023: hedef token/s buna göre hesaplanır.',
+                  'Doğrulama kaybına erişme süresi ölçülmedi; eğitim kaybı bu hedefin yerine geçmez.',
+                  '',str(training_result.get('124m_claim','')),str(training_result.get('1.3b_claim','')),'']
     if 'inference' in document:
         inference_result = document['inference']
         lines += ['## GPT-2 124M çıkarım (F16)', '',f"Durum: {inference_result['status']}",

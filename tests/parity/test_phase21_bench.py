@@ -70,10 +70,17 @@ class BenchTests(unittest.TestCase):
 
     def test_report_generation(self):
         document = dict(schema=1, rows=aggregate(self.runs,5))
+        document['training'] = dict(status='measured',runs=[dict(model='124m',framework='nexus',repeat=0,
+            summary=dict(median_ms=10,target_tokens_per_s=102300,peak_reserved_bytes=2000000000,
+                         mfu_estimate=.25,hfu_full_recompute_estimate=1/3),first_step_ms=100,wall_s=2)])
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)
             report(path,document)
             before = (path/'REPORT.md').read_bytes()
+            text = before.decode('utf-8')
+            for metric in ['Hedef token/s','Tepe ayrılmış GB','MFU tahmini','HFU tahmini','Parity',
+                           '102300.000000','2.000000','Doğrulama kaybına erişme süresi ölçülmedi']:
+                self.assertIn(metric,text)
             report(path,document)
             self.assertEqual(before,(path/'REPORT.md').read_bytes())
             ET.parse(path/'timings.svg')
