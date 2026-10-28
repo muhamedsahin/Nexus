@@ -8,6 +8,7 @@
 #include "nexus_model/core/serialization.hpp"
 #include "nexus_train/core/tensor_batch.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
