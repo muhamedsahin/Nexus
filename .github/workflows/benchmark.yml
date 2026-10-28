@@ -7,6 +7,11 @@ on:
       - 'python/src/nexus_bench/**'
       - 'benchmarks/runner/bench_phase21.cpp'
       - 'tests/parity/test_phase21_bench.py'
+      - 'lib/**'
+      - 'src/**'
+      - 'include/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
   pull_request:
   workflow_dispatch:
   schedule:
