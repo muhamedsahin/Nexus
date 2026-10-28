@@ -366,6 +366,12 @@ set_tests_properties(
     PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 
 set(NEXUS_XLA_PYTHON "" CACHE FILEPATH "Optional Python with jax/jaxlib for independent StableHLO verification")
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME test_phase20_evidence
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_phase20_evidence.py")
+    set_tests_properties(test_phase20_evidence PROPERTIES TIMEOUT 60)
+endif()
 if(NEXUS_XLA_PYTHON)
     add_test(NAME test_pjrt_xla_cpu
         COMMAND "${NEXUS_XLA_PYTHON}" "${CMAKE_SOURCE_DIR}/benchmarks/runner/faz19_pjrt.py"

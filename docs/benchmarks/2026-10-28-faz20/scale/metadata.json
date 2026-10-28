@@ -1,0 +1,33 @@
+{
+  "started_utc": "2026-10-28T11:41:57.328794+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "executable_sha256": "c404fc9ccd8d8c7de51aef9d1d6940a282406c4bc6198c63702c3bbc176444a3",
+  "tokens_sha256": "0ccef04d8043317378f9bd93f912241b1591fc271ee79a165f00e1bb47e2e443",
+  "steps": 30,
+  "repeats": 5,
+  "hardware": {
+    "command": [
+      "nvidia-smi",
+      "--query-gpu=name,uuid,driver_version,memory.total,clocks.max.sm,power.limit",
+      "--format=csv"
+    ],
+    "returncode": 0,
+    "stdout": "name, uuid, driver_version, memory.total [MiB], clocks.max.sm [MHz], power.limit [W]\nNVIDIA GeForce RTX 3070 Laptop GPU, GPU-eebcff4f-390d-6452-b555-cf8e07f287b0, 610.88, 8192 MiB, 2100 MHz, [N/A]\n",
+    "stderr": ""
+  },
+  "git": {
+    "command": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "returncode": 0,
+    "stdout": "988fba9f72571dc2363a5d50e4cf13cb839f2a1d\n",
+    "stderr": ""
+  },
+  "source_sha256": {
+    "C:\\Users\\muham\\Desktop\\Nexus\\benchmarks\\runner\\faz20_scale.py": "bbadf40f1e0b9d0f54f820e6ebdd7356449082cfec7962243c671c5a75239c0c",
+    "C:\\Users\\muham\\Desktop\\Nexus\\benchmarks\\runner\\bench_cuda_phase20.cpp": "4c188d5c5c6b5780c1aa29cde9220ba934c751d74daa7ca88c56b22dfcb1cc8a",
+    "C:\\Users\\muham\\Desktop\\Nexus\\benchmarks\\runner\\faz20_validate.py": "e20ec908cee63deaa13388bc48f8a9ac912544f0652da3750ca553466f6b10a0"
+  }
+}

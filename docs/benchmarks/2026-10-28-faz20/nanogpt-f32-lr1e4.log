@@ -1,0 +1,5 @@
+number of parameters: 123.65M
+num decayed parameter tensors: 50, with 124,318,464 parameters
+num non-decayed parameter tensors: 98, with 121,344 parameters
+using fused AdamW: True
+{"framework": "nanoGPT/PyTorch 2.14.1+cu132", "compile": false, "precision": "f32", "peak_allocated_gb": 2.953465344, "peak_reserved_gb": 3.101687808, "first": [11.000934600830078, 10.349996566772461, 9.789981842041016], "last": [5.2656450271606445, 5.187838077545166, 5.251695156097412], "mean_ms": 732.2282231581324}

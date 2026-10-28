@@ -1,0 +1,10 @@
+step 0 loss 11.0009 ms 1183.22
+step 10 loss 8.67602 ms 1034.38
+step 20 loss 7.61428 ms 1027.67
+step 30 loss 6.8313 ms 1035.01
+step 40 loss 6.12669 ms 1025.48
+step 50 loss 5.86518 ms 1082.55
+step 60 loss 5.35525 ms 1026.8
+step 70 loss 4.94026 ms 1030.13
+step 80 loss 5.60016 ms 1053.37
+step 90 loss 5.29718 ms 1029.22

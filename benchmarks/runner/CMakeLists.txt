@@ -58,6 +58,17 @@ set_tests_properties(bench_attention_cpu PROPERTIES TIMEOUT 600)
 
 # FAZ 1 + FAZ 3 GPU (ayirici, eleman eleman, cuBLASLt Linear, norm, CE, AdamW, GPT-2 124M).
 if(TARGET nexus_cuda)
+    add_executable(bench_cuda_phase20 bench_cuda_phase20.cpp)
+    target_link_libraries(bench_cuda_phase20 PRIVATE nexus::nexus nexus::cuda)
+    nexus_configure_target(bench_cuda_phase20)
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME test_phase20_resume_short
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/parity/test_phase20_resume.py"
+                --exe $<TARGET_FILE:bench_cuda_phase20> --work "${CMAKE_CURRENT_BINARY_DIR}/phase20-tests")
+        set_tests_properties(test_phase20_resume_short PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+    endif()
+
     add_executable(bench_cuda_phase3 bench_cuda_phase3.cpp)
     target_link_libraries(bench_cuda_phase3 PRIVATE nexus::nexus nexus::cuda CUDA::cublas)
     target_compile_definitions(bench_cuda_phase3 PRIVATE

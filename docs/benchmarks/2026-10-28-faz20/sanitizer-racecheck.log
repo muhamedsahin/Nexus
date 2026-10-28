@@ -1,0 +1,3 @@
+========= COMPUTE-SANITIZER
+step 0 loss 4.88579 ms 6725.99
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

@@ -1,0 +1,20 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start  51: test_nan_policy
+1/7 Test  #51: test_nan_policy ..................   Passed    0.22 sec
+    Start  53: test_trainer_resume
+2/7 Test  #53: test_trainer_resume ..............   Passed    0.22 sec
+    Start 103: test_save_load_exact
+3/7 Test #103: test_save_load_exact .............   Passed    1.71 sec
+    Start 104: test_rng_restore
+4/7 Test #104: test_rng_restore .................   Passed    0.51 sec
+    Start 107: test_crash_injection
+5/7 Test #107: test_crash_injection .............   Passed    1.76 sec
+    Start 129: test_cpu_train_parity
+6/7 Test #129: test_cpu_train_parity ............   Passed  241.93 sec
+    Start 140: test_phase20_evidence
+7/7 Test #140: test_phase20_evidence ............   Passed    1.30 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) = 247.76 sec

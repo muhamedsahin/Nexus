@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="7"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="25"
+	timestamp="2026-10-28T19:41:50"
+	>
+	<testcase name="test_phase20_evidence" classname="test_phase20_evidence" time="2.39432" status="run">
+		<system-out>.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.220s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_checkpoint_grad_equal_cuda" classname="test_checkpoint_grad_equal_cuda" time="3.31102" status="run">
+		<system-out>test_checkpoint_grad_equal (GPU): none / full / every_k / selective
+  info  bf16 flash full     aktivasyon 6.8 MiB (none 12.8 MiB)
+  PASS  bf16 flash full: kayip ve tum gradyanlar bit-bit ayni
+  PASS  bf16 flash full: daha az aktivasyon
+  info  bf16 flash every_k  aktivasyon 10.8 MiB (none 12.8 MiB)
+  PASS  bf16 flash every_k: kayip ve tum gradyanlar bit-bit ayni
+  PASS  bf16 flash every_k: daha az aktivasyon
+  info  bf16 flash selective aktivasyon 10.5 MiB (none 12.8 MiB)
+  PASS  selective belirlenimci (iki kosu bit-bit)
+  info  selective vs none kayip (GELU cekirdegi farki)               hata=1.172e-05 esik=1.0e-03
+  PASS  selective vs none kayip (GELU cekirdegi farki)
+  info  selective vs none tum gradyanlar                             hata=2.895e-03 esik=2.0e-02
+  PASS  selective vs none tum gradyanlar
+  PASS  selective daha az aktivasyon
+  info  fp32 math full     aktivasyon 11.5 MiB (none 27.3 MiB)
+  PASS  fp32 math full: kayip ve tum gradyanlar bit-bit ayni
+  PASS  fp32 math full: daha az aktivasyon
+  ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_chunked_ce_equals_full" classname="test_chunked_ce_equals_full" time="1.97654" status="run">
+		<system-out>test_chunked_ce_equals_full: lm_head + CE parcali (37 satir) vs tam
+  info  kayip fp32                                                   hata=0.000e+00 esik=1.0e-06
+  PASS  kayip fp32
+  info  tum gradyanlar fp32                                          hata=3.103e-07 esik=1.0e-05
+  PASS  tum gradyanlar fp32
+  info  aktivasyon tam 27.27 MiB, parcali 26.84 MiB
+  PASS  parcali logit tamponu kucuk fp32
+  info  kayip bf16                                                   hata=0.000e+00 esik=1.0e-06
+  PASS  kayip bf16
+  info  tum gradyanlar bf16                                          hata=1.898e-03 esik=1.0e-02
+  PASS  tum gradyanlar bf16
+  info  aktivasyon tam 12.79 MiB, parcali 12.15 MiB
+  PASS  parcali logit tamponu kucuk bf16
+faz7-memory-cuda: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_fused_8bit_update" classname="test_fused_8bit_update" time="7.80288" status="run">
+		<system-out>test_fused_8bit_update: geri geciste katman katman 8-bit AdamW vs ayri adim (C modu)
+  info  kayip[0]=6.2636 | son 50 ort.: ayri adim 1.9748, fused 1.9752 (bagil +2.03e-04) | durum 25.50 -&gt; 16.50 MiB
+  PASS  ilk kayip ayni (ayni baslatma)
+  info  fused 200 adim egrisi ayri adima yakin                       hata=2.032e-04 esik=2.0e-02
+  PASS  fused 200 adim egrisi ayri adima yakin
+  PASS  fused ogreniyor
+  PASS  fused: tam gradyan tamponu yok, daha az aygit durumu
+faz7-memory-cuda: 4 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_nan_policy_cuda" classname="test_nan_policy_cuda" time="1.63449" status="run">
+		<system-out>test_nan_policy_cuda: atla + geri don (BF16)
+  PASS  atla: NaN adiminda parametre degismez (aygitta)
+  PASS  atla: egitim surer
+  PASS  skipped_steps sayaci 1
+  PASS  geri don: egitim tamamlanir
+  adim 5 | ilk NaN: h.1 | parametre: h.1.fc_w | ilk NaN gradyan: lnf_w | eylem: rollback -&gt; adim 4, lr x0.5
+  PASS  adim 5'te yakalandi
+  PASS  ilk NaN katmani: h.1
+  PASS  bozuk parametre: h.1.fc_w
+  PASS  adim 4 anlik goruntusune donuldu
+faz9-trainer-cuda: 8 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_trainer_resume_cuda" classname="test_trainer_resume_cuda" time="1.32751" status="run">
+		<system-out>test_trainer_resume_cuda: BF16, 3 + kayit + 3 == 6
+  adim 0: 6.2300601 / 6.2300601
+  adim 1: 6.26301956 / 6.26301956
+  adim 2: 6.23705125 / 6.23705125
+  adim 3: 6.24076176 / 6.24076176
+  adim 4: 6.2416575 / 6.2416575
+  adim 5: 6.26366854 / 6.26366854
+  PASS  GPU devam: kesintisizle bit bit ayni
+faz9-trainer-cuda: 1 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_phase20_resume_short" classname="test_phase20_resume_short" time="7.28231" status="run">
+		<system-out>step 0 loss 4.88579 ms 375.604
+ step 0 loss 4.88579 ms 421.548
+  PASS: BF16 8 steps == 4 + full checkpoint + fresh process + 4 (exact losses/LR); invalid options rejected
+</system-out>
+	</testcase>
+</testsuite>

@@ -1,0 +1,19 @@
+{
+  "started_utc": "2026-10-28T16:42:28.418813+00:00",
+  "executable_sha256": "c404fc9ccd8d8c7de51aef9d1d6940a282406c4bc6198c63702c3bbc176444a3",
+  "tokens_sha256": "b745c92f83e135038036262ca3cdcbc7704d2ba54e2bfbc87b9e51f465fc4a94",
+  "requested_seconds": 0.1,
+  "active_training_seconds": 0.39335519999999996,
+  "resume_probes": [
+    {
+      "step": 4,
+      "exact": true,
+      "raw_sha256": "c26e0d2dcb74d295d757dc11627b4c4e6b78c5d9b56be9301bbfd4af84c581f4"
+    }
+  ],
+  "passed_24h": false,
+  "completed_requested_duration": true,
+  "status": "completed",
+  "wall_seconds": 2.5889056000160053,
+  "last_step": 10
+}

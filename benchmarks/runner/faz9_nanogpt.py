@@ -13,7 +13,7 @@ Modlar:
   curve  --nanogpt DIR --init NEXUS_INIT.bin --batches BATCHES.bin --micro B --seq T --accum A --steps N
          --lr LR --warmup W --min-lr-ratio R [--compile 0|1]
          Nexus'un baslangic agirliklari ve ayni token yiginlari ile egitim; adim kayiplarini JSON yazar.
-         Nexus satiri T token: girdi [:T-1], hedef [1:T] (block_size = T - 1; nedensel maske ile esdeger).
+         Nexus satiri T token: girdi [:T-1], hedef [1:T]; konum tablosunun tam boyutu korunur.
 
 Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -21,6 +21,8 @@ olarak gelistirilmistir.
 """
 
 import argparse
+import contextlib
+import hashlib
 import json
 import math
 import os
@@ -100,7 +102,8 @@ def train(args, model, batches, device, steps):
     if stable_grads:
         for p in model.parameters():
             p.grad = torch.zeros_like(p)
-    ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
+    ctx = (torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
+           if args.precision == "bf16" else contextlib.nullcontext())
     losses, times = [], []
     peak_alloc = peak_reserved = 0
     torch.cuda.reset_peak_memory_stats()
@@ -138,6 +141,7 @@ def main():
     ap.add_argument("--steps", type=int, default=10)
     ap.add_argument("--warmup-steps", type=int, default=3)
     ap.add_argument("--compile", type=int, default=0)
+    ap.add_argument("--precision", choices=["bf16", "f32"], default="bf16")
     ap.add_argument("--compile-mode", default="default")
     ap.add_argument("--vocab", type=int, default=50257)
     ap.add_argument("--lr", type=float, default=6e-4)
@@ -152,8 +156,10 @@ def main():
     args = ap.parse_args()
 
     torch.manual_seed(1337)
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cuda.matmul.allow_tf32 = args.precision != "f32"
+    torch.backends.cudnn.allow_tf32 = args.precision != "f32"
+    if args.precision == "f32":
+        torch.set_float32_matmul_precision("highest")
     device = "cuda"
     nanogpt = load_nanogpt(args.nanogpt)
     B, T, A = args.micro, args.seq, args.accum
@@ -182,7 +188,9 @@ def main():
         return 0
 
     # curve
-    block = T - 1
+    # Preserve all learned position parameters, including the unused final position.
+    # Slicing wpe to T-1 changes parameter count/optimizer state in strict scale parity.
+    block = json.load(open(args.init + ".json"))["max_seq"]
     model = build(nanogpt, block, args.vocab, device)
     load_nexus_init(model, args.init, block)
     flat = np.memmap(args.batches, dtype=np.int32, mode="r")
@@ -196,8 +204,12 @@ def main():
         return rows[:, :-1].contiguous(), rows[:, 1:].contiguous()
 
     losses, times, pa, pr = train(args, model, batches, device, args.steps)
-    out = {"framework": "nanoGPT/PyTorch " + torch.__version__, "compile": bool(args.compile), "losses": losses,
-           "ms": times, "peak_allocated_gb": pa / 1e9, "peak_reserved_gb": pr / 1e9}
+    out = {"framework": "nanoGPT/PyTorch " + torch.__version__, "compile": bool(args.compile), "precision": args.precision, "losses": losses,
+           "ms": times, "peak_allocated_gb": pa / 1e9, "peak_reserved_gb": pr / 1e9,
+           "parameter_count": sum(p.numel() for p in model.parameters()),
+           "lr": args.lr, "warmup": args.warmup, "target_tokens_per_step": B * (T - 1) * A,
+           "gelu": "tanh (explicit Nexus compatibility adaptation)",
+           "nanogpt_model_sha256": hashlib.sha256(open(nanogpt.__file__, "rb").read()).hexdigest()}
     if args.out:
         json.dump(out, open(args.out, "w"))
     print(json.dumps({k: v for k, v in out.items() if k not in ("losses", "ms")} |

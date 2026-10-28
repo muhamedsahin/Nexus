@@ -1,0 +1,20 @@
+{
+  "tokenizer": {
+    "name": "gpt2",
+    "digest": "cb86ddccbfab8733c1529bbf572756d5dee1927af230c1a8ee1315c07604d922",
+    "vocab_size": 50257,
+    "eos": 50256
+  },
+  "manifest_sha256": "ae0a535416cc6d0eb902fbd65057f9d6e937efdfb50f5ff7b6698d4e0258a24c",
+  "sources": [
+    {
+      "path": "C:\\Users\\muham\\nexus-data\\tinystories\\nxtk-train\\shard_00000.nxtk",
+      "sha256": "a2760caff9cf5aa67c6cd00820070cc247cad0c346a7fcc54d72d09ff1a0b039",
+      "offset": 0,
+      "tokens": 1054720
+    }
+  ],
+  "tokens": 1054720,
+  "sha256": "0ccef04d8043317378f9bd93f912241b1591fc271ee79a165f00e1bb47e2e443",
+  "format": "little-endian int32; consecutive EOS-separated corpus tokens"
+}
