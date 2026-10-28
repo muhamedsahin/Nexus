@@ -15,12 +15,14 @@ permissions:
   contents: read
 jobs:
   evidence-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          submodules: recursive
-      - uses: actions/setup-python@v5
+          # NexusData contains stale build-tree gitlinks with no .gitmodules URL.
+          # Only the five top-level source libraries are required by this build.
+          submodules: true
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
       - run: python tests/parity/test_phase21_bench.py
@@ -33,8 +35,9 @@ jobs:
       - name: Measure CPU without substituting GPU results
         env:
           OMP_NUM_THREADS: '8'
+          NEXUS_CPU_THREADS: '2'
         run: ./build-ci/benchmarks/runner/bench_phase21 > cpu-samples.jsonl
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: cpu-benchmark-${{ github.sha }}
           path: cpu-samples.jsonl

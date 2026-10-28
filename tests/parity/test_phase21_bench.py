@@ -62,6 +62,12 @@ class BenchTests(unittest.TestCase):
             time.sleep(1.1)
             self.assertFalse(target.exists())
 
+    def test_regression_rejects_nonfinite_baseline(self):
+        current=aggregate(self.runs,5)
+        for value in [float('nan'),float('inf'),0,-1]:
+            old=copy.deepcopy(current);old[0]['summary']['median_ms']=value
+            with self.assertRaises(ValueError): regression(current,old,'same','same')
+
     def test_report_generation(self):
         document = dict(schema=1, rows=aggregate(self.runs,5))
         with tempfile.TemporaryDirectory() as temp:

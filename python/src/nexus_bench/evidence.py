@@ -104,6 +104,10 @@ def regression(current, previous, current_machine, previous_machine, limit=.03):
     for row in current:
         before = old.get((row['framework'],key(row)))
         if before is None: continue
+        for item in [row,before]:
+            median=item['summary']['median_ms']; cv=item['summary']['cv']
+            if isinstance(median,bool) or not math.isfinite(median) or median<=0 or not math.isfinite(cv) or cv<0:
+                raise ValueError('nonfinite or invalid regression statistics')
         if any(row.get(name)!=before.get(name) for name in ['cuda_build','cpu_threads','framework_version']):
             raise ValueError('baseline dependency/thread/CUDA version differs')
         ratio = row['summary']['median_ms']/before['summary']['median_ms']-1
@@ -200,5 +204,3 @@ def report(directory, document):
         y += 8
     svg.append('</svg>')
     (directory / 'timings.svg').write_text('\n'.join(svg), encoding='utf-8')
-
-

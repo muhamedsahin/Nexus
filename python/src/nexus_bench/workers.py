@@ -97,5 +97,3 @@ def worker(framework):
         measure('flash-fwd-bwd', 'cuda', 'bf16', [1,8,2048,64], attention, check_attention)
     print(json.dumps(dict(rows=rows, unavailable=unavailable, version=torch.__version__, cuda=torch.version.cuda)))
     return 0
-
-
