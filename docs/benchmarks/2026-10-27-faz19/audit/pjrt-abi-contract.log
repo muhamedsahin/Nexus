@@ -1,0 +1,35 @@
+  PASS  official ABI client reports the real plugin identity
+  PASS  shared library is initialized once for concurrent clients
+  PASS  nested arguments and multiple opaque outputs have correct values/layout
+  PASS  only the two clients remain after execution
+  PASS  zero-size host results release all events and buffers
+  PASS  clients are destroyed before the adapter releases its library
+  PASS  injected API failure 1 is reported without interpreter fallback
+  PASS  injected API failure 1 releases every owned object/error/event
+  PASS  injected API failure 2 is reported without interpreter fallback
+  PASS  injected API failure 2 releases every owned object/error/event
+  PASS  injected API failure 3 is reported without interpreter fallback
+  PASS  injected API failure 3 releases every owned object/error/event
+  PASS  injected API failure 4 is reported without interpreter fallback
+  PASS  injected API failure 4 releases every owned object/error/event
+  PASS  injected API failure 5 is reported without interpreter fallback
+  PASS  injected API failure 5 releases every owned object/error/event
+  PASS  injected API failure 6 is reported without interpreter fallback
+  PASS  injected API failure 6 releases every owned object/error/event
+  PASS  injected API failure 7 is reported without interpreter fallback
+  PASS  injected API failure 7 releases every owned object/error/event
+  PASS  injected API failure 8 is reported without interpreter fallback
+  PASS  injected API failure 8 releases every owned object/error/event
+  PASS  injected API failure 9 is reported without interpreter fallback
+  PASS  injected API failure 9 releases every owned object/error/event
+  PASS  injected API failure 10 is reported without interpreter fallback
+  PASS  injected API failure 10 releases every owned object/error/event
+  PASS  injected API failure 11 is reported without interpreter fallback
+  PASS  injected API failure 11 releases every owned object/error/event
+  PASS  injected API failure 12 is reported without interpreter fallback
+  PASS  injected API failure 12 releases every owned object/error/event
+  PASS  injected API failure 13 is reported without interpreter fallback
+  PASS  injected API failure 13 releases every owned object/error/event
+  PASS  injected API failure 14 is reported without interpreter fallback
+  PASS  injected API failure 14 releases every owned object/error/event
+official PJRT ABI contract (test double, not vendor XLA): 34 gecti, 0 basarisiz

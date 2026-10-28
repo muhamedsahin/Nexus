@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="10"
+	failures="0"
+	disabled="0"
+	skipped="2"
+	hostname="Rabia_Zeynep"
+	time="23"
+	timestamp="2026-10-28T20:02:56"
+	>
+	<testcase name="test_backend_detection" classname="test_backend_detection" time="3.1691" status="run">
+		<system-out>[Nexus UYARI] backend=metal op=add (4 eleman) CPU'ya geri dusuyor (Apple Metal (MPS/MSL) yalniz macOS / Apple Silicon (M1-M4) uzerinde kullanilabilir (yalniz ornek MSL kaynaklari: 2186 bayt; execution backend uygulanmadi))
+FAZ 19.A: Backend algilama, Device cozumleme ve geri dusus politikasi
+  PASS  parse('cpu') == cpu
+  PASS  parse('cuda:0') == cuda(0)
+  PASS  parse('rocm:1') == rocm(1)
+  PASS  parse('hip:0') == rocm(0)
+  PASS  parse('vulkan:0') == vulkan(0)
+  PASS  parse('mps:0') == metal(0)
+  PASS  parse('metal:0') == metal(0)
+  PASS  parse('dml:0') == directml(0)
+  PASS  parse('directml:1') == directml(1)
+  PASS  parse('tpu:0') == tpu(0)
+  PASS  parse('pjrt:0') == tpu(0)
+  PASS  bilinmeyen cihaz dizgesi acik TensorError firlatir
+  PASS  Registry 7 backend surucusunu (cpu, cuda, hip, vulkan, metal, directml, pjrt) icerir
+  info  backend=cpu        name=cpu           version=1.0      available=evet devices=1 reason=''
+        -&gt; dev=cpu 'AMD Ryzen 7 5800H with Radeon Graphics' vendor=AuthenticAMD api=AVX2+F...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_hip_parity" classname="test_hip_parity" time="0.0738885" status="notrun">
+		<skipped message="SKIP_RETURN_CODE=77"/>
+		<system-out>  SKIP  Native HIP execution/parity is not implemented; use hip-source for static compatibility checks.
+</system-out>
+	</testcase>
+	<testcase name="test_hip_source_compat" classname="test_hip_source_compat" time="0.0689302" status="run">
+		<system-out>FAZ 19.B: ROCm / HIP uyumlulugu, hipify donusumu, wave64 ve 64 KB LDS
+  PASS  CUDA-&gt;HIP sembol esleme tablosu &gt;= 30 API icerir
+  PASS  hipify_source cudaMalloc-&gt;hipMalloc, cublasLtMatmul-&gt;hipblasLtMatmul, nccl*-&gt;rccl* donusumu yapar
+  info  ROCm FlashAttention D=64 wave=64 -&gt; Br=64, Bc=64, LDS=40960 bayt (limit=65536)
+  PASS  ROCm FlashAttention karo boyutu 64 KB LDS sinirina sigar (D=64)
+  info  ROCm FlashAttention D=128 wave=64 -&gt; Br=64, Bc=64, LDS=65536 bayt (limit=65536)
+  PASS  ROCm FlashAttention karo boyutu 64 KB LDS sinirina sigar (D=128)
+  info  HIP kaynak denetimi: taranan=5, wave-uyumlu=4, ihlal=0
+  PASS  src/cuda cekirdeklerinde sabit 32 yerine wave64/32 uyumlu kWarp kullaniliyor
+  PASS  gomulu HIP cekirdek kaynagi hazir
+test_phase19_backends: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_vulkan_parity" classname="test_vulkan_parity" time="2.55403" status="run">
+		<system-out>FAZ 19.C: Vulkan SPIR-V parite ve uctan uca model egitimi
+  info  Vulkan cihaz [0] test ediliyor: NVIDIA GeForce RTX 3070 Laptop GPU (subgroup=32, unified=hayir)
+  PASS  Vulkan[0] elementwise add &lt; 1e-5
+  PASS  Vulkan[0] elementwise sub &lt; 1e-5
+  PASS  Vulkan[0] elementwise mul &lt; 1e-5
+  PASS  Vulkan[0] elementwise silu &lt; 1e-5
+  PASS  Vulkan[0] elementwise tanh &lt; 1e-5
+  PASS  Vulkan[0] elementwise axpy &lt; 1e-5
+  PASS  Vulkan[0] reduce_sum &lt; 1e-3
+  PASS  Vulkan[0] karolu GEMM (A @ B^T, 67x53x96) &lt; 1e-4
+  PASS  Vulkan[0] Softmax &lt; 1e-5
+  PASS  Vulkan[0] RMSNorm &lt; 1e-5
+  PASS  Vulkan[0] LayerNorm &lt; 1e-5
+  PASS  Vulkan[0] RoPE &lt; 1e-4
+  PASS  Vulkan[0] SwiGLU &lt; 1e-5
+  PASS  Vulkan[0] Causal FlashAttention &lt; 1e-4
+  PASS  Vulkan[0] Q8 nicemlenmis GEMM &lt; 1e-4
+  PASS  Vulkan[0] Q4 nicemlenmis GEMM &lt; 1e-4
+  info  Vulkan[0] (NVIDIA GeForce RTX 3070 Laptop GPU) uctan uca 25 adim MLP egitimi: ilk_kayip=119.283852 -&gt; son_kayip=4.468944
+  PASS  Vulkan[0] uctan uca model egitimi kaybi anlamli sekilde dusurur
+test_phase19_backen...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_directml_parity" classname="test_directml_parity" time="2.63452" status="run">
+		<system-out>FAZ 19.D: Windows DirectML (DirectX 12) parite testi
+  info  DirectML[0] (NVIDIA GeForce RTX 3070 Laptop GPU) DML_OPERATOR_GEMM max_abs=0.00e+00
+  PASS  DirectML[0] DML_OPERATOR_GEMM &lt; 1e-4
+test_phase19_backends: 1 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_export" classname="test_pjrt_export" time="2.75317" status="run">
+		<system-out>FAZ 19.E: StableHLO + GSPMD (mhlo.sharding) -&gt; PJRT C API derleme ve yurutme
+  info  GSPMD Replicate -&gt; {replicated}
+  info  GSPMD Shard(0,1)-&gt; {devices=[2,2]0,1,2,3}
+  info  GSPMD Partial   -&gt; 
+  PASS  Replicate yerlesimi {replicated} uretir
+  PASS  2B Shard(0),Shard(1) yerlesimi {devices=[2,2]0,1,2,3} uretir
+  PASS  Partial(sum) cannot be misrepresented as manual XLA sharding
+  PASS  Swapped mesh axes reorder XLA tile devices
+  PASS  Replication dimension follows tensor tile dimensions
+  info  StableHLO SPMD modulu (993 bayt):
+module @nexus_spmd {
+  func.func @main(%arg0: tensor&lt;8x16xf32&gt; {mhlo.sharding = "{replicated}"}, %arg1: tensor&lt;16x32xf32&gt; {mhlo.sharding = "{replicated}"}, %arg2: tensor&lt;32xf32&gt; {mhlo.sharding = "{replicated}"}, %arg3: tensor&lt;32x8xf32&gt; {mhlo.sharding = "{replicated}"}) -&gt; (tensor&lt;8x8xf32&gt; {mhlo.sharding = "{replicated}"}) {
+    %v4 = "stablehlo.dot_general"(%arg0, %arg1) {dot_dimension_numbers = #stablehlo.dot&lt;lhs_contracting_dimensions = [1], rhs_contracting_dimensions = [0]&gt;} : (ten...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_backend_fallback" classname="test_backend_fallback" time="2.3917" status="run">
+		<system-out>[Nexus UYARI] backend=pjrt op=softmax (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=rms_norm (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=layer_norm (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=rope (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=swiglu (8 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=attention (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=quant_matmul_q8 (4 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=quant_matmul_q4 (4 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=adamw (16 eleman) CPU'ya geri dusuyor ()
+CPU fallback policy and opaque device buffer transfers
+  PASS  softmax rejects implicit CPU execution
+  PASS  softmax stages opaque buffers before CPU computation
+  PASS  softmax counts exactly one fallback
+  PASS  rms_norm rejects implicit CPU execution
+  PASS  rms_norm stages opaque buffers before CPU computation
+  PASS  rms_norm counts exactly one f...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_plugin_abi" classname="test_pjrt_plugin_abi" time="0.132722" status="run">
+		<system-out>  PASS  official ABI client reports the real plugin identity
+  PASS  shared library is initialized once for concurrent clients
+  PASS  nested arguments and multiple opaque outputs have correct values/layout
+  PASS  only the two clients remain after execution
+  PASS  zero-size host results release all events and buffers
+  PASS  clients are destroyed before the adapter releases its library
+  PASS  injected API failure 1 is reported without interpreter fallback
+  PASS  injected API failure 1 releases every owned object/error/event
+  PASS  injected API failure 2 is reported without interpreter fallback
+  PASS  injected API failure 2 releases every owned object/error/event
+  PASS  injected API failure 3 is reported without interpreter fallback
+  PASS  injected API failure 3 releases every owned object/error/event
+  PASS  injected API failure 4 is reported without interpreter fallback
+  PASS  injected API failure 4 releases every owned object/error/event
+  PASS  injected API failure 5 is reported without interprete...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_vendor" classname="test_pjrt_vendor" time="0.0628963" status="notrun">
+		<skipped message="SKIP_RETURN_CODE=77"/>
+		<system-out>  SKIP  Supply a trusted vendor library with -DNEXUS_PJRT_TEST_PLUGIN_PATH=&lt;path&gt;
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_xla_cpu" classname="test_pjrt_xla_cpu" time="9.48468" status="run">
+		<system-out>{
+  "status": "compiled_and_executed",
+  "backend": "cpu",
+  "jax": "0.10.2",
+  "max_abs": 1.430511474609375e-06,
+  "module_origin": "nexus_ir_export",
+  "actual": [
+    -11.02959156036377,
+    -7.111634254455566,
+    8.774435997009277,
+    7.860472202301025,
+    -6.790712833404541,
+    -11.823305130004883,
+    6.189984321594238,
+    10.95689868927002,
+    6.348823547363281,
+    -3.3790066242218018,
+    -5.709881782531738,
+    -2.225017786026001,
+    8.738031387329102,
+    0.7436672449111938,
+    -2.8925912380218506,
+    -5.207062244415283,
+    -5.204111099243164,
+    2.5806968212127686,
+    3.924790620803833,
+    -2.9870212078094482,
+    -5.21531867980957,
+    -2.7355284690856934,
+    6.639662742614746,
+    -0.43389761447906494,
+    -1.8828214406967163,
+    1.8736075162887573,
+    -1.3977268934249878,
+    0.6398037672042847,
+    -1.9033422470092773,
+    -4.207948684692383,
+    1.0867632627487183,
+    2.382146120071411,
+    2.094606637954712,
+    -5.203695297241211,
+    -1.259259581565857,
+    7.5183959007263...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

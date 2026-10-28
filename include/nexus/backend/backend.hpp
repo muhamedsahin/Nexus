@@ -177,6 +177,8 @@ struct FallbackStats {
   std::uint64_t elements = 0;
 };
 void set_fallback_policy(FallbackPolicy policy) noexcept;
+/// Enforces and records CPU fallback, including calls made directly through Driver.
+void require_cpu_fallback(Driver& driver, Operation op, std::size_t elements);
 [[nodiscard]] FallbackPolicy fallback_policy() noexcept;
 [[nodiscard]] FallbackStats fallback_stats(Kind kind, Operation op);
 void reset_fallback_stats() noexcept;

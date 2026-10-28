@@ -2,7 +2,7 @@
 
 /**
  * @file pjrt.hpp
- * @brief FAZ 19.E: OpenXLA / PJRT C API istemcisi, yerlesik CPU PJRT eklentisi ve
+ * @brief FAZ 19.E: StableHLO CPU reference interpreter and
  *        DeviceMesh + DTensor -> XLA SPMD (GSPMD / mhlo.sharding) disa aktarimi.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
@@ -22,8 +22,9 @@
 #include <vector>
 
 namespace nexus::backend::pjrt {
+namespace detail { class PluginClient; }
 
-/// Minimal PJRT C API v0.54 uyumlu C fonksiyon tablosu (pjrt_c_api.h alt kumesi).
+/// Legacy Nexus reference-interpreter table. NOT ABI-compatible with OpenXLA PJRT.
 struct PJRT_Error;
 struct PJRT_Client;
 struct PJRT_Device;
@@ -63,12 +64,12 @@ struct PJRT_Api {
 
 using GetPjrtApiFn = const PJRT_Api* (*)();
 
-/// Yerlesik PJRT CPU eklentisinin GetPjrtApi giris noktasi (dis eklenti yoksa kullanilir).
+/// Legacy CPU reference interpreter (not XLA compilation or a TPU device).
 [[nodiscard]] const PJRT_Api* GetBuiltinCpuPjrtApi() noexcept;
 
 /// GSPMD mhlo.sharding dizgesi uretir:
 ///   - Tumu Replicate -> "{replicated}"
-///   - Partial icerirse -> "{manual}" (veya kismi indirgeme oncesi parcali)
+///   - Partial -> explicit error; reduce to a concrete placement before export.
 ///   - Shard(d) -> "{devices=[d0,d1,...]0,1,2,...}"
 [[nodiscard]] std::string to_mhlo_sharding(const std::vector<std::int64_t>& tensor_shape,
                                            const dist::DeviceMesh& mesh,
@@ -82,7 +83,8 @@ using GetPjrtApiFn = const PJRT_Api* (*)();
 
 class Client {
  public:
-  /// plugin_path bos ise NEXUS_PJRT_PLUGIN_PATH ortam degiskenine bakar; o da yoksa yerlesik PJRT CPU C API kullanir.
+  /// Without a plugin, uses the explicitly labelled Nexus CPU reference interpreter.
+  /// An explicit path (or NEXUS_PJRT_PLUGIN_PATH) loads the official OpenXLA C ABI.
   explicit Client(std::string_view plugin_path = "");
   ~Client();
   Client(const Client&) = delete;
@@ -92,7 +94,7 @@ class Client {
   [[nodiscard]] std::string_view platform_version() const noexcept;
   [[nodiscard]] int device_count() const noexcept;
   [[nodiscard]] std::string device_name(int index) const;
-  [[nodiscard]] bool uses_external_plugin() const noexcept { return external_handle_ != nullptr; }
+  [[nodiscard]] bool uses_external_plugin() const noexcept { return external_ != nullptr; }
 
   /// StableHLO MLIR modulunu PJRT C API uzerinden derler ve verilen argumanlarla yurutur.
   [[nodiscard]] std::vector<std::vector<float>> compile_and_execute(
@@ -101,7 +103,7 @@ class Client {
       const std::vector<std::vector<std::int64_t>>& input_shapes);
 
  private:
-  void* external_handle_ = nullptr;
+  std::unique_ptr<detail::PluginClient> external_;
   const PJRT_Api* api_ = nullptr;
   PJRT_Client* client_ = nullptr;
 };

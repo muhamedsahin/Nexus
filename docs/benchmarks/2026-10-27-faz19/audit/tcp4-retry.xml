@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="1"
+	failures="1"
+	disabled="0"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="30"
+	timestamp="2026-10-27T23:07:11"
+	>
+	<testcase name="test_collectives_tcp_4" classname="test_collectives_tcp_4" time="30.1354" status="fail">
+		<failure message="Failed"/>
+		<system-out>  FAIL  istisna: Nexus dist: bind 0.0.0.0:29624 (hata 0)
+nexus-run: rank 0 kod 1 ile cikti; digerlerine 30 s taninir
+nexus-run: deneme 0, 4 surec, 30.1 s
+  rank 0: cikis 1
+  rank 1: sonlandirildi 137
+  rank 2: sonlandirildi 137
+  rank 3: sonlandirildi 137
+nexus-run: ilk basarisiz: rank 0 (kod 1)
+</system-out>
+	</testcase>
+</testsuite>

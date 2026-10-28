@@ -48,6 +48,7 @@ add_library(nexus STATIC
     src/backend/directml.cpp
     src/backend/metal.cpp
     src/backend/pjrt.cpp
+    src/backend/pjrt_plugin.cpp
     src/autograd/engine.cpp
     src/autograd/ops.cpp
     src/autograd/checkpoint.cpp
@@ -114,6 +115,7 @@ target_link_libraries(nexus
         nexusdata)
 
 target_compile_definitions(nexus PUBLIC NEXUS_FRAMEWORK_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
+target_link_libraries(nexus PRIVATE ${CMAKE_DL_LIBS})
 if(WIN32)
     target_link_libraries(nexus PUBLIC ws2_32)  # FAZ 10: TCP arka ucu ve TCPStore
 endif()

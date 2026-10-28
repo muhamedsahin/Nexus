@@ -1,0 +1,7 @@
+  info  tcp 4 rank
+  PASS  collectives_tcp (4 rank)
+nexus-run: deneme 0, 4 surec, 0.3 s
+  rank 0: cikis 0
+  rank 1: cikis 0
+  rank 2: cikis 0
+  rank 3: cikis 0

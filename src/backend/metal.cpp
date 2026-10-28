@@ -1,7 +1,7 @@
 /**
  * @file metal.cpp
- * @brief FAZ 19.D: Apple Silicon (M1-M4) Metal Shading Language (MSL) arka ucu ve birlesik bellek
- *        (unified memory = true, sifir kopya CPU <-> GPU) cekirdek kutuphanesi.
+ * @brief FAZ 19.D: sample MSL sources and explicit unavailable driver.
+ *        Native allocation/command submission is not implemented; no zero-copy claim.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -86,10 +86,10 @@ class MetalDriver final : public Driver {
  public:
   MetalDriver() {
 #if defined(__APPLE__)
-    reason_ = "Metal Objective-C++ koprusu derlemede acilmadi (-DNEXUS_ENABLE_METAL=ON)";
+    reason_ = "Metal execution backend (Objective-C++ allocator/command queue) uygulanmadi; MSL kaynaklari tek basina calistirici degildir";
 #else
     reason_ = "Apple Metal (MPS/MSL) yalniz macOS / Apple Silicon (M1-M4) uzerinde kullanilabilir "
-              "(MSL kaynak uzunlugu=" + std::to_string(kMetalMslShaders.size()) + " bayt, unified=true)";
+              "(yalniz ornek MSL kaynaklari: " + std::to_string(kMetalMslShaders.size()) + " bayt; execution backend uygulanmadi)";
 #endif
   }
 

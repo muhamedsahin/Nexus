@@ -1,4 +1,7 @@
 {
+  "report_status": "historical_pre_audit",
+  "capabilities_superseded_by": "audit/REPORT.md",
+  "audit_note": "Old PJRT rows measure the Nexus CPU reference interpreter, not OpenXLA/TPU; Metal entries do not prove GPU execution. Original measurement values are retained.",
   "phase": "FAZ 19",
   "date": "2026-10-27",
   "machine": {

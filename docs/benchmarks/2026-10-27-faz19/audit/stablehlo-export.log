@@ -1,0 +1,31 @@
+FAZ 19.E: StableHLO + GSPMD (mhlo.sharding) -> PJRT C API derleme ve yurutme
+  info  GSPMD Replicate -> {replicated}
+  info  GSPMD Shard(0,1)-> {devices=[2,2]0,1,2,3}
+  info  GSPMD Partial   -> 
+  PASS  Replicate yerlesimi {replicated} uretir
+  PASS  2B Shard(0),Shard(1) yerlesimi {devices=[2,2]0,1,2,3} uretir
+  PASS  Partial(sum) cannot be misrepresented as manual XLA sharding
+  PASS  Swapped mesh axes reorder XLA tile devices
+  PASS  Replication dimension follows tensor tile dimensions
+  info  StableHLO SPMD modulu (993 bayt):
+module @nexus_spmd {
+  func.func @main(%arg0: tensor<8x16xf32> {mhlo.sharding = "{replicated}"}, %arg1: tensor<16x32xf32> {mhlo.sharding = "{replicated}"}, %arg2: tensor<32xf32> {mhlo.sharding = "{replicated}"}, %arg3: tensor<32x8xf32> {mhlo.sharding = "{replicated}"}) -> (tensor<8x8xf32> {mhlo.sharding = "{replicated}"}) {
+    %v4 = "stablehlo.dot_general"(%arg0, %arg1) {dot_dimension_numbers = #stablehlo.dot<lhs_contracting_dimensions = [1], rhs_contracting_dimensions = [0]>} : (tensor<8x16xf32>, tensor<16x32xf32>) -> tensor<8x32xf32>
+    %v5_b = stablehlo.broadcast_in_dim %arg2, dims = [1] : (tensor<32xf32>) -> tensor<8x32xf32>
+    %v5 = stablehlo.add %v4, %v5_b : tensor<8x32xf32>
+    %v6 = stablehlo.tanh %v5 : tensor<8x32xf32>
+    %v7 = "stablehlo.dot_general"(%v6, %arg3) {dot_dimension_numbers = #stablehlo.dot<lhs_contracting_dimensions = [1], rhs_contracting_dimensions = [0]>} : (tensor<8x32xf32>, tensor<32x8xf32>) -> tensor<8x8xf32>
+    return %v7 : tensor<8x8xf32>
+  }
+}
+  PASS  StableHLO SPMD modulu mhlo.sharding, dot_general, broadcast_in_dim ve tanh icerir
+  PASS  CPU reference is explicitly distinguished from real XLA/PJRT
+  PASS  Explicit plugin request never silently falls back to the interpreter
+  PASS  Input dimensions are checked before host buffer copy
+  PASS  Equal-sized but differently shaped argument is rejected
+  PASS  Malformed MLIR cannot make a unary kernel read beyond an input
+  PASS  stablehlo.logistic is not incorrectly parsed as stablehlo.log
+  info  PJRT C API ciktisi vs yerel Executable max_abs=0.00e+00
+  PASS  Grafik -> StableHLO -> PJRT C API yurutmesi yerel yurutme ile ayni sonucu uretir (< 1e-5)
+  PASS  Device('tpu:0') PjrtDriver GEMM CPU referansi ile eslesir
+test_phase19_backends: 14 gecti, 0 basarisiz

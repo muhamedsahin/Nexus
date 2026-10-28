@@ -553,7 +553,8 @@ class CudaDriver final : public Driver {
   const std::vector<DeviceInfo>& devices() const noexcept override { return devices_; }
   std::string unavailable_reason() const override { return reason_; }
   bool supports(Operation op) const noexcept override {
-    return !devices_.empty() && static_cast<unsigned>(op) <= static_cast<unsigned>(Operation::AdamW);
+    return !devices_.empty() && op == Operation::MatMul && cuda_dyn().cublasSgemm_v2 &&
+           std::all_of(blas_handles_.begin(), blas_handles_.end(), [](auto h) { return h != nullptr; });
   }
 
   void* allocate(int device, std::size_t bytes) override {
@@ -639,7 +640,8 @@ class CudaDriver final : public Driver {
         return;
       }
     }
-    // cuBLAS DLL yoksa host uzerinden gonderim
+    // A failed or unavailable native path must obey the explicit fallback policy.
+    require_cpu_fallback(*this, Operation::MatMul, static_cast<std::size_t>(args.m) * args.n);
     const std::size_t a_elems = static_cast<std::size_t>(args.a_trans ? args.k : args.m) * args.lda;
     const std::size_t b_elems = static_cast<std::size_t>(args.b_trans ? args.n : args.k) * args.ldb;
     const std::size_t c_elems = static_cast<std::size_t>(args.m) * args.ldc;
@@ -658,6 +660,7 @@ class CudaDriver final : public Driver {
   void elementwise(Operation op, DeviceRef device, const float* a, const float* b, float* out,
                    std::size_t count, float scalar) override {
     if (count == 0) return;
+    require_cpu_fallback(*this, op, count);
     std::vector<float> ha(count), hb, hout(count);
     copy(DeviceRef::cpu(), ha.data(), device, a, count * sizeof(float));
     if (b != nullptr && (op <= Operation::Div || op == Operation::Axpy)) {
@@ -671,6 +674,7 @@ class CudaDriver final : public Driver {
   }
 
   void reduce_sum(DeviceRef device, const float* input, float* output, std::size_t count) override {
+    require_cpu_fallback(*this, Operation::ReduceSum, count);
     if (count == 0) {
       fill(device, output, 1, 0.0f);
       return;
@@ -832,6 +836,7 @@ void Driver::stream_wait_event(int device, StreamHandle /*stream*/, EventHandle 
 }
 
 void Driver::softmax(DeviceRef device, const float* input, float* output, int rows, int cols) {
+  require_cpu_fallback(*this, Operation::Softmax, static_cast<std::size_t>(rows) * cols);
   const std::size_t n = static_cast<std::size_t>(rows) * cols;
   std::vector<float> hin(n), hout(n);
   copy(DeviceRef::cpu(), hin.data(), device, input, n * sizeof(float));
@@ -841,6 +846,7 @@ void Driver::softmax(DeviceRef device, const float* input, float* output, int ro
 
 void Driver::rms_norm(DeviceRef device, const float* x, const float* weight, float* out,
                       int rows, int cols, float eps) {
+  require_cpu_fallback(*this, Operation::RmsNorm, static_cast<std::size_t>(rows) * cols);
   const std::size_t n = static_cast<std::size_t>(rows) * cols;
   std::vector<float> hx(n), hw(static_cast<std::size_t>(cols)), hout(n);
   copy(DeviceRef::cpu(), hx.data(), device, x, n * sizeof(float));
@@ -851,6 +857,7 @@ void Driver::rms_norm(DeviceRef device, const float* x, const float* weight, flo
 
 void Driver::layer_norm(DeviceRef device, const float* x, const float* weight, const float* bias,
                         float* out, int rows, int cols, float eps) {
+  require_cpu_fallback(*this, Operation::LayerNorm, static_cast<std::size_t>(rows) * cols);
   const std::size_t n = static_cast<std::size_t>(rows) * cols;
   std::vector<float> hx(n), hw(static_cast<std::size_t>(cols)), hb, hout(n);
   copy(DeviceRef::cpu(), hx.data(), device, x, n * sizeof(float));
@@ -866,6 +873,7 @@ void Driver::layer_norm(DeviceRef device, const float* x, const float* weight, c
 
 void Driver::rope(DeviceRef device, const float* x, float* out, int batch_heads, int seq_len,
                   int head_dim, int pos_offset, float theta) {
+  require_cpu_fallback(*this, Operation::Rope, static_cast<std::size_t>(batch_heads) * seq_len * head_dim);
   const std::size_t n = static_cast<std::size_t>(batch_heads) * seq_len * head_dim;
   std::vector<float> hx(n), hout(n);
   copy(DeviceRef::cpu(), hx.data(), device, x, n * sizeof(float));
@@ -874,6 +882,7 @@ void Driver::rope(DeviceRef device, const float* x, float* out, int batch_heads,
 }
 
 void Driver::swiglu(DeviceRef device, const float* x, float* out, int rows, int hidden_dim) {
+  require_cpu_fallback(*this, Operation::SwiGlu, static_cast<std::size_t>(rows) * hidden_dim);
   const std::size_t in_n = static_cast<std::size_t>(rows) * 2 * hidden_dim;
   const std::size_t out_n = static_cast<std::size_t>(rows) * hidden_dim;
   std::vector<float> hx(in_n), hout(out_n);
@@ -884,6 +893,7 @@ void Driver::swiglu(DeviceRef device, const float* x, float* out, int rows, int 
 
 void Driver::attention(DeviceRef device, const float* q, const float* k, const float* v, float* out,
                        int batch_heads, int seq_len, int head_dim, bool causal) {
+  require_cpu_fallback(*this, Operation::Attention, static_cast<std::size_t>(batch_heads) * seq_len * head_dim);
   const std::size_t n = static_cast<std::size_t>(batch_heads) * seq_len * head_dim;
   std::vector<float> hq(n), hk(n), hv(n), hout(n);
   copy(DeviceRef::cpu(), hq.data(), device, q, n * sizeof(float));
@@ -896,6 +906,7 @@ void Driver::attention(DeviceRef device, const float* q, const float* k, const f
 
 void Driver::quant_matmul_q8(DeviceRef device, const float* a, const void* w_q8,
                              const float* w_scales, float* c, int m, int n, int k, int group_size) {
+  require_cpu_fallback(*this, Operation::QuantMatMulQ8, static_cast<std::size_t>(m) * n);
   const std::size_t a_n = static_cast<std::size_t>(m) * k;
   const std::size_t w_bytes = static_cast<std::size_t>(n) * k;
   const std::size_t s_n = static_cast<std::size_t>(n) * (k / group_size);
@@ -912,6 +923,7 @@ void Driver::quant_matmul_q8(DeviceRef device, const float* a, const void* w_q8,
 
 void Driver::quant_matmul_q4(DeviceRef device, const float* a, const void* w_q4,
                              const float* w_scales, float* c, int m, int n, int k, int group_size) {
+  require_cpu_fallback(*this, Operation::QuantMatMulQ4, static_cast<std::size_t>(m) * n);
   const std::size_t a_n = static_cast<std::size_t>(m) * k;
   const std::size_t w_bytes = static_cast<std::size_t>(n) * (k / 2);
   const std::size_t s_n = static_cast<std::size_t>(n) * (k / group_size);
@@ -929,6 +941,7 @@ void Driver::quant_matmul_q4(DeviceRef device, const float* a, const void* w_q4,
 void Driver::adamw_step(DeviceRef device, float* param, const float* grad, float* m, float* v,
                         std::size_t count, float lr, float beta1, float beta2, float eps,
                         float weight_decay, int step) {
+  require_cpu_fallback(*this, Operation::AdamW, count);
   std::vector<float> hp(count), hg(count), hm(count), hv(count);
   copy(DeviceRef::cpu(), hp.data(), device, param, count * sizeof(float));
   copy(DeviceRef::cpu(), hg.data(), device, grad, count * sizeof(float));
@@ -996,7 +1009,7 @@ Driver& Registry::select(Operation op) const {
       return d;
     }
   }
-  const Kind priority[] = {Kind::Cuda, Kind::Hip, Kind::Vulkan, Kind::Metal, Kind::DirectMl, Kind::Pjrt, Kind::Cpu};
+  const Kind priority[] = {Kind::Cuda, Kind::Hip, Kind::Vulkan, Kind::Metal, Kind::DirectMl, Kind::Cpu, Kind::Pjrt};
   for (Kind kind : priority) {
     if (Driver* d = find(kind); d != nullptr && d->available() && d->supports(op)) return *d;
   }
@@ -1004,6 +1017,9 @@ Driver& Registry::select(Operation op) const {
 }
 
 void set_fallback_policy(FallbackPolicy policy) noexcept { g_policy.store(policy, std::memory_order_relaxed); }
+void require_cpu_fallback(Driver& driver, Operation op, std::size_t elements) {
+  record_fallback(driver, op, elements);
+}
 FallbackPolicy fallback_policy() noexcept { return g_policy.load(std::memory_order_relaxed); }
 
 FallbackStats fallback_stats(Kind kind, Operation op) {
@@ -1102,6 +1118,10 @@ void softmax(DeviceRef device, const float* input, float* output, int rows, int 
     d.softmax(device, input, output, rows, cols);
     return;
   }
+  if (d.available()) {
+    d.Driver::softmax(device, input, output, rows, cols);
+    return;
+  }
   record_fallback(d, Operation::Softmax, static_cast<std::size_t>(rows) * cols);
   Registry::instance().require(Kind::Cpu).softmax(DeviceRef::cpu(), input, output, rows, cols);
 }
@@ -1110,6 +1130,10 @@ void rms_norm(DeviceRef device, const float* x, const float* weight, float* out,
   Driver& d = Registry::instance().require(from_device(device.kind));
   if (d.available() && d.supports(Operation::RmsNorm)) {
     d.rms_norm(device, x, weight, out, rows, cols, eps);
+    return;
+  }
+  if (d.available()) {
+    d.Driver::rms_norm(device, x, weight, out, rows, cols, eps);
     return;
   }
   record_fallback(d, Operation::RmsNorm, static_cast<std::size_t>(rows) * cols);
@@ -1123,6 +1147,10 @@ void layer_norm(DeviceRef device, const float* x, const float* weight, const flo
     d.layer_norm(device, x, weight, bias, out, rows, cols, eps);
     return;
   }
+  if (d.available()) {
+    d.Driver::layer_norm(device, x, weight, bias, out, rows, cols, eps);
+    return;
+  }
   record_fallback(d, Operation::LayerNorm, static_cast<std::size_t>(rows) * cols);
   Registry::instance().require(Kind::Cpu).layer_norm(DeviceRef::cpu(), x, weight, bias, out, rows, cols, eps);
 }
@@ -1134,6 +1162,10 @@ void rope(DeviceRef device, const float* x, float* out, int batch_heads, int seq
     d.rope(device, x, out, batch_heads, seq_len, head_dim, pos_offset, theta);
     return;
   }
+  if (d.available()) {
+    d.Driver::rope(device, x, out, batch_heads, seq_len, head_dim, pos_offset, theta);
+    return;
+  }
   record_fallback(d, Operation::Rope, static_cast<std::size_t>(batch_heads) * seq_len * head_dim);
   Registry::instance().require(Kind::Cpu).rope(DeviceRef::cpu(), x, out, batch_heads, seq_len, head_dim, pos_offset, theta);
 }
@@ -1142,6 +1174,10 @@ void swiglu(DeviceRef device, const float* x, float* out, int rows, int hidden_d
   Driver& d = Registry::instance().require(from_device(device.kind));
   if (d.available() && d.supports(Operation::SwiGlu)) {
     d.swiglu(device, x, out, rows, hidden_dim);
+    return;
+  }
+  if (d.available()) {
+    d.Driver::swiglu(device, x, out, rows, hidden_dim);
     return;
   }
   record_fallback(d, Operation::SwiGlu, static_cast<std::size_t>(rows) * hidden_dim);
@@ -1155,6 +1191,10 @@ void attention(DeviceRef device, const float* q, const float* k, const float* v,
     d.attention(device, q, k, v, out, batch_heads, seq_len, head_dim, causal);
     return;
   }
+  if (d.available()) {
+    d.Driver::attention(device, q, k, v, out, batch_heads, seq_len, head_dim, causal);
+    return;
+  }
   record_fallback(d, Operation::Attention, static_cast<std::size_t>(batch_heads) * seq_len * head_dim);
   Registry::instance().require(Kind::Cpu).attention(DeviceRef::cpu(), q, k, v, out, batch_heads, seq_len, head_dim, causal);
 }
@@ -1164,6 +1204,10 @@ void quant_matmul_q8(DeviceRef device, const float* a, const void* w_q8, const f
   Driver& d = Registry::instance().require(from_device(device.kind));
   if (d.available() && d.supports(Operation::QuantMatMulQ8)) {
     d.quant_matmul_q8(device, a, w_q8, w_scales, c, m, n, k, group_size);
+    return;
+  }
+  if (d.available()) {
+    d.Driver::quant_matmul_q8(device, a, w_q8, w_scales, c, m, n, k, group_size);
     return;
   }
   record_fallback(d, Operation::QuantMatMulQ8, static_cast<std::size_t>(m) * n);
@@ -1177,6 +1221,10 @@ void quant_matmul_q4(DeviceRef device, const float* a, const void* w_q4, const f
     d.quant_matmul_q4(device, a, w_q4, w_scales, c, m, n, k, group_size);
     return;
   }
+  if (d.available()) {
+    d.Driver::quant_matmul_q4(device, a, w_q4, w_scales, c, m, n, k, group_size);
+    return;
+  }
   record_fallback(d, Operation::QuantMatMulQ4, static_cast<std::size_t>(m) * n);
   Registry::instance().require(Kind::Cpu).quant_matmul_q4(DeviceRef::cpu(), a, w_q4, w_scales, c, m, n, k, group_size);
 }
@@ -1187,6 +1235,10 @@ void adamw_step(DeviceRef device, float* param, const float* grad, float* m, flo
   Driver& d = Registry::instance().require(from_device(device.kind));
   if (d.available() && d.supports(Operation::AdamW)) {
     d.adamw_step(device, param, grad, m, v, count, lr, beta1, beta2, eps, weight_decay, step);
+    return;
+  }
+  if (d.available()) {
+    d.Driver::adamw_step(device, param, grad, m, v, count, lr, beta1, beta2, eps, weight_decay, step);
     return;
   }
   record_fallback(d, Operation::AdamW, count);
@@ -1207,6 +1259,16 @@ void memory_deallocate(DeviceRef device, void* pointer) noexcept {
   if (Driver* d = Registry::instance().find(from_device(device.kind)); d != nullptr) d->deallocate(device.index, pointer);
 }
 void memory_copy(DeviceRef dst_device, void* dst, DeviceRef src_device, const void* src, std::size_t bytes) {
+  if (bytes == 0) return;
+  if (!dst_device.is_host() && !src_device.is_host() && dst_device.kind != src_device.kind) {
+    auto& source = Registry::instance().require(from_device(src_device.kind));
+    auto& destination = Registry::instance().require(from_device(dst_device.kind));
+    if (!source.available() || !destination.available()) throw TensorError("Nexus: cross-backend copy requires two available devices");
+    std::vector<std::byte> staging(bytes);
+    source.copy(DeviceRef::cpu(), staging.data(), src_device, src, bytes);
+    destination.copy(dst_device, dst, DeviceRef::cpu(), staging.data(), bytes);
+    return;
+  }
   const DeviceKind kind = !dst_device.is_host() ? dst_device.kind : src_device.kind;
   Driver& d = Registry::instance().require(from_device(kind));
   if (!d.available()) throw TensorError("Nexus: " + std::string(to_string(kind)) + " kopyasi kullanilamiyor: " + d.unavailable_reason());

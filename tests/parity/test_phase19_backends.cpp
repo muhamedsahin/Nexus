@@ -19,6 +19,7 @@
 #include "nexus/core/mirrored_tensor.hpp"
 #include "nexus/dist/dtensor.hpp"
 #include "nexus/dist/process_group.hpp"
+#include "nexus/interop/json.hpp"
 #include "nexus_test.hpp"
 
 #include <algorithm>
@@ -27,6 +28,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <functional>
+#include <iomanip>
+#include <limits>
 #include <iostream>
 #include <numeric>
 #include <string>
@@ -45,9 +50,11 @@ using nexus::Shape;
 using nexus_test::expect;
 
 float max_abs_diff(const std::vector<float>& a, const std::vector<float>& b) {
+  if (a.size() != b.size()) return std::numeric_limits<float>::infinity();
   float worst = 0.0f;
   const std::size_t n = std::min(a.size(), b.size());
   for (std::size_t i = 0; i < n; ++i) {
+    if (!std::isfinite(a[i]) || !std::isfinite(b[i])) return std::numeric_limits<float>::infinity();
     worst = std::max(worst, std::fabs(a[i] - b[i]));
   }
   return worst;
@@ -111,16 +118,16 @@ void test_backend_detection() {
   }
 
   expect(reg.require(nb::Kind::Cpu).available(), "CPU surucusu her zaman kullanilabilir");
-  expect(reg.require(nb::Kind::Pjrt).available(), "PJRT (OpenXLA CPU eklentisi) her zaman kullanilabilir");
+  expect(reg.require(nb::Kind::Pjrt).available(), "Nexus StableHLO CPU reference interpreter available");
 
   // 1.3 Apple Metal MirroredTensor unified=true (FAZ 19.D)
   MirroredTensor mps_tensor(Shape{4, 8}, DeviceRef::metal(0));
-  expect(mps_tensor.unified(), "Metal (Apple Silicon MPS/MSL) MirroredTensor'da unified=true");
-  expect(mps_tensor.host_data() == mps_tensor.device_data(), "Metal unified modda host ve cihaz ayni isaretci");
-  mps_tensor.modify_host();
-  mps_tensor.sync_device();
-  expect(mps_tensor.bytes_to_device() == 0 && mps_tensor.bytes_to_host() == 0,
-         "Metal unified modda CPU<->GPU sifir kopya");
+  expect(!mps_tensor.unified(), "Metal host allocation must not impersonate a shared GPU buffer");
+  if (!reg.require(nb::Kind::Metal).available()) {
+    bool unavailable = false;
+    try { (void)mps_tensor.device_data(); } catch (const nexus::TensorError&) { unavailable = true; }
+    expect(unavailable, "Unavailable Metal device access throws instead of returning host storage");
+  }
 
   // 1.4 FallbackPolicy::Error, WarnOnce, WarnAlways (FAZ 19.A — sessiz geri dusus yasak)
   nb::reset_fallback_stats();
@@ -150,7 +157,7 @@ void test_backend_detection() {
 //  2) test_hip_parity (19.B: ROCm/HIP hipify + wave64 denetimi + 64KB LDS)
 // ============================================================================
 
-void test_hip_parity() {
+void test_hip_source_compat() {
   nexus_test::section("FAZ 19.B: ROCm / HIP uyumlulugu, hipify donusumu, wave64 ve 64 KB LDS");
 
   const auto& sym_table = nb::hip::symbol_table();
@@ -568,12 +575,14 @@ void test_directml_parity() {
 //  5) test_pjrt_export (19.E: Grafik -> StableHLO + GSPMD -> PJRT C API -> Yurutme)
 // ============================================================================
 
-void test_pjrt_export() {
+void test_pjrt_export(const char* export_path = nullptr) {
   nexus_test::section("FAZ 19.E: StableHLO + GSPMD (mhlo.sharding) -> PJRT C API derleme ve yurutme");
 
   // 5.1 DeviceMesh + DTensor -> GSPMD mhlo.sharding dogrulamasi
   nexus::dist::ThreadWorld world(4);
   std::string sharding_rep, sharding_2d, sharding_partial;
+  std::string sharding_swapped, sharding_replicated;
+  bool partial_rejected = false;
   {
     std::vector<std::thread> threads;
     for (int r = 0; r < 4; ++r) {
@@ -585,8 +594,14 @@ void test_pjrt_export() {
               {nexus::dist::Placement::replicate(), nexus::dist::Placement::replicate()});
           sharding_2d = nb::pjrt::to_mhlo_sharding({16, 32}, mesh,
               {nexus::dist::Placement::shard(0), nexus::dist::Placement::shard(1)});
-          sharding_partial = nb::pjrt::to_mhlo_sharding({16, 32}, mesh,
-              {nexus::dist::Placement::replicate(), nexus::dist::Placement::partial()});
+          sharding_swapped = nb::pjrt::to_mhlo_sharding({16, 32}, mesh,
+              {nexus::dist::Placement::shard(1), nexus::dist::Placement::shard(0)});
+          sharding_replicated = nb::pjrt::to_mhlo_sharding({16, 32}, mesh,
+              {nexus::dist::Placement::replicate(), nexus::dist::Placement::shard(0)});
+          try {
+            sharding_partial = nb::pjrt::to_mhlo_sharding({16, 32}, mesh,
+                {nexus::dist::Placement::replicate(), nexus::dist::Placement::partial()});
+          } catch (const nexus::TensorError&) { partial_rejected = true; }
         }
       });
     }
@@ -597,8 +612,10 @@ void test_pjrt_export() {
   std::printf("  info  GSPMD Partial   -> %s\n", sharding_partial.c_str());
   expect(sharding_rep == "{replicated}", "Replicate yerlesimi {replicated} uretir");
   expect(sharding_2d == "{devices=[2,2]0,1,2,3}", "2B Shard(0),Shard(1) yerlesimi {devices=[2,2]0,1,2,3} uretir");
-  expect(sharding_partial.find("last_tile_dims={manual}") != std::string::npos,
-         "Partial yerlesimi manual GSPMD etiketi uretir");
+  expect(partial_rejected, "Partial(sum) cannot be misrepresented as manual XLA sharding");
+  expect(sharding_swapped == "{devices=[2,2]0,2,1,3}", "Swapped mesh axes reorder XLA tile devices");
+  expect(sharding_replicated == "{devices=[2,1,2]0,2,1,3 last_tile_dim_replicate}",
+         "Replication dimension follows tensor tile dimensions");
 
   // 5.2 IR Grafigi -> StableHLO SPMD -> PJRT C API derleme ve yurutme -> yerel yurutucu ile esdegerlik
   ir::Graph g;
@@ -618,8 +635,8 @@ void test_pjrt_export() {
 
   const std::string mlir = nb::pjrt::export_stablehlo_spmd(
       g, {},
-      {{"x", sharding_2d}, {"w1", sharding_rep}, {"bias", sharding_rep}, {"w2", sharding_rep}},
-      {sharding_2d});
+      {{"x", sharding_rep}, {"w1", sharding_rep}, {"bias", sharding_rep}, {"w2", sharding_rep}},
+      {sharding_rep});
   std::printf("  info  StableHLO SPMD modulu (%zu bayt):\n%s", mlir.size(), mlir.c_str());
   expect(mlir.find("mhlo.sharding") != std::string::npos &&
              mlir.find("stablehlo.dot_general") != std::string::npos &&
@@ -633,6 +650,38 @@ void test_pjrt_export() {
   const auto vw2 = make_data(32 * 8, 0.03f, 23);
 
   nb::pjrt::Client pjrt_client;
+  expect(pjrt_client.platform_name() == "nexus-stablehlo-reference-cpu" && !pjrt_client.uses_external_plugin(),
+         "CPU reference is explicitly distinguished from real XLA/PJRT");
+  bool plugin_rejected = false;
+  try { nb::pjrt::Client invalid("nonexistent-pjrt-plugin"); }
+  catch (const nexus::TensorError&) { plugin_rejected = true; }
+  expect(plugin_rejected, "Explicit plugin request never silently falls back to the interpreter");
+  bool bad_shape_rejected = false;
+  try { (void)pjrt_client.compile_and_execute(mlir, {{1.0f}}, {{8, 16}}); }
+  catch (const nexus::TensorError&) { bad_shape_rejected = true; }
+  expect(bad_shape_rejected, "Input dimensions are checked before host buffer copy");
+  bool signature_rejected = false;
+  try { (void)pjrt_client.compile_and_execute(mlir, {vx, vw1, vbias, vw2}, {{16, 8}, {16, 32}, {32}, {32, 8}}); }
+  catch (const nexus::TensorError&) { signature_rejected = true; }
+  expect(signature_rejected, "Equal-sized but differently shaped argument is rejected");
+  const std::string malformed = R"MLIR(module @bad {
+  func.func @main(%arg0: tensor<1xf32>) -> (tensor<4xf32>) {
+    %v0 = stablehlo.negate %arg0 : tensor<4xf32>
+    return %v0 : tensor<4xf32>
+  }
+})MLIR";
+  bool operand_rejected = false;
+  try { (void)pjrt_client.compile_and_execute(malformed, {{1.0f}}, {{1}}); }
+  catch (const nexus::TensorError&) { operand_rejected = true; }
+  expect(operand_rejected, "Malformed MLIR cannot make a unary kernel read beyond an input");
+  ir::Graph sigmoid_graph;
+  ir::Builder sb(sigmoid_graph);
+  const int sx = sb.param("x", {C(4)});
+  sigmoid_graph.outputs = {sb.unary(ir::Op::Sigmoid, sx)};
+  const auto sy = pjrt_client.compile_and_execute(nb::pjrt::export_stablehlo_spmd(sigmoid_graph, {}),
+                                                 {{-1.0f, 0.0f, 1.0f, 2.0f}}, {{4}});
+  expect(std::abs(sy[0][1] - 0.5f) < 1e-6f && std::abs(sy[0][2] - 0.7310586f) < 1e-6f,
+         "stablehlo.logistic is not incorrectly parsed as stablehlo.log");
   const auto pjrt_outs = pjrt_client.compile_and_execute(
       mlir, {vx, vw1, vbias, vw2}, {{8, 16}, {16, 32}, {32}, {32, 8}});
 
@@ -644,6 +693,24 @@ void test_pjrt_export() {
   const float diff = max_abs_diff(pjrt_outs[0], native_outs[0]);
   std::printf("  info  PJRT C API ciktisi vs yerel Executable max_abs=%.2e\n", diff);
   expect(diff < 1e-5f, "Grafik -> StableHLO -> PJRT C API yurutmesi yerel yurutme ile ayni sonucu uretir (< 1e-5)");
+  if (export_path) {
+    std::ofstream module(export_path);
+    module << mlir;
+    module.close();
+    std::ofstream fixture(std::string(export_path) + ".json");
+    fixture << std::setprecision(std::numeric_limits<float>::max_digits10);
+    auto write_array = [&](const std::vector<float>& values) {
+      fixture << '[';
+      for (std::size_t i = 0; i < values.size(); ++i) fixture << (i ? "," : "") << values[i];
+      fixture << ']';
+    };
+    fixture << "{\"shapes\":[[8,16],[16,32],[32],[32,8]],\"inputs\":[";
+    write_array(vx); fixture << ','; write_array(vw1); fixture << ',';
+    write_array(vbias); fixture << ','; write_array(vw2);
+    fixture << "],\"expected\":["; write_array(native_outs[0]); fixture << "]}\n";
+    fixture.close();
+    if (!module || !fixture) throw nexus::TensorError("Cannot write independent XLA fixture");
+  }
 
   // 5.3 PjrtDriver (DeviceRef::tpu(0)) uzerinden MirroredTensor + MatMul
   const DeviceRef tpu = DeviceRef::tpu(0);
@@ -667,6 +734,138 @@ void test_pjrt_export() {
 //  6) Benchmark Modu (tum etkin arka uclarda GEMM GFLOP/s ve egitim hizi)
 // ============================================================================
 
+void test_backend_fallback() {
+  nexus_test::section("CPU fallback policy and opaque device buffer transfers");
+  const auto dev = DeviceRef::tpu(0);  // Reference driver uses opaque allocation handles.
+  auto& d = nb::Registry::instance().require(nb::Kind::Pjrt);
+  const auto x = make_data(16, 0.03f);
+  const std::vector<float> w(8, 1.0f), bias(8, 0.1f);
+  using Call = std::function<void(DeviceRef, const std::vector<float*>&, float*)>;
+  auto check = [&](nb::Operation op, const std::vector<std::vector<float>>& inputs,
+                   std::size_t out_size, const Call& call) {
+    std::vector<MirroredTensor> buffers;
+    std::vector<float*> device_inputs, host_inputs;
+    for (const auto& input : inputs) {
+      buffers.emplace_back(Shape{input.size()}, dev);
+      auto& buffer = buffers.back();
+      std::memcpy(buffer.host_data(), input.data(), input.size() * sizeof(float));
+      buffer.modify_host(); buffer.sync_device();
+      device_inputs.push_back(buffer.device_data());
+      host_inputs.push_back(const_cast<float*>(input.data()));
+    }
+    MirroredTensor output(Shape{out_size}, dev);
+    output.sync_device();
+    std::vector<float> reference(out_size);
+    call(DeviceRef::cpu(), host_inputs, reference.data());
+    nb::reset_fallback_stats();
+    nb::set_fallback_policy(nb::FallbackPolicy::Error);
+    bool rejected = false;
+    try { call(dev, device_inputs, output.device_data()); }
+    catch (const nexus::TensorError&) { rejected = true; }
+    expect(rejected, std::string(nb::to_string(op)) + " rejects implicit CPU execution");
+    nb::set_fallback_policy(nb::FallbackPolicy::WarnOnce);
+    call(dev, device_inputs, output.device_data());
+    output.modify_device(); output.sync_host();
+    expect(max_abs_diff(std::vector<float>(output.host_data(), output.host_data() + out_size), reference) < 1e-5f,
+           std::string(nb::to_string(op)) + " stages opaque buffers before CPU computation");
+    expect(nb::fallback_stats(nb::Kind::Pjrt, op).calls == 1,
+           std::string(nb::to_string(op)) + " counts exactly one fallback");
+    nb::set_fallback_policy(nb::FallbackPolicy::Error);
+  };
+  check(nb::Operation::Softmax, {x}, 16, [](auto dv, const auto& p, float* o) { nb::softmax(dv, p[0], o, 2, 8); });
+  check(nb::Operation::RmsNorm, {x, w}, 16, [](auto dv, const auto& p, float* o) { nb::rms_norm(dv, p[0], p[1], o, 2, 8, 1e-5f); });
+  check(nb::Operation::LayerNorm, {x, w, bias}, 16, [](auto dv, const auto& p, float* o) { nb::layer_norm(dv, p[0], p[1], p[2], o, 2, 8, 1e-5f); });
+  check(nb::Operation::Rope, {x}, 16, [](auto dv, const auto& p, float* o) { nb::rope(dv, p[0], o, 1, 2, 8, 0, 10000.0f); });
+  check(nb::Operation::SwiGlu, {x}, 8, [](auto dv, const auto& p, float* o) { nb::swiglu(dv, p[0], o, 2, 4); });
+  check(nb::Operation::Attention, {x, x, x}, 16, [](auto dv, const auto& p, float* o) { nb::attention(dv, p[0], p[1], p[2], o, 1, 2, 8, true); });
+  std::vector<float> packed8(16), packed4(8);
+  std::memset(packed8.data(), 3, packed8.size() * sizeof(float));
+  std::memset(packed4.data(), 0x21, packed4.size() * sizeof(float));
+  const auto qa = make_data(64);
+  check(nb::Operation::QuantMatMulQ8, {qa, packed8, {0.125f, 0.25f}}, 4,
+        [](auto dv, const auto& p, float* o) { nb::quant_matmul_q8(dv, p[0], p[1], p[2], o, 2, 2, 32, 32); });
+  check(nb::Operation::QuantMatMulQ4, {qa, packed4, {0.125f, 0.25f}}, 4,
+        [](auto dv, const auto& p, float* o) { nb::quant_matmul_q4(dv, p[0], p[1], p[2], o, 2, 2, 32, 32); });
+  {
+    std::vector<float> hp = x, hm(16, 0.0f), hv(16, 0.0f);
+    MirroredTensor dp(Shape{16}, dev), dg(Shape{16}, dev), dm(Shape{16}, dev), dv(Shape{16}, dev);
+    std::memcpy(dp.host_data(), hp.data(), hp.size() * sizeof(float)); dp.modify_host();
+    std::memcpy(dg.host_data(), x.data(), x.size() * sizeof(float)); dg.modify_host();
+    dp.sync_device(); dg.sync_device(); dm.sync_device(); dv.sync_device();
+    nb::adamw_step(DeviceRef::cpu(), hp.data(), x.data(), hm.data(), hv.data(), 16, 0.001f, 0.9f, 0.999f, 1e-8f, 0.01f, 1);
+    nb::set_fallback_policy(nb::FallbackPolicy::WarnOnce);
+    nb::reset_fallback_stats();
+    nb::adamw_step(dev, dp.device_data(), dg.device_data(), dm.device_data(), dv.device_data(), 16,
+                  0.001f, 0.9f, 0.999f, 1e-8f, 0.01f, 1);
+    dp.modify_device(); dm.modify_device(); dv.modify_device();
+    dp.sync_host(); dm.sync_host(); dv.sync_host();
+    expect(max_abs_diff(std::vector<float>(dp.host_data(), dp.host_data() + 16), hp) < 1e-6f &&
+           max_abs_diff(std::vector<float>(dm.host_data(), dm.host_data() + 16), hm) < 1e-6f &&
+           max_abs_diff(std::vector<float>(dv.host_data(), dv.host_data() + 16), hv) < 1e-6f,
+           "AdamW fallback returns updated parameters AND both moments to device");
+    expect(nb::fallback_stats(nb::Kind::Pjrt, nb::Operation::AdamW).calls == 1, "AdamW fallback counted exactly once");
+    nb::set_fallback_policy(nb::FallbackPolicy::Error);
+  }
+  // Direct Driver calls must enforce the policy as well as the free dispatchers.
+  bool direct_rejected = false;
+  try { d.softmax(dev, nullptr, nullptr, 2, 8); }
+  catch (const nexus::TensorError&) { direct_rejected = true; }
+  expect(direct_rejected, "Direct Driver call checks Error policy before touching buffers");
+  bool invalid_device_rejected = false;
+  try { d.matmul(DeviceRef::tpu(1), {}); }
+  catch (const nexus::TensorError&) { invalid_device_rejected = true; }
+  expect(invalid_device_rejected, "PJRT facade rejects an unexposed device instead of silently executing on device 0");
+  expect(!d.supports(nb::Operation::Softmax), "Reference driver does not advertise unimplemented native operations");
+  for (auto kind : {nb::Kind::Cuda, nb::Kind::DirectMl}) {
+    auto& driver = nb::Registry::instance().require(kind);
+    expect(!driver.supports(nb::Operation::Add) && !driver.supports(nb::Operation::Attention),
+           std::string(nb::to_string(kind)) + " does not advertise host staging as native GPU kernels");
+    if (driver.available()) {
+      bool refused = false;
+      try { driver.elementwise(nb::Operation::Add, DeviceRef{nb::to_device(kind), 0}, nullptr, nullptr, nullptr, 4, 1.0f); }
+      catch (const nexus::TensorError&) { refused = true; }
+      expect(refused, std::string(nb::to_string(kind)) + " direct host fallback enforces Error policy");
+    }
+  }
+  const auto before = d.allocator_stats(0);
+  void* odd_bytes = d.allocate(0, 3);
+  bool copy_bounds_rejected = false;
+  try { d.copy(dev, odd_bytes, DeviceRef::cpu(), x.data(), sizeof(float)); }
+  catch (const nexus::TensorError&) { copy_bounds_rejected = true; }
+  expect(copy_bounds_rejected, "Opaque reference allocation rejects out-of-bounds copies");
+  d.deallocate(0, odd_bytes);
+  const auto after = d.allocator_stats(0);
+  expect(before.current_bytes == after.current_bytes && before.reserved_bytes == after.reserved_bytes,
+         "Reference allocator accounts for non-float-aligned allocations exactly");
+  if (nb::Registry::instance().require(nb::Kind::Vulkan).available()) {
+    MirroredTensor src(Shape{16}, dev), dst(Shape{16}, DeviceRef::vulkan(0)), roundtrip(Shape{16}, dev);
+    std::memcpy(src.host_data(), x.data(), x.size() * sizeof(float)); src.modify_host(); src.sync_device();
+    dst.sync_device(); roundtrip.sync_device();
+    nb::memory_copy(DeviceRef::vulkan(0), dst.device_data(), dev, src.device_data(), x.size() * sizeof(float));
+    nb::memory_copy(dev, roundtrip.device_data(), DeviceRef::vulkan(0), dst.device_data(), x.size() * sizeof(float));
+    roundtrip.modify_device(); roundtrip.sync_host();
+    expect(max_abs_diff(std::vector<float>(roundtrip.host_data(), roundtrip.host_data() + 16), x) == 0,
+           "Cross-backend copies stage bytes instead of reinterpreting opaque handles");
+  }
+}
+
+void test_pjrt_vendor(const char* path) {
+  // This target uses the supplied vendor library, never the contract-test DLL.
+  nb::pjrt::Client client(path);
+  ir::Graph graph;
+  ir::Builder b(graph);
+  auto C = [](std::int64_t v) { return ir::Dim::constant(v); };
+  const int x = b.param("x", {C(2), C(3)}), w = b.param("w", {C(3), C(2)});
+  graph.outputs = {b.unary(ir::Op::Tanh, b.matmul(x, w))};
+  const auto result = client.compile_and_execute(nb::pjrt::export_stablehlo_spmd(graph, {}),
+      {{1,2,3,4,5,6}, {0.1f,0.2f,0.3f,0.4f,0.5f,0.6f}}, {{2,3},{3,2}});
+  const std::vector<float> ref = {std::tanh(2.2f), std::tanh(2.8f), std::tanh(4.9f), std::tanh(6.4f)};
+  expect(client.uses_external_plugin() && result.size() == 1 && max_abs_diff(result[0], ref) < 1e-5f,
+         "Vendor PJRT plugin compiles/executes the actual Nexus StableHLO export");
+  std::printf("  info  vendor platform=%s version=%s device=%s\n", std::string(client.platform_name()).c_str(),
+              std::string(client.platform_version()).c_str(), client.device_name(0).c_str());
+}
+
 void run_benchmarks() {
   const int M = 512, N = 512, K = 512;
   const double flops = 2.0 * static_cast<double>(M) * N * K;
@@ -685,21 +884,40 @@ void run_benchmarks() {
 
       nb::MatMulArgs mm{M, N, K, static_cast<const float*>(a), K, false,
                         static_cast<const float*>(b), N, false, static_cast<float*>(c), N, 1.0f, 0.0f};
-      // Isinma
-      d->matmul(dev, mm);
-      d->synchronize(dev.index);
+      // Separate warmup from the measured repetitions.
+      for (int warm = 0; warm < 3; ++warm) {
+        d->matmul(dev, mm);
+        d->synchronize(dev.index);
+      }
 
-      double best_ms = 1e30;
-      for (int r = 0; r < 5; ++r) {
+      std::vector<double> samples;
+      for (int r = 0; r < 7; ++r) {
         const auto t0 = std::chrono::steady_clock::now();
         d->matmul(dev, mm);
         d->synchronize(dev.index);
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-        best_ms = std::min(best_ms, ms);
+        samples.push_back(ms);
       }
-      const double gflops = (flops / (best_ms * 1e-3)) / 1e9;
-      std::printf("{\"backend\": \"%s\", \"device\": \"%s\", \"name\": \"%s\", \"gemm_512_ms\": %.3f, \"gflops\": %.2f}\n",
-                  nb::to_string(d->kind()), dev.to_string().c_str(), info.name.c_str(), best_ms, gflops);
+      auto sorted = samples;
+      std::sort(sorted.begin(), sorted.end());
+      const double median = sorted[sorted.size() / 2];
+      const double mean = std::accumulate(samples.begin(), samples.end(), 0.0) / samples.size();
+      double variance = 0.0;
+      for (const double s : samples) variance += (s - mean) * (s - mean);
+      const double stddev = std::sqrt(variance / samples.size());
+      const double gflops = flops / (median * 1e6);
+      using nexus::interop::json_quote;
+      std::cout << std::setprecision(12) << "{\"backend\":" << json_quote(nb::to_string(d->kind()))
+                << ",\"implementation\":" << json_quote(d->name())
+                << ",\"version\":" << json_quote(d->version())
+                << ",\"api_version\":" << json_quote(info.api_version)
+                << ",\"driver_version\":" << json_quote(info.driver_version)
+                << ",\"device\":" << json_quote(dev.to_string()) << ",\"name\":" << json_quote(info.name)
+                << ",\"warmup\":3,\"repetitions\":7,\"shape\":[512,512,512],\"dtype\":\"f32\",\"samples_ms\":[";
+      for (std::size_t i = 0; i < samples.size(); ++i) std::cout << (i ? "," : "") << samples[i];
+      std::cout << "],\"median_ms\":" << median << ",\"min_ms\":" << sorted.front()
+                << ",\"max_ms\":" << sorted.back() << ",\"std_ms\":" << stddev
+                << ",\"gemm_512_ms\":" << median << ",\"gflops\":" << gflops << "}\n";
 
       d->deallocate(dev.index, a);
       d->deallocate(dev.index, b);
@@ -713,15 +931,36 @@ void run_benchmarks() {
 int main(int argc, char** argv) {
   const std::string mode = argc > 1 ? argv[1] : "all";
   try {
+    if (mode != "all" && mode != "bench" && mode != "detection" && mode != "hip" && mode != "hip-source" &&
+        mode != "vulkan" && mode != "directml" && mode != "pjrt" && mode != "fallback" && mode != "export-xla" && mode != "vendor")
+      throw nexus::TensorError("Unknown Phase 19 test mode: " + mode);
+    if (mode == "export-xla" && argc != 3)
+      throw nexus::TensorError("export-xla requires a writable MLIR output path");
+    if (mode == "vendor") {
+      if (argc < 3 || argv[2][0] == '\0') {
+        std::printf("  SKIP  Supply a trusted vendor library with -DNEXUS_PJRT_TEST_PLUGIN_PATH=<path>\n");
+        return 77;
+      }
+      test_pjrt_vendor(argv[2]);
+      return nexus_test::finish("vendor PJRT execution");
+    }
     if (mode == "bench") {
       run_benchmarks();
       return 0;
     }
     if (mode == "all" || mode == "detection") test_backend_detection();
-    if (mode == "all" || mode == "hip") test_hip_parity();
+    if (mode == "hip") {
+      std::printf("  SKIP  Native HIP execution/parity is not implemented; use hip-source for static compatibility checks.\n");
+      return 77;
+    }
+    if (mode == "all" || mode == "hip-source") test_hip_source_compat();
     if (mode == "all" || mode == "vulkan") test_vulkan_parity();
     if (mode == "all" || mode == "directml") test_directml_parity();
-    if (mode == "all" || mode == "pjrt") test_pjrt_export();
+    if (mode == "all" || mode == "fallback") test_backend_fallback();
+    if (mode == "all" || mode == "pjrt" || mode == "export-xla")
+      test_pjrt_export(mode == "export-xla" && argc > 2 ? argv[2] : nullptr);
+    if (mode == "vulkan" && !nb::Registry::instance().require(nb::Kind::Vulkan).available()) return 77;
+    if (mode == "directml" && !nb::Registry::instance().require(nb::Kind::DirectMl).available()) return 77;
   } catch (const std::exception& e) {
     std::fprintf(stderr, "FAIL: yakalanmamis istisna: %s\n", e.what());
     return 1;

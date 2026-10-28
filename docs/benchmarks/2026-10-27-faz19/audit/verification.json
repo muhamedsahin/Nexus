@@ -1,0 +1,68 @@
+{
+  "phase": 19,
+  "status": "open_hip_metal_unimplemented",
+  "broad_regression_before_plugin": {
+    "name": "Win32-ninja",
+    "tests": "207",
+    "failures": "1",
+    "disabled": "0",
+    "skipped": "0",
+    "hostname": "Rabia_Zeynep",
+    "time": "2187",
+    "timestamp": "2026-10-27T22:59:37"
+  },
+  "final_phase19": {
+    "name": "Win32-ninja",
+    "tests": "9",
+    "failures": "0",
+    "disabled": "0",
+    "skipped": "1",
+    "hostname": "Rabia_Zeynep",
+    "time": "11",
+    "timestamp": "2026-10-28T00:03:24"
+  },
+  "final_asan": {
+    "name": "Win32-ninja",
+    "tests": "10",
+    "failures": "0",
+    "disabled": "0",
+    "skipped": "1",
+    "hostname": "Rabia_Zeynep",
+    "time": "24",
+    "timestamp": "2026-10-28T00:03:25"
+  },
+  "upstream_pjrt_commit": "61c4e245c954ecdb7755b0127e62dcc1fe2984af",
+  "pjrt_c_api_version": "0.117",
+  "vendor_native_plugin_execution": "skipped_missing_vendor_plugin",
+  "real_xla_cpu": "compiled_and_executed_independently",
+  "original_benchmark_files_preserved_before_report_update": 190,
+  "finished_local_date": "2026-10-28",
+  "tcp4_original_port_final_retry": "passed (same CTest target, source port setting unchanged)",
+  "pjrt_abi_contract": {
+    "checks_passed": 34,
+    "injected_failure_scenarios": 14,
+    "live_objects_after_each_failure": 0,
+    "is_vendor_xla": false
+  },
+  "final_executable_sha256": "1a089a0229b9163ba60355f211b1c036f4dc07c5510c3147ee009bc2c307efea",
+  "contract_test_dll_sha256": "fcdc5043b65e808c7e7d2dc0754f81ebefdbe94de34c40d8e2bfd868e49bedab",
+  "official_pjrt_header_sha256": "7aa9201370e18f9316e5b6a3745ef5abe07bc467929899aefdddb7511a1f6d5c",
+  "sanitizers": [
+    {
+      "tool": "memcheck",
+      "exit_code": 0
+    },
+    {
+      "tool": "racecheck",
+      "exit_code": 0
+    },
+    {
+      "tool": "initcheck",
+      "exit_code": 0
+    },
+    {
+      "tool": "synccheck",
+      "exit_code": 0
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 /**
  * @file pjrt.cpp
- * @brief FAZ 19.E: OpenXLA / PJRT C API istemcisi, yerlesik CPU PJRT eklentisi (StableHLO MLIR
- *        derleyici + yurutucu), DeviceMesh + DTensor -> XLA SPMD (GSPMD / mhlo.sharding) ve PjrtDriver.
+ * @brief FAZ 19.E: Nexus StableHLO CPU reference interpreter (not OpenXLA),
+ *        DeviceMesh -> GSPMD sharding export and legacy PjrtDriver.
  *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
@@ -9,6 +9,7 @@
  */
 
 #include "nexus/backend/pjrt.hpp"
+#include "pjrt_plugin.hpp"
 
 #include "nexus/attention/cpu.hpp"
 #include "nexus/backend/backend.hpp"
@@ -23,6 +24,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <limits>
+#include <iomanip>
 #include <memory>
 #include <mutex>
 #include <numeric>
@@ -32,15 +35,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#if defined(_WIN32)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
 
 namespace nexus::backend::pjrt {
 
@@ -60,6 +54,9 @@ std::string to_mhlo_sharding(const std::vector<std::int64_t>& tensor_shape,
   }
   if (all_rep) {
     return "{replicated}";
+  }
+  if (any_partial) {
+    throw TensorError("Nexus StableHLO: Partial(sum) must be reduced before sharding export");
   }
   const int rank = static_cast<int>(tensor_shape.size());
   std::vector<int> tile_dims(static_cast<std::size_t>(rank), 1);
@@ -84,12 +81,27 @@ std::string to_mhlo_sharding(const std::vector<std::int64_t>& tensor_shape,
   }
   o << "]";
   const int total_devices = mesh.world()->size();
+  // XLA orders tile coordinates by tensor dimension, then the replication axis.
+  // Mesh dimensions may be ordered differently (e.g. TP before DP).
+  std::vector<std::pair<std::vector<int>, int>> ordered;
   for (int r = 0; r < total_devices; ++r) {
-    o << (r == 0 ? "" : ",") << r;
+    int remaining = r;
+    std::vector<int> coord(static_cast<std::size_t>(mesh.ndim()));
+    for (int m = mesh.ndim() - 1; m >= 0; --m) {
+      coord[static_cast<std::size_t>(m)] = remaining % mesh.size(m);
+      remaining /= mesh.size(m);
+    }
+    std::vector<int> key(static_cast<std::size_t>(rank) + 1, 0);
+    for (int m = 0; m < mesh.ndim(); ++m) {
+      const auto& p = placements[static_cast<std::size_t>(m)];
+      if (p.is_shard()) key[static_cast<std::size_t>(p.dim)] = coord[static_cast<std::size_t>(m)];
+      else key.back() = key.back() * mesh.size(m) + coord[static_cast<std::size_t>(m)];
+    }
+    ordered.emplace_back(std::move(key), r);
   }
-  if (any_partial) {
-    o << " last_tile_dims={manual}";
-  } else if (replicated_way > 1) {
+  std::sort(ordered.begin(), ordered.end());
+  for (int r = 0; r < total_devices; ++r) o << (r == 0 ? "" : ",") << ordered[static_cast<std::size_t>(r)].second;
+  if (replicated_way > 1) {
     o << " last_tile_dim_replicate";
   }
   o << "}";
@@ -118,6 +130,7 @@ std::string export_stablehlo_spmd(const ir::Graph& g, const ir::Bindings& b,
   };
 
   std::ostringstream o;
+  o << std::setprecision(std::numeric_limits<float>::max_digits10);
   o << "module @nexus_spmd {\n  func.func @main(";
   std::vector<std::string> name(g.nodes.size());
   int arg_idx = 0;
@@ -132,7 +145,8 @@ std::string export_stablehlo_spmd(const ir::Graph& g, const ir::Bindings& b,
         o << " {mhlo.sharding = \"" << it->second << "\"}";
       }
     } else {
-      name[i] = "%" + std::to_string(i);
+      // MLIR numeric SSA ids cannot have suffixes (e.g. %4_b is invalid).
+      name[i] = "%v" + std::to_string(i);
     }
   }
   o << ") -> (";
@@ -196,12 +210,8 @@ std::string export_stablehlo_spmd(const ir::Graph& g, const ir::Bindings& b,
           << ", dims = [1] : (" << tensor_type(g.nodes[static_cast<std::size_t>(n.in[1])]) << ") -> " << ty << "\n";
         o << "    " << name[i] << " = stablehlo.add " << name[static_cast<std::size_t>(n.in[0])] << ", " << name[i] << "_b : " << ty << "\n";
         break;
-      default: {
-        std::string cfg;
-        for (std::size_t k = 0; k < n.ints.size(); ++k) cfg += (k ? "," : "") + std::to_string(n.ints[k]);
-        o << "    " << name[i] << " = stablehlo.custom_call @nexus." << ir::to_string(n.op) << "(" << args_of(n)
-          << ") {backend_config = \"ints=" << cfg << ";a=" << n.a << ";index=" << n.index << "\"} : " << types_in(n) << " -> " << ty << "\n";
-      }
+      default:
+        throw TensorError(std::string("Nexus StableHLO: unsupported export operation: ") + ir::to_string(n.op));
     }
   }
   o << "    return ";
@@ -296,6 +306,8 @@ std::vector<std::int64_t> parse_tensor_shape(std::string_view type_str) {
   std::string_view inner = type_str.substr(pos + 7);
   const std::size_t gt = inner.find('>');
   if (gt != std::string_view::npos) inner = inner.substr(0, gt);
+  if (inner.size() < 3 || inner.substr(inner.size() - 3) != "f32")
+    throw TensorError("Nexus StableHLO reference: only FP32 tensor types are supported");
   // ornek: 8x4xf32 veya f32
   std::size_t start = 0;
   while (start < inner.size()) {
@@ -309,26 +321,29 @@ std::vector<std::int64_t> parse_tensor_shape(std::string_view type_str) {
     }
     start = x + 1;
   }
-  if (dims.empty()) dims.push_back(1);
   return dims;
 }
 
 std::int64_t shape_numel(const std::vector<std::int64_t>& dims) {
   if (dims.empty()) return 1;
   std::int64_t p = 1;
-  for (std::int64_t d : dims) p *= std::max<std::int64_t>(1, d);
+  for (std::int64_t d : dims) {
+    if (d < 0 || (d != 0 && p > std::numeric_limits<std::int64_t>::max() / d))
+      throw TensorError("Nexus StableHLO reference: invalid or overflowing tensor shape");
+    p *= d;
+  }
   return p;
 }
 
 PJRT_Error* make_err(std::string msg) { return new PJRT_Error{std::move(msg)}; }
 
-const char* builtin_platform_name() { return "pjrt_cpu_xla"; }
-const char* builtin_platform_version() { return "OpenXLA-PJRT-0.54-Nexus"; }
+const char* builtin_platform_name() { return "nexus-stablehlo-reference-cpu"; }
+const char* builtin_platform_version() { return "Nexus-reference-1 (not OpenXLA/PJRT)"; }
 
 PJRT_Error* builtin_client_create(PJRT_Client** out_client) {
   if (out_client == nullptr) return make_err("out_client is null");
   auto* c = new PJRT_Client();
-  c->devices.push_back(PJRT_Device{0, "PJRT_CPU_Device(id=0, isa=avx2)"});
+  c->devices.push_back(PJRT_Device{0, "Nexus CPU reference interpreter (not TPU/XLA)"});
   *out_client = c;
   return nullptr;
 }
@@ -452,7 +467,7 @@ PJRT_Error* builtin_client_compile(PJRT_Client* /*client*/, const char* mlir_mod
     } else if (rhs.find("stablehlo.exponential") != std::string::npos) {
       inst.op = HloOp::Exp;
       inst.args = extract_ssa_vars(lhs_of_type);
-    } else if (rhs.find("stablehlo.log") != std::string::npos) {
+    } else if (rhs.find("stablehlo.log ") != std::string::npos) {
       inst.op = HloOp::Log;
       inst.args = extract_ssa_vars(lhs_of_type);
     } else if (rhs.find("stablehlo.tanh") != std::string::npos) {
@@ -499,7 +514,7 @@ PJRT_Error* builtin_buffer_from_host(PJRT_Client* client, const float* host_data
                                      const std::int64_t* dims, std::size_t num_dims,
                                      PJRT_Device* device, PJRT_Buffer** out_buffer) {
   if (!client || !out_buffer) return make_err("PJRT_Buffer_FromHostBuffer: gecersiz arguman");
-  auto* buf = new PJRT_Buffer();
+  auto buf = std::make_unique<PJRT_Buffer>();
   buf->device = device;
   buf->dims.assign(dims, dims + num_dims);
   const std::int64_t n = shape_numel(buf->dims);
@@ -507,7 +522,7 @@ PJRT_Error* builtin_buffer_from_host(PJRT_Client* client, const float* host_data
   if (host_data && n > 0) {
     std::memcpy(buf->data.data(), host_data, static_cast<std::size_t>(n) * sizeof(float));
   }
-  *out_buffer = buf;
+  *out_buffer = buf.release();
   return nullptr;
 }
 
@@ -530,6 +545,8 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
   }
   std::unordered_map<std::string, PJRT_Buffer> env;
   for (std::size_t i = 0; i < num_args; ++i) {
+    if (!argument_lists[i] || argument_lists[i]->dims != exec->param_shapes[i])
+      return make_err("Nexus StableHLO reference: argument shape differs from module signature");
     env[exec->param_names[i]] = *argument_lists[i];
   }
   Driver& cpu = Registry::instance().require(Kind::Cpu);
@@ -548,6 +565,8 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       case HloOp::Div: {
         const auto& a = env.at(inst.args.at(0)).data;
         const auto& b = env.at(inst.args.at(1)).data;
+        if (a.size() != n || b.size() != n)
+          return make_err("StableHLO reference: binary operand/output size mismatch");
         const Operation op = inst.op == HloOp::Add   ? Operation::Add
                              : inst.op == HloOp::Sub ? Operation::Sub
                              : inst.op == HloOp::Mul ? Operation::Mul
@@ -563,6 +582,7 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       case HloOp::Sqrt:
       case HloOp::Rsqrt: {
         const auto& a = env.at(inst.args.at(0)).data;
+        if (a.size() != n) return make_err("StableHLO reference: unary operand/output size mismatch");
         const Operation op = inst.op == HloOp::Neg        ? Operation::Neg
                              : inst.op == HloOp::Exp      ? Operation::Exp
                              : inst.op == HloOp::Log      ? Operation::Log
@@ -576,10 +596,19 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       case HloOp::DotGeneral: {
         const auto& lhs = env.at(inst.args.at(0));
         const auto& rhs = env.at(inst.args.at(1));
+        if (lhs.dims.size() != 2 || rhs.dims.size() != 2)
+          return make_err("StableHLO reference: dot_general requires rank-2 inputs");
+        for (const auto dim : {lhs.dims[0], lhs.dims[1], rhs.dims[0], rhs.dims[1]}) {
+          if (dim <= 0 || dim > std::numeric_limits<int>::max())
+            return make_err("StableHLO reference: dot_general dimension outside supported range");
+        }
         const int m = static_cast<int>(lhs.dims.at(0));
         const int k = static_cast<int>(lhs.dims.at(1));
         const bool b_trans = (inst.rhs_contract_dim == 1);
         const int ncols = static_cast<int>(b_trans ? rhs.dims.at(0) : rhs.dims.at(1));
+        if (lhs.dims[1] != rhs.dims[static_cast<std::size_t>(inst.rhs_contract_dim)] ||
+            out.dims != std::vector<std::int64_t>{m, ncols})
+          return make_err("StableHLO reference: dot_general contracting/output shape mismatch");
         out.dims = {m, ncols};
         out.data.resize(static_cast<std::size_t>(m) * static_cast<std::size_t>(ncols), 0.0f);
         MatMulArgs mm;
@@ -601,6 +630,8 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       }
       case HloOp::BroadcastInDim: {
         const auto& src = env.at(inst.args.at(0));
+        if (out.dims.size() != 2 || src.dims.size() != 1 || src.dims[0] != out.dims[1])
+          return make_err("StableHLO reference: broadcast requires a matching row bias");
         const int rows = static_cast<int>(out.dims.at(0));
         const int cols = static_cast<int>(out.dims.at(1));
         for (int r = 0; r < rows; ++r) {
@@ -619,6 +650,8 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       case HloOp::CustomRmsNorm: {
         const auto& x = env.at(inst.args.at(0));
         const auto& w = env.at(inst.args.at(1));
+        if (x.dims.size() != 2 || out.dims != x.dims || w.data.size() != static_cast<std::size_t>(x.dims[1]))
+          return make_err("StableHLO reference: invalid RMSNorm shapes");
         const int rows = static_cast<int>(x.dims.at(0));
         const int cols = static_cast<int>(x.dims.at(1));
         cpu.rms_norm(DeviceRef::cpu(), x.data.data(), w.data.data(), out.data.data(), rows, cols, inst.const_val);
@@ -627,6 +660,9 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       case HloOp::CustomLayerNorm: {
         const auto& x = env.at(inst.args.at(0));
         const auto& w = env.at(inst.args.at(1));
+        if (x.dims.size() != 2 || out.dims != x.dims || w.data.size() != static_cast<std::size_t>(x.dims[1]) ||
+            (inst.args.size() >= 3 && env.at(inst.args[2]).data.size() != w.data.size()))
+          return make_err("StableHLO reference: invalid LayerNorm shapes");
         const float* b_ptr = inst.args.size() >= 3 ? env.at(inst.args.at(2)).data.data() : nullptr;
         const int rows = static_cast<int>(x.dims.at(0));
         const int cols = static_cast<int>(x.dims.at(1));
@@ -635,6 +671,8 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       }
       case HloOp::CustomSwiGlu: {
         const auto& x = env.at(inst.args.at(0));
+        if (out.dims.size() != 2 || x.data.size() != 2 * n)
+          return make_err("StableHLO reference: invalid SwiGLU shapes");
         const int rows = static_cast<int>(out.dims.at(0));
         const int hidden = static_cast<int>(out.dims.at(1));
         cpu.swiglu(DeviceRef::cpu(), x.data.data(), out.data.data(), rows, hidden);
@@ -642,13 +680,15 @@ PJRT_Error* builtin_executable_execute(PJRT_LoadedExecutable* exec,
       }
       case HloOp::CustomSoftmax: {
         const auto& x = env.at(inst.args.at(0));
+        if (x.dims.size() != 2 || out.dims != x.dims || x.dims[1] <= 0)
+          return make_err("StableHLO reference: invalid Softmax shapes");
         const int rows = static_cast<int>(x.dims.at(0));
         const int cols = static_cast<int>(x.dims.at(1));
         cpu.softmax(DeviceRef::cpu(), x.data.data(), out.data.data(), rows, cols);
         break;
       }
       default:
-        break;
+        return make_err("StableHLO reference: unsupported instruction");
     }
     env[inst.result_ssa] = std::move(out);
   }
@@ -701,23 +741,10 @@ Client::Client(std::string_view plugin_path) {
     }
   }
   if (!path.empty()) {
-#if defined(_WIN32)
-    external_handle_ = static_cast<void*>(LoadLibraryA(path.c_str()));
-    if (external_handle_) {
-      auto fn = reinterpret_cast<GetPjrtApiFn>(GetProcAddress(static_cast<HMODULE>(external_handle_), "GetPjrtApi"));
-      if (fn) api_ = fn();
-    }
-#else
-    external_handle_ = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-    if (external_handle_) {
-      auto fn = reinterpret_cast<GetPjrtApiFn>(dlsym(external_handle_, "GetPjrtApi"));
-      if (fn) api_ = fn();
-    }
-#endif
+    external_ = std::make_unique<detail::PluginClient>(path);
+    return;
   }
-  if (api_ == nullptr) {
-    api_ = GetBuiltinCpuPjrtApi();
-  }
+  api_ = GetBuiltinCpuPjrtApi();
   if (PJRT_Error* err = api_->Client_Create(&client_); err != nullptr) {
     std::string msg = api_->Error_Message(err);
     api_->Error_Destroy(err);
@@ -732,10 +759,11 @@ Client::~Client() {
   }
 }
 
-std::string_view Client::platform_name() const noexcept { return api_ ? api_->PlatformName() : "unknown"; }
-std::string_view Client::platform_version() const noexcept { return api_ ? api_->PlatformVersion() : "0"; }
-int Client::device_count() const noexcept { return (api_ && client_) ? api_->Client_DeviceCount(client_) : 0; }
+std::string_view Client::platform_name() const noexcept { return external_ ? external_->platform() : (api_ ? api_->PlatformName() : "unknown"); }
+std::string_view Client::platform_version() const noexcept { return external_ ? external_->version() : (api_ ? api_->PlatformVersion() : "0"); }
+int Client::device_count() const noexcept { return external_ ? external_->device_count() : ((api_ && client_) ? api_->Client_DeviceCount(client_) : 0); }
 std::string Client::device_name(int index) const {
+  if (external_) return external_->device_name(index);
   if (!api_ || !client_) return {};
   PJRT_Device* dev = api_->Client_AddressableDevice(client_, index);
   return dev ? api_->Device_DebugString(dev) : std::string{};
@@ -748,6 +776,12 @@ std::vector<std::vector<float>> Client::compile_and_execute(
   if (inputs.size() != input_shapes.size()) {
     throw TensorError("Nexus PJRT: inputs ve input_shapes boyutu esit olmali");
   }
+  for (std::size_t i = 0; i < inputs.size(); ++i) {
+    const auto n = shape_numel(input_shapes[i]);
+    if (static_cast<std::uint64_t>(n) != inputs[i].size())
+      throw TensorError("Nexus StableHLO reference: input shape does not match buffer size");
+  }
+  if (external_) return external_->run(stablehlo_mlir, inputs, input_shapes);
   PJRT_LoadedExecutable* exec = nullptr;
   if (PJRT_Error* err = api_->Client_Compile(client_, stablehlo_mlir.data(), stablehlo_mlir.size(), &exec);
       err != nullptr) {
@@ -757,6 +791,12 @@ std::vector<std::vector<float>> Client::compile_and_execute(
   }
   PJRT_Device* dev = api_->Client_AddressableDevice(client_, 0);
   std::vector<PJRT_Buffer*> in_bufs(inputs.size(), nullptr);
+  std::vector<PJRT_Buffer*> out_bufs;
+  auto cleanup = [&] {
+    for (auto* b : out_bufs) if (b) api_->Buffer_Destroy(b);
+    for (auto* b : in_bufs) if (b) api_->Buffer_Destroy(b);
+    if (exec) api_->LoadedExecutable_Destroy(exec);
+  };
   try {
     for (std::size_t i = 0; i < inputs.size(); ++i) {
       if (PJRT_Error* err = api_->Buffer_FromHostBuffer(client_, inputs[i].data(), input_shapes[i].data(),
@@ -768,7 +808,7 @@ std::vector<std::vector<float>> Client::compile_and_execute(
       }
     }
     const std::size_t num_out = std::max<std::size_t>(1, exec->return_names.size());
-    std::vector<PJRT_Buffer*> out_bufs(num_out, nullptr);
+    out_bufs.resize(num_out, nullptr);
     if (PJRT_Error* err = api_->LoadedExecutable_Execute(exec, in_bufs.data(), in_bufs.size(),
                                                          out_bufs.data(), out_bufs.size());
         err != nullptr) {
@@ -787,15 +827,12 @@ std::vector<std::vector<float>> Client::compile_and_execute(
           api_->Error_Destroy(err);
           throw TensorError("Nexus PJRT Buffer_ToHostBuffer Hatasi: " + msg);
         }
-        api_->Buffer_Destroy(out_bufs[i]);
       }
     }
-    for (PJRT_Buffer* b : in_bufs) if (b) api_->Buffer_Destroy(b);
-    api_->LoadedExecutable_Destroy(exec);
+    cleanup();
     return results;
   } catch (...) {
-    for (PJRT_Buffer* b : in_bufs) if (b) api_->Buffer_Destroy(b);
-    if (exec) api_->LoadedExecutable_Destroy(exec);
+    cleanup();
     throw;
   }
 }
@@ -811,22 +848,24 @@ namespace {
 
 struct PjrtAllocation {
   std::vector<float> storage;
+  std::size_t bytes = 0;
 };
 
 class PjrtDriver final : public Driver {
  public:
   PjrtDriver() : client_("") {
-    const int n = client_.device_count();
+    // This host-staging facade executes on the client's first addressable device.
+    const int n = std::min(1, client_.device_count());
     for (int i = 0; i < n; ++i) {
       DeviceInfo info;
       info.device = DeviceRef::tpu(i);
       info.name = client_.device_name(i);
-      info.vendor = "OpenXLA/PJRT";
+      info.vendor = client_.uses_external_plugin() ? "OpenXLA/PJRT plugin" : "Nexus CPU reference interpreter";
       info.api_version = std::string(client_.platform_version());
       info.driver_version = std::string(client_.platform_name());
-      info.memory_bytes = 16ull << 30;
+      info.memory_bytes = 0;  // Unknown host capacity; never invent TPU memory.
       info.subgroup_size = 8;
-      info.unified_memory = !client_.uses_external_plugin();
+      info.unified_memory = false;  // Allocations are opaque handles, not host pointers.
       devices_.push_back(std::move(info));
     }
   }
@@ -835,27 +874,32 @@ class PjrtDriver final : public Driver {
   }
 
   Kind kind() const noexcept override { return Kind::Pjrt; }
-  std::string_view name() const noexcept override { return "pjrt-xla"; }
+  std::string_view name() const noexcept override { return client_.uses_external_plugin() ? "pjrt-plugin" : "stablehlo-reference-cpu"; }
   std::string_view version() const noexcept override { return client_.platform_version(); }
   const std::vector<DeviceInfo>& devices() const noexcept override { return devices_; }
   std::string unavailable_reason() const override {
     return devices_.empty() ? "PJRT istemcisi olusturulamadi" : std::string{};
   }
   bool supports(Operation op) const noexcept override {
-    return !devices_.empty() && static_cast<unsigned>(op) <= static_cast<unsigned>(Operation::AdamW);
+    return !devices_.empty() && (client_.uses_external_plugin() ? op == Operation::MatMul : op <= Operation::ReduceSum);
   }
 
-  void* allocate(int /*device*/, std::size_t bytes) override {
+  void* allocate(int device, std::size_t bytes) override {
+    if (device != 0) throw TensorError("Nexus PJRT facade: only addressable device 0 is exposed");
     if (bytes == 0) return nullptr;
+    if (bytes > std::numeric_limits<std::size_t>::max() - sizeof(float))
+      throw TensorError("Nexus StableHLO reference: allocation size overflow");
     std::lock_guard lock(mutex_);
-    auto* blk = new PjrtAllocation();
+    auto owned = std::make_unique<PjrtAllocation>();
+    auto* blk = owned.get();
+    blk->bytes = bytes;
     blk->storage.resize((bytes + sizeof(float) - 1) / sizeof(float), 0.0f);
     all_.insert(blk);
     ++stats_.allocations;
     ++stats_.live_blocks;
     stats_.current_bytes += bytes;
     stats_.reserved_bytes += bytes;
-    return blk;
+    return owned.release();
   }
 
   void deallocate(int /*device*/, void* pointer) noexcept override {
@@ -864,8 +908,9 @@ class PjrtDriver final : public Driver {
     auto* blk = static_cast<PjrtAllocation*>(pointer);
     auto it = all_.find(blk);
     if (it == all_.end()) return;
-    const std::size_t b = blk->storage.size() * sizeof(float);
+    const std::size_t b = blk->bytes;
     stats_.current_bytes = stats_.current_bytes >= b ? stats_.current_bytes - b : 0;
+    stats_.reserved_bytes = stats_.reserved_bytes >= b ? stats_.reserved_bytes - b : 0;
     if (stats_.live_blocks > 0) --stats_.live_blocks;
     all_.erase(it);
     delete blk;
@@ -873,18 +918,34 @@ class PjrtDriver final : public Driver {
 
   void copy(DeviceRef dst_device, void* dst, DeviceRef src_device, const void* src, std::size_t bytes) override {
     if (bytes == 0) return;
+    if ((!dst_device.is_host() && dst_device != DeviceRef::tpu(0)) ||
+        (!src_device.is_host() && src_device != DeviceRef::tpu(0)))
+      throw TensorError("Nexus PJRT: copy requires host or the first PJRT device");
+    if (!dst || !src) throw TensorError("Nexus StableHLO reference: null copy buffer");
+    std::lock_guard lock(mutex_);
     const bool dst_pjrt = (dst_device.kind == DeviceKind::Tpu);
     const bool src_pjrt = (src_device.kind == DeviceKind::Tpu);
+    auto validate = [&](const void* pointer) {
+      auto* block = const_cast<PjrtAllocation*>(static_cast<const PjrtAllocation*>(pointer));
+      if (all_.find(block) == all_.end() || bytes > block->bytes)
+        throw TensorError("Nexus StableHLO reference: copy exceeds allocation or uses an invalid handle");
+    };
+    if (dst_pjrt) validate(dst);
+    if (src_pjrt) validate(src);
     const void* src_ptr = src_pjrt ? static_cast<const void*>(static_cast<const PjrtAllocation*>(src)->storage.data()) : src;
     void* dst_ptr = dst_pjrt ? static_cast<void*>(static_cast<PjrtAllocation*>(dst)->storage.data()) : dst;
     std::memcpy(dst_ptr, src_ptr, bytes);
   }
 
-  void synchronize(int /*device*/) override {}
+  void synchronize(int device) override {
+    if (device != 0) throw TensorError("Nexus PJRT facade: invalid device index");
+  }
 
-  void elementwise(Operation op, DeviceRef /*device*/, const float* a, const float* b, float* out,
+  void elementwise(Operation op, DeviceRef device, const float* a, const float* b, float* out,
                    std::size_t count, float scalar) override {
+    if (device != DeviceRef::tpu(0)) throw TensorError("Nexus PJRT facade: invalid device index");
     if (count == 0) return;
+    if (client_.uses_external_plugin()) require_cpu_fallback(*this, op, count);
     const auto* ab = static_cast<const PjrtAllocation*>(static_cast<const void*>(a));
     const auto* bb = b ? static_cast<const PjrtAllocation*>(static_cast<const void*>(b)) : nullptr;
     auto* ob = static_cast<PjrtAllocation*>(static_cast<void*>(out));
@@ -893,7 +954,8 @@ class PjrtDriver final : public Driver {
         ob->storage.data(), count, scalar);
   }
 
-  void matmul(DeviceRef /*device*/, const MatMulArgs& args) override {
+  void matmul(DeviceRef device, const MatMulArgs& args) override {
+    if (device != DeviceRef::tpu(0)) throw TensorError("Nexus PJRT facade: invalid device index");
     const auto* ab = static_cast<const PjrtAllocation*>(static_cast<const void*>(args.a));
     const auto* bb = static_cast<const PjrtAllocation*>(static_cast<const void*>(args.b));
     auto* cb = static_cast<PjrtAllocation*>(static_cast<void*>(args.c));
@@ -917,13 +979,17 @@ class PjrtDriver final : public Driver {
       return;
     }
     MatMulArgs host_args = args;
+    if (client_.uses_external_plugin())
+      require_cpu_fallback(*this, Operation::MatMul, static_cast<std::size_t>(args.m) * args.n);
     host_args.a = ab->storage.data();
     host_args.b = bb->storage.data();
     host_args.c = cb->storage.data();
     Registry::instance().require(Kind::Cpu).matmul(DeviceRef::cpu(), host_args);
   }
 
-  void reduce_sum(DeviceRef /*device*/, const float* input, float* output, std::size_t count) override {
+  void reduce_sum(DeviceRef device, const float* input, float* output, std::size_t count) override {
+    if (device != DeviceRef::tpu(0)) throw TensorError("Nexus PJRT facade: invalid device index");
+    if (client_.uses_external_plugin()) require_cpu_fallback(*this, Operation::ReduceSum, count);
     const auto* ib = static_cast<const PjrtAllocation*>(static_cast<const void*>(input));
     auto* ob = static_cast<PjrtAllocation*>(static_cast<void*>(output));
     Registry::instance().require(Kind::Cpu).reduce_sum(DeviceRef::cpu(), ib->storage.data(), ob->storage.data(), count);

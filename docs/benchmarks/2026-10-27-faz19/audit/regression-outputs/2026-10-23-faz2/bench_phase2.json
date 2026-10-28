@@ -1,0 +1,14 @@
+{
+  "bench": "bench_phase2",
+  "phase": 2,
+  "results": {
+    "matmul_fwd_bwd_ops_per_sec": 767.62478009469112,
+    "grad_enabled_ns_per_op": 563.91399999999999,
+    "nograd_ns_per_op": 198.0275,
+    "mlp_fwd_bwd_steps_per_sec": 75492.779115677578
+  },
+  "notes": {
+    "engine": "bagimlilik sayaci + topolojik geri; reentrant per-cagri",
+    "double_backward": "FAZ 2'de altyapi disi (create_graph kabul edilir, kullanilmaz)"
+  }
+}

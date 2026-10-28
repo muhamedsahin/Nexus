@@ -295,12 +295,22 @@ class HipDriver final : public Driver {
       reason_ = "HIP calisma zamani yuklendi (" + loaded_name_ + ") fakat etkin ROCm cihazi bulunamadi";
       return;
     }
-    reason_ = "HIP cihazi algilandi (" + std::to_string(count) + " adet), tam hiprtc surucusu hazir";
+    reason_ = "HIP cihazi algilandi (" + std::to_string(count) +
+              " adet), fakat HIP allocator/kernel/rocBLAS/RCCL execution backend uygulanmadi";
+  }
+  ~HipDriver() override {
+    if (lib_ != nullptr) {
+#if defined(_WIN32)
+      FreeLibrary(static_cast<HMODULE>(lib_));
+#else
+      dlclose(lib_);
+#endif
+    }
   }
 
   Kind kind() const noexcept override { return Kind::Hip; }
   std::string_view name() const noexcept override { return "rocm-hip"; }
-  std::string_view version() const noexcept override { return lib_ != nullptr ? "6.0" : "0"; }
+  std::string_view version() const noexcept override { return "unimplemented"; }
   const std::vector<DeviceInfo>& devices() const noexcept override { return devices_; }
   std::string unavailable_reason() const override { return reason_; }
   bool supports(Operation) const noexcept override { return !devices_.empty(); }

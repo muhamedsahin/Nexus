@@ -338,13 +338,37 @@ target_compile_definitions(test_phase19_backends PRIVATE NEXUS_SOURCE_DIR="${CMA
 nexus_configure_target(test_phase19_backends)
 add_test(NAME test_backend_detection COMMAND test_phase19_backends detection)
 add_test(NAME test_hip_parity COMMAND test_phase19_backends hip)
+add_test(NAME test_hip_source_compat COMMAND test_phase19_backends hip-source)
+set_tests_properties(test_hip_source_compat PROPERTIES TIMEOUT 180)
 add_test(NAME test_vulkan_parity COMMAND test_phase19_backends vulkan)
 add_test(NAME test_directml_parity COMMAND test_phase19_backends directml)
 add_test(NAME test_pjrt_export COMMAND test_phase19_backends pjrt)
+add_test(NAME test_backend_fallback COMMAND test_phase19_backends fallback)
+add_library(nexus_pjrt_test_plugin SHARED pjrt_test_plugin.cpp)
+target_include_directories(nexus_pjrt_test_plugin PRIVATE "${CMAKE_SOURCE_DIR}/include")
+set_target_properties(nexus_pjrt_test_plugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+nexus_configure_target(nexus_pjrt_test_plugin)
+add_executable(test_pjrt_plugin test_pjrt_plugin.cpp)
+target_link_libraries(test_pjrt_plugin PRIVATE nexus::nexus nexus_test_support nexus_pjrt_test_plugin)
+nexus_configure_target(test_pjrt_plugin)
+add_test(NAME test_pjrt_plugin_abi COMMAND test_pjrt_plugin $<TARGET_FILE:nexus_pjrt_test_plugin>)
+set_tests_properties(test_pjrt_plugin_abi PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
+set(NEXUS_PJRT_TEST_PLUGIN_PATH "" CACHE FILEPATH "Trusted vendor PJRT library for real execution verification")
+add_test(NAME test_pjrt_vendor COMMAND test_phase19_backends vendor "${NEXUS_PJRT_TEST_PLUGIN_PATH}")
+set_tests_properties(test_pjrt_vendor PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
 set_tests_properties(
     test_backend_detection
     test_hip_parity
     test_vulkan_parity
     test_directml_parity
     test_pjrt_export
+    test_backend_fallback
     PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+
+set(NEXUS_XLA_PYTHON "" CACHE FILEPATH "Optional Python with jax/jaxlib for independent StableHLO verification")
+if(NEXUS_XLA_PYTHON)
+    add_test(NAME test_pjrt_xla_cpu
+        COMMAND "${NEXUS_XLA_PYTHON}" "${CMAKE_SOURCE_DIR}/benchmarks/runner/faz19_pjrt.py"
+            --producer $<TARGET_FILE:test_phase19_backends>)
+    set_tests_properties(test_pjrt_xla_cpu PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+endif()

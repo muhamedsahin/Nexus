@@ -78,7 +78,9 @@ struct DeviceRef {
 
   [[nodiscard]] constexpr bool is_host() const noexcept { return kind == DeviceKind::Cpu; }
   [[nodiscard]] constexpr bool is_unified() const noexcept {
-    return kind == DeviceKind::Cpu || kind == DeviceKind::Metal;
+    // Shared physical memory does not make an ordinary host allocation an MTLBuffer.
+    // Accelerator sharing must be implemented by its allocator before advertising it.
+    return kind == DeviceKind::Cpu;
   }
   [[nodiscard]] constexpr bool is_accelerator() const noexcept { return kind != DeviceKind::Cpu; }
   [[nodiscard]] constexpr bool is_hybrid() const noexcept { return kind == DeviceKind::Cpu && index == -2; }

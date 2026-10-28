@@ -1,0 +1,21 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+    Start 60: test_collectives_tcp_4
+1/1 Test #60: test_collectives_tcp_4 ...........***Failed   30.14 sec
+  FAIL  istisna: Nexus dist: bind 0.0.0.0:29624 (hata 0)
+nexus-run: rank 0 kod 1 ile cikti; digerlerine 30 s taninir
+nexus-run: deneme 0, 4 surec, 30.1 s
+  rank 0: cikis 1
+  rank 1: sonlandirildi 137
+  rank 2: sonlandirildi 137
+  rank 3: sonlandirildi 137
+nexus-run: ilk basarisiz: rank 0 (kod 1)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =  30.19 sec
+
+The following tests FAILED:
+	 60 - test_collectives_tcp_4 (Failed)
+Errors while running CTest

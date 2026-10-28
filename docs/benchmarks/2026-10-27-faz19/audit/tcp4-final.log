@@ -1,0 +1,8 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+    Start 60: test_collectives_tcp_4
+1/1 Test #60: test_collectives_tcp_4 ...........   Passed    0.85 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.90 sec

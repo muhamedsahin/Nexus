@@ -1,0 +1,37 @@
+[Nexus UYARI] backend=metal op=add (4 eleman) CPU'ya geri dusuyor (Apple Metal (MPS/MSL) yalniz macOS / Apple Silicon (M1-M4) uzerinde kullanilabilir (yalniz ornek MSL kaynaklari: 2186 bayt; execution backend uygulanmadi))
+FAZ 19.A: Backend algilama, Device cozumleme ve geri dusus politikasi
+  PASS  parse('cpu') == cpu
+  PASS  parse('cuda:0') == cuda(0)
+  PASS  parse('rocm:1') == rocm(1)
+  PASS  parse('hip:0') == rocm(0)
+  PASS  parse('vulkan:0') == vulkan(0)
+  PASS  parse('mps:0') == metal(0)
+  PASS  parse('metal:0') == metal(0)
+  PASS  parse('dml:0') == directml(0)
+  PASS  parse('directml:1') == directml(1)
+  PASS  parse('tpu:0') == tpu(0)
+  PASS  parse('pjrt:0') == tpu(0)
+  PASS  bilinmeyen cihaz dizgesi acik TensorError firlatir
+  PASS  Registry 7 backend surucusunu (cpu, cuda, hip, vulkan, metal, directml, pjrt) icerir
+  info  backend=cpu        name=cpu           version=1.0      available=evet devices=1 reason=''
+        -> dev=cpu 'AMD Ryzen 7 5800H with Radeon Graphics' vendor=AuthenticAMD api=AVX2+FMA mem=0.0 MB subgroup=8 unified=evet
+  info  backend=cuda       name=cuda          version=13.3     available=evet devices=1 reason=''
+        -> dev=cuda:0 'NVIDIA GeForce RTX 3070 Laptop GPU' vendor=NVIDIA api=CUDA 13.3 mem=8191.5 MB subgroup=32 unified=hayir
+  info  backend=hip        name=rocm-hip      version=unimplemented available=hayir devices=0 reason='ROCm/HIP calisma zamani (amdhip64.dll / libamdhip64.so) bu makinede kurulu degil (Windows uzerinde AMD iGPU Vulkan ve DirectML suruculeriyle dogrudan calisir)'
+  PASS  mevcut olmayan backend (hip) acik neden raporlar
+  info  backend=vulkan     name=vulkan-spirv  version=1.2      available=evet devices=1 reason=''
+        -> dev=vulkan:0 'NVIDIA GeForce RTX 3070 Laptop GPU' vendor=4318:9437 api=1.4.341 mem=8018.0 MB subgroup=32 unified=hayir
+  info  backend=metal      name=metal-msl     version=0        available=hayir devices=0 reason='Apple Metal (MPS/MSL) yalniz macOS / Apple Silicon (M1-M4) uzerinde kullanilabilir (yalniz ornek MSL kaynaklari: 2186 bayt; execution backend uygulanmadi)'
+  PASS  mevcut olmayan backend (metal) acik neden raporlar
+  info  backend=directml   name=directml      version=1.0      available=evet devices=1 reason=''
+        -> dev=directml:0 'NVIDIA GeForce RTX 3070 Laptop GPU' vendor=4318:9437 api=D3D12+DML1 mem=8018.0 MB subgroup=32 unified=hayir
+  info  backend=pjrt       name=stablehlo-reference-cpu version=Nexus-reference-1 (not OpenXLA/PJRT) available=evet devices=1 reason=''
+        -> dev=tpu:0 'Nexus CPU reference interpreter (not TPU/XLA)' vendor=Nexus CPU reference interpreter api=Nexus-reference-1 (not OpenXLA/PJRT) mem=0.0 MB subgroup=8 unified=hayir
+  PASS  CPU surucusu her zaman kullanilabilir
+  PASS  Nexus StableHLO CPU reference interpreter available
+  PASS  Metal host allocation must not impersonate a shared GPU buffer
+  PASS  Unavailable Metal device access throws instead of returning host storage
+  PASS  FallbackPolicy::Error mevcut olmayan backend isleminde sessizce dusmez, hata firlatir
+  PASS  FallbackPolicy::WarnOnce geri dusus sayaclarini kaydeder
+  PASS  WarnOnce geri dususu dogru CPU sonucunu uretir
+test_phase19_backends: 22 gecti, 0 basarisiz

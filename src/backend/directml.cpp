@@ -371,7 +371,7 @@ class DirectMlDriver final : public Driver {
   const std::vector<DeviceInfo>& devices() const noexcept override { return devices_; }
   std::string unavailable_reason() const override { return reason_; }
   bool supports(Operation op) const noexcept override {
-    return !devices_.empty() && static_cast<unsigned>(op) <= static_cast<unsigned>(Operation::AdamW);
+    return !devices_.empty() && op == Operation::MatMul;
   }
 
   void* allocate(int device, std::size_t bytes) override {
@@ -553,6 +553,8 @@ class DirectMlDriver final : public Driver {
   void elementwise(Operation op, DeviceRef device, const float* a, const float* b, float* out,
                    std::size_t count, float scalar) override {
     if (count == 0) return;
+    // Route direct Driver calls through the same visible fallback policy.
+    require_cpu_fallback(*this, op, count);
     std::vector<float> ha(count), hb, hout(count);
     copy(DeviceRef::cpu(), ha.data(), device, a, count * sizeof(float));
     if (b != nullptr && (op <= Operation::Div || op == Operation::Axpy)) {
@@ -566,6 +568,7 @@ class DirectMlDriver final : public Driver {
   }
 
   void reduce_sum(DeviceRef device, const float* input, float* output, std::size_t count) override {
+    require_cpu_fallback(*this, Operation::ReduceSum, count);
     if (count == 0) {
       fill(device, output, 1, 0.0f);
       return;

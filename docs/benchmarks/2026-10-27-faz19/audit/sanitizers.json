@@ -1,0 +1,18 @@
+[
+  {
+    "tool": "memcheck",
+    "exit_code": 0
+  },
+  {
+    "tool": "racecheck",
+    "exit_code": 0
+  },
+  {
+    "tool": "initcheck",
+    "exit_code": 0
+  },
+  {
+    "tool": "synccheck",
+    "exit_code": 0
+  }
+]
