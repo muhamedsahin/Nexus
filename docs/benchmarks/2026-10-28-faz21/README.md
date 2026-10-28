@@ -40,6 +40,8 @@ saatinden çağrı ve tamamlanma senkronizasyonuna kadar ölçülür. Medyan, or
 min/max, nüfus standart sapması/varyansı ve CV saklanır. Çekirdek girdileri sabittir:
 GEMM A=1/32, B=1/64; attention Q=K=0, V=1/4, dO=1/32. Bu sayede bütün çıktılar
 analitik hesapla doğrulanır; sonuç genel rastgele matris dağılımlarına genellenmez.
+PyTorch GEMM mikro referansı `torch.mm(out=...)` kullanır; compiled eğitim
+referansıyla karıştırılmaz. Mikro GEMM için max-autotune üstünlüğü kanıtlanmaz.
 
 Eğitim: aynı gerçek TinyStories/GPT-2 token dosyası, aynı Nexus başlangıç ağırlıkları,
 tohum 1337, AdamW beta=(0.9,0.95), eps=1e-8, wd=0.1, LR=1e-4 ve aynı cosine tarifi.
@@ -123,12 +125,12 @@ Derleme timeout'u varsayılan 600 saniye, genel worker timeout'u 180 saniyedir.
 
 ## Kanıt dizinleri
 
-- `run-01`: geliştirme/tanılama. İlk Windows FlashAttention isteği açık hata verdi;
+- `run-01` (yalnız yerel): geliştirme/tanılama. İlk Windows FlashAttention isteği açık hata verdi;
   doğru davranış sonraki sürümde “kullanılamıyor” olarak düzeltildi. Bu koşunun
   süreleri son sürüm üstünlük kararı için kullanılmaz.
-- `run-02`: kısa tanılama, tamamlanmadan durduruldu; rapor değildir.
-- `run-03`: son kodla tam matris; yayımlanacak rapor ve ham veriler burada tutulur.
-- `release-final.log`, `asan-final.log`: son odaklı host testleri.
+- `run-02` (yalnız yerel): kısa tanılama, tamamlanmadan durduruldu; rapor değildir.
+- `run-03`: tam matris; yayımlanan rapor ve ham veriler burada tutulur.
+- `release-portability.log/xml`, `asan-portability.log/xml`: son odaklı host testleri.
 - `sanitizer-*.log`: cuBLAS ve gerçek FlashAttention ileri/geri yolunun dört CUDA taraması.
 
 Kaynak testleri: deterministik istatistik/rapor üretimi, eksik ve bozuk kanıtların
@@ -144,3 +146,52 @@ manuel çalıştırmada kanıt testleri ve taşınabilir gerçek CPU benchmark'�
 ham çıktıyı artifact olarak saklar. Paylaşılan GitHub runner'ları yerel GPU performans
 kanıtı veya kararlı %3 baseline olarak kullanılmaz. CI durumu ayrıca doğrulanır;
 yalnız workflow dosyası bulunması “CI yeşil” kabul edilmez.
+
+**Doğrulanmış CI: [başarılı Linux çalışması](https://github.com/muhamedsahin/Nexus/actions/runs/40747929946)**
+(`119c5d4` kaynak commit'i). Derleme, sekiz Python testi, gerçek CPU ölçümü ve
+artifact yükleme geçti. API iş/artefakt kanıtları `ci-latest-*.json` ve
+`ci-artifacts.json` dosyalarındadır. Rapor/ham veri yayını etiketi:
+[`bench-faz21-2026-10-28`](https://github.com/muhamedsahin/Nexus/tree/bench-faz21-2026-10-28).
+Bu etiket ölçüm anlık görüntüsüdür; tüm bilimsel kabul koşullarının geçtiği
+anlamına gelmez.
+
+## 28 Ekim ölçüm sonucu ve kabul durumu
+
+Tam matris `run-03/REPORT.md` içindedir. RTX 3070 Laptop / Windows 11 / sürücü
+610.88 üzerinde beş bağımsız süreç ölçüldü. Medyanlar:
+
+| İş | Nexus | Referans | Karar |
+|---|---:|---:|---|
+| CPU FP32 GEMM 2048 | 49,6055 ms | PyTorch 46,8450 ms | Nexus CV %24; kararlı üstünlük yok |
+| CUDA BF16 GEMM 2048 | 0,6572 ms | PyTorch 0,7241 ms | CUDA build farklı; geçerli üstünlük kanıtı yok |
+| FlashAttention ileri + geri | 1,6474 ms | Kullanılamıyor | Windows PyTorch paketi FlashAttention içermiyor |
+| 124M BF16 eğitim adımı | 66,5091 ms | compiled PyTorch 68,1469 ms | Sürüm ve parity koşulları geçmedi |
+| 1.3B BF16 eğitim adımı | 906,4792 ms | Eşdeğer optimizer yok | Referansa üstünlük doğrulanamadı |
+| GPT-2 124M F16 TTFT / TPOT | 2,526 / 1,3034 ms | Ölçülmedi | 7B INT4 karşılaştırması değildir |
+
+124M kayıp eğrisinin en büyük mutlak farkı **0,002137184**, istenen 0,001
+toleransını aşar. Tolerans gevşetilmedi; ham `parity_passed=false` korunur.
+Nexus CUDA 13.4, PyTorch CUDA 13.2 kullanır. 1.3B optimizer önceki-adım clipping
+kullanır; standart AdamW ile eşdeğer sayılmaz. TensorFlow bu ortamda kurulu değil;
+JAX CPU gerçek ölçümü raporda yer alır. TTFT CV %10,36 olduğundan kararlı bir
+gecikme üstünlüğü iddia edilmez.
+
+**Faz 21 bütünüyle kapanmadı.** Doğrulama kaybına erişme süresi ölçümü, eşlenmiş
+sürüm/referanslar, 1.3B eşdeğer optimizer, Faz 20 uzun eğitim/ölçek ön koşulları,
+7B INT4/küme hedefleri ve sabit makinede CI performans baseline'ı açık kalır.
+Paylaşılan CI runner'ındaki CPU ölçümü bu son koşulun yerine geçmez.
+
+Son Release testleri **9/9**, ASan testleri **7/7** geçti. Faz 21 Python paketi
+sekiz test içerir. CUDA'nın dört Compute Sanitizer aracı sıfır hata bildirdi;
+racecheck sıfır hazard bildirdi. Bunlar odaklı doğrulamadır; bütün deponun test
+paketinin yeniden çalıştırıldığı iddia edilmez. `verification.json` kaynak ve
+ikili SHA-256 eşleşmesini, raporun byte-identical yeniden üretimini ve açık
+kabul koşullarını kaydeder.
+
+Ölçüm sırasında HEAD `77b7f0c` ve çalışma ağacı değişikti. Ölçülen sekiz kaynağın
+SHA-256 değerleri yayımlanan **7f587f8** commit'iyle (LF/CRLF normalizasyonuyla)
+eşleşir. Sonraki değişiklikler rapor sütunları, girdi doğrulama, CI ve standart
+başlık/derleme bayrağı taşınabilirliğidir; performans sayıları sonradan yeniden adlandırılmadı.
+PJRT'nin upstream C API 0.117 başlığına yalnız C++ global tip nitelemesi eklendi:
+`::fn_type* fn_type`. ABI alan sırası, boyutları ve C tanımı değişmez. Linux GCC
+bunu gerektirir; Release ve ASan eklenti ABI/cleanup testleri yeniden geçti.

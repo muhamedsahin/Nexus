@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="7"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="8"
+	timestamp="2026-10-28T21:42:31"
+	>
+	<testcase name="test_nan_policy" classname="test_nan_policy" time="0.13218" status="run">
+		<system-out>test_nan_policy: atla / durdur / geri don
+  PASS  atla: NaN adiminda agirlik degismez
+  PASS  atla: egitim surer, kayip sonlu
+  PASS  atla: tek olay, adim 3
+  PASS  gecici gradyan NaN'i anomali modunda tekrar etmez
+  PASS  durdur: adim 2'de durur
+  neden: NaN/Inf adim 2
+  PASS  geri don: egitim tamamlanir, kayip sonlu
+  PASS  geri don: bozulmadan sonraki ilk ileri geciste (adim 5) yakalandi
+  ilk NaN: 2.CausalTransformerBlock | bozuk parametre: 2.CausalTransformerBlock.1 | eylem: rollback -&gt; adim 4, lr x0.5
+  PASS  ilk NaN katmani adiyla: 2.CausalTransformerBlock
+  PASS  bozuk parametre adiyla raporlanir
+  PASS  son anlik goruntuye (adim 4) donuldu, LR x0.5
+  PASS  geri donusten sonra agirliklar sonlu
+test_phase9_trainer: 11 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_trainer_resume" classname="test_trainer_resume" time="0.108284" status="run">
+		<system-out>test_resume: 3 + kayit + devam == 6 adim
+  PASS  devam adim sayaci 3
+  adim 0: 3.62861609 / 3.62861609
+  adim 1: 3.39439893 / 3.39439893
+  adim 2: 3.10754931 / 3.10754931
+  adim 3: 2.74995303 / 2.74995303
+  adim 4: 2.68145072 / 2.68145072
+  adim 5: 2.85144699 / 2.85144699
+  PASS  devam eden egitim kesintisizle bit bit ayni
+test_phase9_trainer: 2 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_save_load_exact" classname="test_save_load_exact" time="0.88438" status="run">
+		<system-out>test_save_load_exact: 6 adim + kayit, yeni surecte 6 adim == kesintisiz 12
+  info  senkron: kayitlar 3, 6 (A) + 9, 12 (B), keep=2 -&gt; 2 kaldi; devam adim 6; manifest NXS3 v3, 1 dosya, 32616 bayt, sha 31177f7411b9...
+  info  kayip farki 0.0e+00, agirlik bit bit, gradyan bit bit
+  PASS  test_save_load_exact (senkron): yeni surecte devam == kesintisiz (kayip, agirlik, gradyan bit bit; dropout 0.1)
+  info  eszamansiz: kayitlar 3, 6 (A) + 9, 12 (B), keep=2 -&gt; 2 kaldi; devam adim 6; manifest NXS3 v3, 1 dosya, 32616 bayt, sha 31177f7411b9...
+  info  kayip farki 0.0e+00, agirlik bit bit, gradyan bit bit
+  PASS  test_save_load_exact (eszamansiz): yeni surecte devam == kesintisiz (kayip, agirlik, gradyan bit bit; dropout 0.1)
+test_phase15_durability: 2 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_export" classname="test_pjrt_export" time="4.24726" status="run">
+		<system-out>FAZ 19.E: StableHLO + GSPMD (mhlo.sharding) -&gt; PJRT C API derleme ve yurutme
+  info  GSPMD Replicate -&gt; {replicated}
+  info  GSPMD Shard(0,1)-&gt; {devices=[2,2]0,1,2,3}
+  info  GSPMD Partial   -&gt; 
+  PASS  Replicate yerlesimi {replicated} uretir
+  PASS  2B Shard(0),Shard(1) yerlesimi {devices=[2,2]0,1,2,3} uretir
+  PASS  Partial(sum) cannot be misrepresented as manual XLA sharding
+  PASS  Swapped mesh axes reorder XLA tile devices
+  PASS  Replication dimension follows tensor tile dimensions
+  info  StableHLO SPMD modulu (993 bayt):
+module @nexus_spmd {
+  func.func @main(%arg0: tensor&lt;8x16xf32&gt; {mhlo.sharding = "{replicated}"}, %arg1: tensor&lt;16x32xf32&gt; {mhlo.sharding = "{replicated}"}, %arg2: tensor&lt;32xf32&gt; {mhlo.sharding = "{replicated}"}, %arg3: tensor&lt;32x8xf32&gt; {mhlo.sharding = "{replicated}"}) -&gt; (tensor&lt;8x8xf32&gt; {mhlo.sharding = "{replicated}"}) {
+    %v4 = "stablehlo.dot_general"(%arg0, %arg1) {dot_dimension_numbers = #stablehlo.dot&lt;lhs_contracting_dimensions = [1], rhs_contracting_dimensions = [0]&gt;} : (ten...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_plugin_abi" classname="test_pjrt_plugin_abi" time="0.136142" status="run">
+		<system-out>  PASS  official ABI client reports the real plugin identity
+  PASS  shared library is initialized once for concurrent clients
+  PASS  nested arguments and multiple opaque outputs have correct values/layout
+  PASS  only the two clients remain after execution
+  PASS  zero-size host results release all events and buffers
+  PASS  clients are destroyed before the adapter releases its library
+  PASS  injected API failure 1 is reported without interpreter fallback
+  PASS  injected API failure 1 releases every owned object/error/event
+  PASS  injected API failure 2 is reported without interpreter fallback
+  PASS  injected API failure 2 releases every owned object/error/event
+  PASS  injected API failure 3 is reported without interpreter fallback
+  PASS  injected API failure 3 releases every owned object/error/event
+  PASS  injected API failure 4 is reported without interpreter fallback
+  PASS  injected API failure 4 releases every owned object/error/event
+  PASS  injected API failure 5 is reported without interprete...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_phase21_bench" classname="test_phase21_bench" time="2.25136" status="run">
+		<system-out>........
+----------------------------------------------------------------------
+Ran 8 tests in 1.355s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_phase20_evidence" classname="test_phase20_evidence" time="0.998101" status="run">
+		<system-out>.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.085s
+
+OK
+</system-out>
+	</testcase>
+</testsuite>

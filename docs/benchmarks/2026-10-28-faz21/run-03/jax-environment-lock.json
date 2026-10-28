@@ -1,0 +1,11 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\faz19-xla-venv\\Scripts\\python.exe",
+    "-m",
+    "pip",
+    "freeze"
+  ],
+  "returncode": 0,
+  "stdout": "jax==0.10.2\njaxlib==0.10.2\nml_dtypes==0.6.0\nnumpy==2.5.4\nopt_einsum==3.4.0\nscipy==1.18.1\n",
+  "stderr": ""
+}

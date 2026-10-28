@@ -1,0 +1,129 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 123026582156,
+      "run_id": 40747929946,
+      "workflow_name": "Benchmark evidence",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/muhamedsahin/Nexus/actions/runs/40747929946",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVSpIKM8AAAAcpPSqjA",
+      "head_sha": "119c5d418ae9b968574318b72967d51158000dfe",
+      "url": "https://api.github.com/repos/muhamedsahin/Nexus/actions/jobs/123026582156",
+      "html_url": "https://github.com/muhamedsahin/Nexus/actions/runs/40747929946/job/123026582156",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-28T18:44:31Z",
+      "started_at": "2026-10-28T18:44:32Z",
+      "completed_at": "2026-10-28T18:46:53Z",
+      "name": "evidence-tests",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-28T18:44:33Z",
+          "completed_at": "2026-10-28T18:44:34Z"
+        },
+        {
+          "name": "Run actions/checkout@v7.0.1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-28T18:44:34Z",
+          "completed_at": "2026-10-28T18:44:35Z"
+        },
+        {
+          "name": "Initialize pinned source libraries without build-tree recursion",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-28T18:44:35Z",
+          "completed_at": "2026-10-28T18:44:54Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7.1.0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-28T18:44:54Z",
+          "completed_at": "2026-10-28T18:44:54Z"
+        },
+        {
+          "name": "Run python tests/parity/test_phase21_bench.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-28T18:44:54Z",
+          "completed_at": "2026-10-28T18:44:55Z"
+        },
+        {
+          "name": "Build portable CPU measurement",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-28T18:44:55Z",
+          "completed_at": "2026-10-28T18:44:57Z"
+        },
+        {
+          "name": "Run cmake --build build-ci --target bench_phase21 --parallel 2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-28T18:44:57Z",
+          "completed_at": "2026-10-28T18:46:48Z"
+        },
+        {
+          "name": "Measure CPU without substituting GPU results",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-28T18:46:48Z",
+          "completed_at": "2026-10-28T18:46:49Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7.0.2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-28T18:46:49Z",
+          "completed_at": "2026-10-28T18:46:51Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7.1.0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-28T18:46:51Z",
+          "completed_at": "2026-10-28T18:46:51Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7.0.1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-28T18:46:51Z",
+          "completed_at": "2026-10-28T18:46:51Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-28T18:46:51Z",
+          "completed_at": "2026-10-28T18:46:51Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/muhamedsahin/Nexus/check-runs/123026582156",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000000205,
+      "runner_name": "GitHub Actions 1000000205",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

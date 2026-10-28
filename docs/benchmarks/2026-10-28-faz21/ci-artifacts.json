@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12842527261,
+      "node_id": "MDg6QXJ0aWZhY3QxMjg0MjUyNzI2MQ==",
+      "name": "cpu-benchmark-119c5d418ae9b968574318b72967d51158000dfe",
+      "size_in_bytes": 382,
+      "url": "https://api.github.com/repos/muhamedsahin/Nexus/actions/artifacts/12842527261",
+      "archive_download_url": "https://api.github.com/repos/muhamedsahin/Nexus/actions/artifacts/12842527261/zip",
+      "expired": false,
+      "digest": "sha256:4ce6fd4e17604067183dc4447fcddc742663dc2b9f034f31001d0b110e430c75",
+      "created_at": "2026-10-28T18:46:51Z",
+      "updated_at": "2026-10-28T18:46:51Z",
+      "expires_at": "2027-01-26T18:44:30Z",
+      "workflow_run": {
+        "id": 40747929946,
+        "repository_id": 1428834344,
+        "head_repository_id": 1428834344,
+        "head_branch": "main",
+        "head_sha": "119c5d418ae9b968574318b72967d51158000dfe"
+      }
+    }
+  ]
+}

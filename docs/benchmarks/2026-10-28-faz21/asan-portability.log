@@ -1,0 +1,24 @@
+[OUTPUT] 
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+
+[HANDLER_OUTPUT] 
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+
+    Start  51: test_nan_policy
+1/7 Test  #51: test_nan_policy ..................   Passed    0.13 sec
+    Start  53: test_trainer_resume
+2/7 Test  #53: test_trainer_resume ..............   Passed    0.11 sec
+    Start 103: test_save_load_exact
+3/7 Test #103: test_save_load_exact .............   Passed    0.88 sec
+    Start 137: test_pjrt_export
+4/7 Test #137: test_pjrt_export .................   Passed    4.25 sec
+    Start 139: test_pjrt_plugin_abi
+5/7 Test #139: test_pjrt_plugin_abi .............   Passed    0.14 sec
+    Start 141: test_phase21_bench
+6/7 Test #141: test_phase21_bench ...............   Passed    2.25 sec
+    Start 142: test_phase20_evidence
+7/7 Test #142: test_phase20_evidence ............   Passed    1.00 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   8.82 sec

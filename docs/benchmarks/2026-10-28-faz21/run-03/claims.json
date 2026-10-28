@@ -1,0 +1,54 @@
+[
+  {
+    "case": "flash-fwd-bwd",
+    "device": "cuda",
+    "dtype": "bf16",
+    "status": "no_data",
+    "reason": "matched PyTorch reference unavailable",
+    "torch_over_nexus": null
+  },
+  {
+    "case": "gemm-2048",
+    "device": "cpu",
+    "dtype": "f32",
+    "status": "no_data",
+    "reason": "CV >10%; insufficient stability",
+    "torch_over_nexus": 0.9443509289170726
+  },
+  {
+    "case": "gemm-2048",
+    "device": "cuda",
+    "dtype": "bf16",
+    "status": "no_data",
+    "reason": "CUDA build differs; D.2 exact-version condition unmet",
+    "torch_over_nexus": 1.1017955158714134
+  },
+  {
+    "case": "train-124m",
+    "status": "no_data",
+    "reason": "CUDA build differs; D.2 exact-version comparison condition unmet; inspect separate parity flags",
+    "nexus_median_ms": 66.50905,
+    "torch_median_ms": 68.14694998320192,
+    "memory_passed": true
+  },
+  {
+    "case": "train-1.3b",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "time-to-validation-loss",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "inference-7b-int4",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "cluster-7b-mfu",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  }
+]
