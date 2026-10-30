@@ -13,6 +13,7 @@
 #include <functional>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 namespace nc = nexus::cuda;
@@ -110,7 +111,34 @@ void gpt(std::ostringstream& out, const nc::Stream& stream) {
         config.compute_dtype = nexus::DType::BF16;
         config.max_seq = T;
         config.attention = backend;
+        config.master = nc::MasterWeights::Fp32Master;
+        config.optimizer = nc::OptimizerKind::AdamW;
+        config.recompute = nc::Recompute::None;
+        config.ce_chunk_rows = 0;
         constexpr int batch = 1;
+        // Conservative lower bound for this exact BF16/FP32-master AdamW recipe:
+        // affine matrices need master + grads + moments + shadow (18 bytes),
+        // math attention retains layer probabilities, and CE retains F32 logits
+        // plus BF16 dlogits. Other activations/workspaces are intentionally omitted.
+        const std::uint64_t c = static_cast<std::uint64_t>(config.dim);
+        const std::uint64_t matrices = static_cast<std::uint64_t>(config.vocab)*c +
+            12ULL*config.layers*c*c;
+        const std::uint64_t probabilities = backend==nc::AttentionBackend::Math ?
+            2ULL*config.layers*batch*config.heads*T*T : 0;
+        const std::uint64_t minimum_bytes = 18ULL*matrices + probabilities +
+            6ULL*batch*T*config.vocab;
+        std::size_t free_bytes = 0, total_bytes = 0;
+        NEXUS_CUDA_CHECK(cudaMemGetInfo(&free_bytes,&total_bytes));
+        const std::uint64_t budget_bytes = free_bytes - free_bytes/10;
+        if (minimum_bytes > budget_bytes) {
+          std::printf("  info  %s hardware_blocked: lower bound %llu exceeds VRAM safety budget %llu bytes\n",
+                      name.c_str(),static_cast<unsigned long long>(minimum_bytes),
+                      static_cast<unsigned long long>(budget_bytes));
+          out << "  \"" << name << "_status\":\"hardware_blocked\",\"" << name
+              << "_minimum_bytes\":" << minimum_bytes << ",\"" << name
+              << "_budget_bytes\":" << budget_bytes << ",\n";
+          continue;
+        }
         nc::GptModel model(config, batch, T, 1, stream);
         nc::DeviceAdamWConfig adam; adam.lr = 6e-4; adam.weight_decay = 0.1; adam.max_grad_norm = 1.0; adam.beta2 = 0.95;
         nc::GptTrainer trainer(model, adam, 10);
@@ -122,7 +150,7 @@ void gpt(std::ostringstream& out, const nc::Stream& stream) {
         const auto peak = pool.stats(0).peak_allocated_bytes;
         std::printf("  info  %-28s medyan=%9.3f ms %8.0f token/s peak=%6.0f MiB akt=%6.0f MiB\n", name.c_str(), st.median,
                     tok_s, peak / 1048576.0, model.activation_bytes() / 1048576.0);
-        out << "  \"" << name << "\":" << json(st, "ms/step") << ",\"" << name << "_tokens_per_s\":" << tok_s << ",\""
+        out << "  \"" << name << "_status\":\"measured\",\"" << name << "\":" << json(st, "ms/step") << ",\"" << name << "_tokens_per_s\":" << tok_s << ",\""
             << name << "_peak_bytes\":" << peak << ",\"" << name << "_activation_bytes\":" << model.activation_bytes()
             << ",\n";
       } catch (const std::exception& e) {
@@ -142,19 +170,23 @@ int main(int argc, char** argv) {
   if (nc::device_count() == 0) { std::printf("  SKIP  CUDA aygiti yok\n"); return 77; }
   const std::string mode = argc > 1 ? argv[1] : "all";
   try {
+    if (mode!="all" && mode!="kernel" && mode!="gpt") throw std::invalid_argument("mode: all | kernel | gpt");
     nc::Stream stream = nc::Stream::create(0); nc::StreamGuard guard(stream);
     cudaDeviceProp prop{}; NEXUS_CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     std::ostringstream out; out.precision(7);
     out << "{\n  \"phase\":5,\"device\":\"" << prop.name << "\",\"compute_capability\":\"" << prop.major << "." << prop.minor
-        << "\",\"protocol\":{\"warmup\":2,\"repeats\":\"7 (kernel) / 5 (gpt)\",\"timing\":\"CUDA events\"},\n";
+        << "\",\"device_total_bytes\":" << prop.totalGlobalMem
+        << ",\"protocol\":{\"warmup\":2,\"repeats\":\"7 (kernel) / 5 (gpt)\",\"timing\":\"CUDA events\"},\n";
     if (mode == "all" || mode == "kernel") kernels(out, stream);
     if (mode == "all" || mode == "gpt") gpt(out, stream);
-    out << "  \"notes\":\"PyTorch CUDA kurulu degil: flash-attn/PyTorch SDPA ile GPU karsilastirmasi yok. "
+    out << "  \"notes\":\"Bu aracta flash-attn/PyTorch SDPA GPU referansi olculmez. "
            "math_score_buffer_bytes hesaplanmistir (olculmez).\"\n}\n";
     if (mode == "all") {
       const std::filesystem::path dir(NEXUS_FAZ5_DOCS_DIR); std::filesystem::create_directories(dir);
       std::ofstream(dir / "bench_cuda_phase5.json", std::ios::binary) << out.str();
       std::printf("  OK    FAZ 5 benchmark JSON yazildi\n");
+    } else {
+      std::printf("%s",out.str().c_str());
     }
     stream.destroy(); return 0;
   } catch (const std::exception& e) { std::printf("  FAIL  %s\n", e.what()); return 1; }

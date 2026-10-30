@@ -1,0 +1,15 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\tools\\nexus_run\\nexus-run.exe",
+    "--nproc-per-node",
+    "2",
+    "--master-port",
+    "29672",
+    "--",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\tests\\parity\\test_phase10_dist.exe",
+    "collectives_tcp"
+  ],
+  "returncode": 0,
+  "stdout": "  info  tcp 2 rank\n  PASS  collectives_tcp (2 rank)\n",
+  "stderr": "nexus-run: deneme 0, 2 surec, 0.3 s\n  rank 0: cikis 0\n  rank 1: cikis 0\n"
+}

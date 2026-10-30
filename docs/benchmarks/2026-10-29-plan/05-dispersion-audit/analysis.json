@@ -1,0 +1,9 @@
+{
+  "kind": "reanalysis_no_new_measurements",
+  "analyzed_utc": "2026-10-29T20:51:10.975768+00:00",
+  "measured_source_directory": "docs\\benchmarks\\2026-10-28-faz21\\run-03",
+  "original_results_sha256": "d579d986cbea838b740296d1a62ef378029669a0133363f1498d312348162204",
+  "analysis_source_sha256": "eef516cc3ab9f026554b87761ead081fedd9a7623e7674f3543f44d3a7e70250",
+  "source_evidence_commit": "261cc06f04c8144322846020217698c97b1551fb",
+  "note": "Original measurement metadata and raw samples are preserved; no timings were remeasured."
+}

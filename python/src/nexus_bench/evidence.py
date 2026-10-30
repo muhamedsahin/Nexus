@@ -7,11 +7,12 @@ import html
 import json
 import math
 from pathlib import Path
+import random
 import statistics
 
 ATTRIBUTION = ('Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf '
                'öğrencisi Muhammed Fatih Şahin tarafından yapay zeka destekli olarak geliştirilmiştir.')
-SCHEMA = 1
+SCHEMA = 2
 
 
 def write(path, value):
@@ -33,24 +34,66 @@ def stats(samples):
                 cv=statistics.pstdev(samples)/mean)
 
 
+def distribution(samples):
+    result = stats(samples)
+    q1, _, q3 = statistics.quantiles(samples, n=4, method='inclusive')
+    return dict(result, q1_ms=q1, q3_ms=q3, iqr_ms=q3-q1)
+
+
+def median_interval(samples):
+    """Percentile bootstrap over independent processes, never pooled iterations."""
+    stats(samples)
+    values = sorted(samples)
+    rng = random.Random(1337)
+    estimates = sorted(statistics.median([values[rng.randrange(len(values))] for _ in values])
+                       for _ in range(2000))
+    percentiles = statistics.quantiles(estimates, n=40, method='inclusive')
+    return dict(low_ms=percentiles[0], high_ms=percentiles[-1], confidence=.95,
+                resamples=2000, seed=1337, process_count=len(values),
+                method='percentile bootstrap of process medians')
+
+
+def variability(row):
+    within = row.get('dispersion', {}).get('max_within_process_cv')
+    if 'dispersion' in row and (isinstance(within,bool) or not isinstance(within,(int,float))
+                               or not math.isfinite(within) or within < 0):
+        raise ValueError('invalid within-process variability')
+    return max(row['summary']['cv'], within) if within is not None else row['summary']['cv']
+
+
 def key(row):
     return row['case'], row['device'], row['dtype'], tuple(row['shape'])
 
 
 def validate(row):
     stats(row['samples_ms'])
-    if row['warmup'] < 1 or not math.isfinite(row['max_abs']) or row['max_abs'] < 0 or row['max_abs'] > .02:
+    error = row['max_abs']
+    if (type(row['warmup']) is not int or row['warmup'] < 1
+            or isinstance(error,bool) or not isinstance(error,(int,float))
+            or not math.isfinite(error) or error < 0 or error > .02):
         raise ValueError('missing warmup or failed correctness gate')
     if row['timing'] != 'host_synchronized':
         raise ValueError('incompatible timing method')
-    if row['seed'] != 1337 or not row['shape'] or any(type(x) is not int or x <= 0 for x in row['shape']):
+    if type(row['seed']) is not int or row['seed'] != 1337 or not row['shape'] or any(type(x) is not int or x <= 0 for x in row['shape']):
         raise ValueError('invalid seed/shape')
     return row
 
 
-def aggregate(runs, repeats):
+def aggregate(runs, repeats, schema=SCHEMA):
+    if type(schema) is not int or schema not in (1,SCHEMA):
+        raise ValueError('unsupported evidence schema')
+    if type(repeats) is not int or repeats < 5:
+        raise ValueError('at least five independent repetitions required')
     groups = {}
+    repeat_ids = set()
     for run in runs:
+        repeat = run['repeat']
+        if type(repeat) is not int or not 0 <= repeat < repeats:
+            raise ValueError('invalid independent repetition id')
+        process = run['framework'], repeat
+        if process in repeat_ids:
+            raise ValueError('duplicate independent repetition id')
+        repeat_ids.add(process)
         seen = set()
         for row in run['rows']:
             validate(row)
@@ -72,6 +115,15 @@ def aggregate(runs, repeats):
                          cpu_threads=values[0].get('cpu_threads'),framework_version=values[0].get('framework_version')))
         rows[-1]['memory']={name:max((v[name] for v in values if name in v),default=None)
                            for name in ['peak_allocated_bytes','peak_reserved_bytes']}
+        if schema >= 2:
+            if len({v['warmup'] for v in values}) != 1:
+                raise ValueError('timing warmup changed during repetitions')
+            within = [distribution(v['samples_ms']) for v in values]
+            rows[-1]['timing_warmup_iterations'] = values[0]['warmup']
+            rows[-1]['dispersion'] = dict(process_summaries=within,
+                max_within_process_cv=max(v['cv'] for v in within),
+                process_medians_iqr_ms=distribution(medians)['iqr_ms'],
+                median_ci95=median_interval(medians))
     return rows
 
 
@@ -83,13 +135,25 @@ def claims(rows):
             continue
         reference = indexed.get(('torch', key(row)))
         ratio = reference['summary']['median_ms'] / row['summary']['median_ms'] if reference else None
-        noisy = reference is not None and max(row['summary']['cv'],reference['summary']['cv']) > .1
+        noisy = reference is not None and max(variability(row),variability(reference)) > .1
+        missing = reference is not None and any('dispersion' not in v for v in [row,reference])
         incompatible = reference is not None and row['device']=='cuda' and row.get('cuda_build') != reference.get('cuda_build')
         wrong_threads = reference is not None and row['device']=='cpu' and row.get('cpu_threads') != reference.get('cpu_threads')
-        result.append(dict(case=row['case'], device=row['device'], dtype=row['dtype'],
-                           status='no_data' if noisy or incompatible or wrong_threads else ('passed' if ratio >= 1 else 'failed') if ratio is not None else 'no_data',
-                           reason='matched PyTorch reference unavailable' if reference is None else 'CPU thread counts differ' if wrong_threads else 'CUDA build differs; D.2 exact-version condition unmet' if incompatible else 'CV >10%; insufficient stability' if noisy else 'same shape/dtype/timing',
-                           torch_over_nexus=ratio))
+        status, reason = 'no_data', 'matched PyTorch reference unavailable'
+        if reference is not None:
+            if wrong_threads:
+                reason = 'CPU thread counts differ'
+            elif incompatible:
+                reason = 'CUDA build differs; D.2 exact-version condition unmet'
+            elif noisy:
+                reason = 'CV >10%; insufficient stability'
+            elif missing:
+                reason = 'within-process variability unavailable'
+            else:
+                status = 'passed' if ratio >= 1 else 'failed'
+                reason = 'same shape/dtype/timing'
+        result.append(dict(case=row['case'],device=row['device'],dtype=row['dtype'],
+                           status=status,reason=reason,torch_over_nexus=ratio))
     for case in ['train-124m', 'train-1.3b', 'time-to-validation-loss', 'inference-7b-int4', 'cluster-7b-mfu']:
         result.append(dict(case=case, status='no_data', reason='requires matched measured reference and correctness evidence'))
     return result
@@ -111,24 +175,31 @@ def regression(current, previous, current_machine, previous_machine, limit=.03):
         if any(row.get(name)!=before.get(name) for name in ['cuda_build','cpu_threads','framework_version']):
             raise ValueError('baseline dependency/thread/CUDA version differs')
         ratio = row['summary']['median_ms']/before['summary']['median_ms']-1
-        noisy = max(row['summary']['cv'],before['summary']['cv']) > .1
+        noisy = max(variability(row),variability(before)) > .1
+        missing = any('dispersion' not in v for v in [row,before])
         rows.append(dict(framework=row['framework'],case=row['case'],change=ratio,
-                         status='no_data' if noisy else 'failed' if ratio>limit else 'passed',
-                         reason='CV >10%; insufficient stability' if noisy else 'same hardware/driver/shape/dtype'))
+                         status='no_data' if noisy or missing else 'failed' if ratio>limit else 'passed',
+                         reason='CV >10%; insufficient stability' if noisy else 'within-process variability unavailable' if missing else 'same hardware/driver/shape/dtype'))
     return rows
 
 
-def report(directory, document):
-    if document['schema'] != SCHEMA:
+def validate_document(document):
+    if type(document['schema']) is not int or document['schema'] not in (1, SCHEMA):
         raise ValueError('unsupported evidence schema')
+    if document['schema'] >= 2 and 'runs' not in document:
+        raise ValueError('schema 2 reports require raw independent runs')
     if 'runs' in document:
         failed = {r['framework'] for r in document.get('failures',[])}
-        rebuilt = aggregate([r for r in document['runs'] if r['framework'] not in failed],document['repeats'])
+        rebuilt = aggregate([r for r in document['runs'] if r['framework'] not in failed],document['repeats'],schema=document['schema'])
         if rebuilt != document['rows']: raise ValueError('report rows disagree with raw measurements')
     for row in document['rows']:
         # Recompute instead of trusting edited/precomputed aggregates.
         if row['summary'] != stats(row['process_medians_ms']):
             raise ValueError('aggregate disagrees with raw process medians')
+
+
+def report(directory, document):
+    validate_document(document)
     directory = Path(directory)
     claim_rows = claims(document['rows'])
     if document.get('training',{}).get('124m_claim'):
@@ -144,6 +215,19 @@ def report(directory, document):
         s = row['summary']
         lines.append(f"| {row['case']} | {row['framework']} | {row['device']} | {row['dtype']} | "
                      f"{s['median_ms']:.6f} | {s['min_ms']:.6f} | {s['max_ms']:.6f} | {s['std_ms']:.6f} | {s['cv']:.3f} |")
+    if document['schema'] >= 2:
+        lines += ['', '## Süreç içi değişkenlik ve belirsizlik', '',
+                  '| İş | Framework | Cihaz | En yüksek süreç içi CV | Süreç medyanı IQR ms | Medyan %95 aralığı ms |',
+                  '|---|---|---|---:|---:|---|']
+        for row in document['rows']:
+            spread = row['dispersion']; interval = spread['median_ci95']
+            lines.append(f"| {row['case']} | {row['framework']} | {row['device']} | "
+                         f"{spread['max_within_process_cv']:.3f} | {spread['process_medians_iqr_ms']:.6f} | "
+                         f"[{interval['low_ms']:.6f}, {interval['high_ms']:.6f}] |")
+        lines += ['', 'Her sürecin CV/IQR değerleri results.json içinde ayrı saklanır.',
+                  'Karar kapısı hem süreç içi hem süreç medyanları arasındaki CV için %10 sınırı uygular.',
+                  'Aralık: bağımsız süreç medyanlarından 2000 bootstrap örneği, tohum 1337, yüzde 2,5–97,5.',
+                  'Süreç içi örnekler bağımsız süreç sayılmaz; aralığın yorumu küçük süreç sayısıyla sınırlıdır.', '']
     lines += ['', '## Hedefler', '', '| Hedef | Cihaz | Durum | PyTorch/Nexus süre oranı | Gerekçe |', '|---|---|---|---:|---|']
     for claim in claim_rows:
         ratio = claim.get('torch_over_nexus')
@@ -185,6 +269,10 @@ def report(directory, document):
                   'Kaynak satırı 1024 token, geçerli hedef 1023: hedef token/s buna göre hesaplanır.',
                   'Doğrulama kaybına erişme süresi ölçülmedi; eğitim kaybı bu hedefin yerine geçmez.',
                   '',str(training_result.get('124m_claim','')),str(training_result.get('1.3b_claim','')),'']
+        if 'scheduler_warmup_steps' in training_result:
+            lines += [f"LR scheduler ısınması: {training_result['scheduler_warmup_steps']} adım; "
+                      f"zamanlamadan çıkarılan ilk adımlar: {training_result['timing_discard_steps']}. "
+                      'Bu iki ısınma kavramı birbirinden bağımsızdır.', '']
     if 'inference' in document:
         inference_result = document['inference']
         lines += ['## GPT-2 124M çıkarım (F16)', '',f"Durum: {inference_result['status']}",

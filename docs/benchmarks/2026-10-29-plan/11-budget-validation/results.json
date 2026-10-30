@@ -1,0 +1,75 @@
+{
+  "phase": 5,
+  "device": "NVIDIA GeForce RTX 3070 Laptop GPU",
+  "compute_capability": "8.6",
+  "device_total_bytes": 8589410304,
+  "protocol": {
+    "warmup": 2,
+    "repeats": "7 (kernel) / 5 (gpt)",
+    "timing": "CUDA events"
+  },
+  "gpt2s_bf16_T1024_math_status": "measured",
+  "gpt2s_bf16_T1024_math": {
+    "median": 67.59834,
+    "min": 66.52007,
+    "max": 68.63565,
+    "std": 0.7318466,
+    "repeats": 5,
+    "unit": "ms/step"
+  },
+  "gpt2s_bf16_T1024_math_tokens_per_s": 15148.3,
+  "gpt2s_bf16_T1024_math_peak_bytes": 3365502976,
+  "gpt2s_bf16_T1024_math_activation_bytes": 1085978624,
+  "gpt2s_bf16_T1024_flash_status": "measured",
+  "gpt2s_bf16_T1024_flash": {
+    "median": 62.27251,
+    "min": 61.76154,
+    "max": 62.61146,
+    "std": 0.3171017,
+    "repeats": 5,
+    "unit": "ms/step"
+  },
+  "gpt2s_bf16_T1024_flash_tokens_per_s": 16443.85,
+  "gpt2s_bf16_T1024_flash_peak_bytes": 2959819264,
+  "gpt2s_bf16_T1024_flash_activation_bytes": 680819200,
+  "gpt2s_bf16_T2048_math_status": "measured",
+  "gpt2s_bf16_T2048_math": {
+    "median": 143.6877,
+    "min": 142.3862,
+    "max": 148.2015,
+    "std": 2.157419,
+    "repeats": 5,
+    "unit": "ms/step"
+  },
+  "gpt2s_bf16_T2048_math_tokens_per_s": 14253.14,
+  "gpt2s_bf16_T2048_math_peak_bytes": 5118426112,
+  "gpt2s_bf16_T2048_math_activation_bytes": 2826268672,
+  "gpt2s_bf16_T2048_flash_status": "measured",
+  "gpt2s_bf16_T2048_flash": {
+    "median": 119.0113,
+    "min": 117.886,
+    "max": 119.594,
+    "std": 0.5836852,
+    "repeats": 5,
+    "unit": "ms/step"
+  },
+  "gpt2s_bf16_T2048_flash_tokens_per_s": 17208.45,
+  "gpt2s_bf16_T2048_flash_peak_bytes": 3653821440,
+  "gpt2s_bf16_T2048_flash_activation_bytes": 1361637888,
+  "gpt2s_bf16_T4096_math_status": "hardware_blocked",
+  "gpt2s_bf16_T4096_math_minimum_bytes": 8290530816,
+  "gpt2s_bf16_T4096_math_budget_bytes": 6689076020,
+  "gpt2s_bf16_T4096_flash_status": "measured",
+  "gpt2s_bf16_T4096_flash": {
+    "median": 254.0483,
+    "min": 250.0024,
+    "max": 255.3917,
+    "std": 1.855657,
+    "repeats": 5,
+    "unit": "ms/step"
+  },
+  "gpt2s_bf16_T4096_flash_tokens_per_s": 16122.92,
+  "gpt2s_bf16_T4096_flash_peak_bytes": 5044721152,
+  "gpt2s_bf16_T4096_flash_activation_bytes": 2723275264,
+  "notes": "Bu aracta flash-attn/PyTorch SDPA GPU referansi olculmez. math_score_buffer_bytes hesaplanmistir (olculmez)."
+}

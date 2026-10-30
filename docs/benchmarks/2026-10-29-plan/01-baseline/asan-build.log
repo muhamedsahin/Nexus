@@ -1,0 +1,391 @@
+[1/316] Building CXX object lib\NexusLoss\CMakeFiles\nexusloss.dir\src\fused_simd.cpp.obj
+[2/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\core\optimizer_state.cpp.obj
+[3/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\simd\neon_kernels.cpp.obj
+[4/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\simd\avx2_kernels.cpp.obj
+[5/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\simd\simd_dispatch.cpp.obj
+[6/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\simd\avx512_kernels.cpp.obj
+[7/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\core\thread_pool.cpp.obj
+[8/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\allocator.cpp.obj
+[9/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\device\hybrid_update.cpp.obj
+[10/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\ndarray.cpp.obj
+[11/316] Building CXX object lib\NexusOptim\CMakeFiles\nexus_optim.dir\src\algorithms\instantiate.cpp.obj
+[12/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\random.cpp.obj
+[13/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\in_memory.cpp.obj
+[14/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\subset.cpp.obj
+[15/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\stats.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[16/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\split.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[17/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\collate.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[18/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\mapped_file.cpp.obj
+[19/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\csv_dataset.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[20/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\image_decode.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[21/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\image_folder.cpp.obj
+[22/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\dataloader.cpp.obj
+[23/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\cpu_dispatch.cpp.obj
+[24/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\mnist.cpp.obj
+[25/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\cifar.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[26/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\byte_scan.cpp.obj
+[27/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\npy.cpp.obj
+[28/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\thread_pool.cpp.obj
+[29/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\pinned.cpp.obj
+[30/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\jsonl.cpp.obj
+[31/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\backend.cpp.obj
+[32/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\device.cpp.obj
+[33/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\sqlite.cpp.obj
+[34/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\text.cpp.obj
+[35/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\webdataset.cpp.obj
+[36/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\audio.cpp.obj
+[37/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\parquet.cpp.obj
+[38/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\arrow_ipc.cpp.obj
+[39/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\arrow_columns.cpp.obj
+[40/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\hdf5.cpp.obj
+[41/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\pipeline.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[42/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\dlpack.cpp.obj
+[43/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\numeric_ops_avx2.cpp.obj
+[44/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\numeric_ops.cpp.obj
+[45/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\image_ops.cpp.obj
+[46/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\arena_allocator.cpp.obj
+[47/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\object_pool.cpp.obj
+[48/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\c_api.cpp.obj
+[49/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\gpu_executor.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[50/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\cost_model.cpp.obj
+[51/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\fusion.cpp.obj
+[52/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\nvjpeg_decoder.cpp.obj
+[53/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\gpu_transforms.cpp.obj
+[54/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\gpu_telemetry.cpp.obj
+[55/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\augment.cpp.obj
+[56/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\json_value.cpp.obj
+[57/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\compression.cpp.obj
+[58/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\byte_source.cpp.obj
+[59/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\odbc.cpp.obj
+[60/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\json_dataset.cpp.obj
+[61/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\postgres.cpp.obj
+[62/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\remote_file.cpp.obj
+[63/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\metrics.cpp.obj
+[64/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\plugin_loader.cpp.obj
+[65/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\registry.cpp.obj
+[66/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\media.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[67/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\audio_codec.cpp.obj
+[68/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\tokenizer.cpp.obj
+[69/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\pipeline_builder.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[70/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\bpe.cpp.obj
+[71/316] Building C object lib\NexusData\CMakeFiles\nd_audio_dec.dir\src\codec\nd_mp3.c.obj
+[72/316] Building C object lib\NexusData\CMakeFiles\nd_audio_dec.dir\src\codec\nd_flac.c.obj
+[73/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\cuda_api_stub.cpp.obj
+[74/316] Building C object lib\NexusData\CMakeFiles\nd_audio_dec.dir\src\codec\nd_vorbis.c.obj
+[75/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\video.cpp.obj
+[76/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\execution_policy.cpp.obj
+[77/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\scalar_kernels.cpp.obj
+[78/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\convolution.cpp.obj
+[79/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\normalization.cpp.obj
+[80/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\pooling.cpp.obj
+[81/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\simd\simd_dispatch.cpp.obj
+[82/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\embedding.cpp.obj
+[83/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\core\dropout.cpp.obj
+[84/316] Building CXX object lib\NexusData\CMakeFiles\nexusdata.dir\src\token_shard.cpp.obj
+[85/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\simd\avx2\normalization.cpp.obj
+[86/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\simd\avx512_kernels.cpp.obj
+[87/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\simd\avx2\linear.cpp.obj
+[88/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\simd\avx2_kernels.cpp.obj
+[89/316] Linking CXX static library lib\NexusLoss\nexusloss.lib
+[90/316] Linking CXX static library lib\NexusOptim\nexus_optim.lib
+[91/316] Linking CXX static library lib\NexusData\nexusdata.lib
+[92/316] Building CXX object lib\NexusModel\CMakeFiles\nexus_model.dir\src\simd\avx2\direct_conv.cpp.obj
+[93/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\cpuid.cpp.obj
+[94/316] Linking CXX static library lib\NexusModel\nexus_model.lib
+[95/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\thread_pool.cpp.obj
+[96/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\gemm_scalar.cpp.obj
+[97/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\elementwise.cpp.obj
+[98/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\elementwise_avx512.cpp.obj
+[99/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\elementwise_avx2.cpp.obj
+[100/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\gemm_avx2.cpp.obj
+[101/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\gemm_avx512.cpp.obj
+[102/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\gemm.cpp.obj
+[103/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\cpu_backend.cpp.obj
+[104/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\hlo_compiler.cpp.obj
+[105/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\backend_registry.cpp.obj
+[106/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\collectives.cpp.obj
+[107/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\topology.cpp.obj
+[108/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\device_manager.cpp.obj
+[109/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\scheduler.cpp.obj
+[110/316] Building CXX object lib\MatrixFlash-Pro\CMakeFiles\matrix_pro_cpu.dir\src\hw\cuda_absent.cpp.obj
+[111/316] Building CXX object CMakeFiles\nexus.dir\src\core\allocator.cpp.obj
+[112/316] Building CXX object CMakeFiles\nexus.dir\src\core\memory.cpp.obj
+[113/316] Building CXX object lib\NexusTrain\CMakeFiles\nexus_train.dir\src\checkpoint\checkpoint_manager.cpp.obj
+[114/316] Building CXX object lib\NexusTrain\CMakeFiles\nexus_train.dir\src\prefetch\async_prefetcher.cpp.obj
+[115/316] Building CXX object CMakeFiles\nexus.dir\src\core\mirrored_tensor.cpp.obj
+[116/316] Building CXX object lib\NexusTrain\CMakeFiles\nexus_train.dir\src\core\trainer.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(98) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(99) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(105) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusData\include\nexusdata\core\ndarray.hpp(107) : warning C4702: ulaşılamayan kod
+[117/316] Building CXX object CMakeFiles\nexus.dir\src\backend\registry.cpp.obj
+C:\Users\muham\Desktop\Nexus\src\backend\registry.cpp(1002): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+[118/316] Building CXX object CMakeFiles\nexus.dir\src\backend\vulkan.cpp.obj
+[119/316] Building CXX object CMakeFiles\nexus.dir\src\backend\metal.cpp.obj
+[120/316] Building CXX object CMakeFiles\nexus.dir\src\backend\directml.cpp.obj
+[121/316] Building CXX object CMakeFiles\nexus.dir\src\backend\hip.cpp.obj
+[122/316] Building CXX object CMakeFiles\nexus.dir\src\autograd\engine.cpp.obj
+[123/316] Building CXX object CMakeFiles\nexus.dir\src\autograd\ops.cpp.obj
+[124/316] Building CXX object CMakeFiles\nexus.dir\src\backend\pjrt.cpp.obj
+C:\Users\muham\Desktop\Nexus\src\backend\pjrt.cpp(739): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+[125/316] Building CXX object CMakeFiles\nexus.dir\src\backend\pjrt_plugin.cpp.obj
+[126/316] Building CXX object CMakeFiles\nexus.dir\src\autograd\checkpoint.cpp.obj
+[127/316] Building CXX object CMakeFiles\nexus.dir\src\memory\planner.cpp.obj
+[128/316] Building CXX object CMakeFiles\nexus.dir\src\fused\fused.cpp.obj
+[129/316] Building CXX object CMakeFiles\nexus.dir\src\fused\training.cpp.obj
+[130/316] Building CXX object CMakeFiles\nexus.dir\src\lm\rope.cpp.obj
+[131/316] Building CXX object CMakeFiles\nexus.dir\src\attention\cpu.cpp.obj
+[132/316] Building CXX object CMakeFiles\nexus.dir\src\lm\config.cpp.obj
+[133/316] Building CXX object CMakeFiles\nexus.dir\src\lm\ops.cpp.obj
+[134/316] Building CXX object CMakeFiles\nexus.dir\src\lm\moe_layer.cpp.obj
+[135/316] Building CXX object CMakeFiles\nexus.dir\src\moe\moe.cpp.obj
+[136/316] Building CXX object CMakeFiles\nexus.dir\src\lm\model.cpp.obj
+[137/316] Building CXX object CMakeFiles\nexus.dir\src\prof\prof.cpp.obj
+[138/316] Building CXX object CMakeFiles\nexus.dir\src\model\nxs.cpp.obj
+[139/316] Building CXX object CMakeFiles\nexus.dir\src\train\loggers.cpp.obj
+[140/316] Building CXX object CMakeFiles\nexus.dir\src\train\parallel_backend.cpp.obj
+[141/316] Building CXX object CMakeFiles\nexus.dir\src\dist\net.cpp.obj
+[142/316] Building CXX object CMakeFiles\nexus.dir\src\dist\store.cpp.obj
+[143/316] Building CXX object CMakeFiles\nexus.dir\src\train\lm_trainer.cpp.obj
+[144/316] Building CXX object CMakeFiles\nexus.dir\src\dist\ddp.cpp.obj
+[145/316] Building CXX object CMakeFiles\nexus.dir\src\dist\topology.cpp.obj
+[146/316] Building CXX object CMakeFiles\nexus.dir\src\dist\process_group.cpp.obj
+[147/316] Building CXX object CMakeFiles\nexus.dir\src\dist\nvme.cpp.obj
+[148/316] Building CXX object CMakeFiles\nexus.dir\src\dist\dtensor.cpp.obj
+[149/316] Building CXX object CMakeFiles\nexus.dir\src\dist\context_parallel.cpp.obj
+[150/316] Building CXX object CMakeFiles\nexus.dir\src\dist\pipeline.cpp.obj
+[151/316] Building CXX object CMakeFiles\nexus.dir\src\dist\fsdp.cpp.obj
+[152/316] Building CXX object CMakeFiles\nexus.dir\src\dist\moe_ep.cpp.obj
+[153/316] Building CXX object CMakeFiles\nexus.dir\src\dist\watchdog.cpp.obj
+[154/316] Building CXX object CMakeFiles\nexus.dir\src\dist\parallel_lm.cpp.obj
+[155/316] Building CXX object CMakeFiles\nexus.dir\src\interop\json.cpp.obj
+[156/316] Building CXX object CMakeFiles\nexus.dir\src\ckpt\checkpoint.cpp.obj
+[157/316] Building CXX object CMakeFiles\nexus.dir\src\ckpt\sha256.cpp.obj
+[158/316] Building CXX object CMakeFiles\nexus.dir\src\interop\safetensors.cpp.obj
+[159/316] Building CXX object CMakeFiles\nexus.dir\src\interop\dlpack.cpp.obj
+[160/316] Building CXX object CMakeFiles\nexus.dir\src\interop\hf.cpp.obj
+[161/316] Building CXX object CMakeFiles\nexus.dir\src\interop\gguf.cpp.obj
+[162/316] Building CXX object CMakeFiles\nexus.dir\src\cpu\features.cpp.obj
+[163/316] Building CXX object CMakeFiles\nexus.dir\src\interop\onnx.cpp.obj
+[164/316] Building CXX object CMakeFiles\nexus.dir\src\cpu\adam_avx2.cpp.obj
+[165/316] Building CXX object CMakeFiles\nexus.dir\src\cpu\gemm_avx2.cpp.obj
+[166/316] Building CXX object CMakeFiles\nexus.dir\src\cpu\threads.cpp.obj
+[167/316] Building CXX object CMakeFiles\nexus.dir\src\compile\trace.cpp.obj
+[168/316] Building CXX object CMakeFiles\nexus.dir\src\compile\ir.cpp.obj
+[169/316] Building CXX object CMakeFiles\nexus.dir\src\compile\passes.cpp.obj
+[170/316] Linking CXX static library lib\MatrixFlash-Pro\matrix_pro.lib
+[171/316] Linking CXX static library lib\NexusTrain\nexus_train.lib
+[172/316] Building CXX object CMakeFiles\nexus.dir\src\compile\codegen.cpp.obj
+[173/316] Building CXX object tools\nexus_estimate\CMakeFiles\nexus_estimate_core.dir\estimate.cpp.obj
+[174/316] Building CXX object CMakeFiles\nexus.dir\src\compile\executor.cpp.obj
+[175/316] Building CXX object tools\nexus_estimate\CMakeFiles\nexus_estimate_core.dir\autoparallel.cpp.obj
+[176/316] Building CXX object CMakeFiles\nexus.dir\src\compile\compile.cpp.obj
+[177/316] Building CXX object tools\nexus_estimate\CMakeFiles\nexus_estimate_core.dir\json_mini.cpp.obj
+[178/316] Building CXX object tests\parity\CMakeFiles\nexus_pjrt_test_plugin.dir\pjrt_test_plugin.cpp.obj
+[179/316] Linking CXX static library nexus.lib
+[180/316] Linking CXX static library tools\nexus_estimate\nexus_estimate_core.lib
+[181/316] Building CXX object tools\nexus_estimate\CMakeFiles\nexus_estimate.dir\main.cpp.obj
+[182/316] Building CXX object tests\CMakeFiles\nexus_test_support.dir\support\nexus_test.cpp.obj
+[183/316] Building CXX object tools\nexus_run\CMakeFiles\nexus_run.dir\main.cpp.obj
+C:\Users\muham\Desktop\Nexus\tools\nexus_run\main.cpp(151): warning C4189: 'poll_order': yerel değişken başlatıldı ancak başvurulmadı
+[184/316] Building CXX object tools\nexus_tokenize\CMakeFiles\nexus_tokenize.dir\main.cpp.obj
+[185/316] Building CXX object tests\CMakeFiles\test_phase1_bridge.dir\test_phase1_bridge.cpp.obj
+[186/316] Building CXX object tests\CMakeFiles\test_phase2_hardware.dir\test_phase2_hardware.cpp.obj
+[187/316] Building CXX object tests\CMakeFiles\test_phase1_loss_families.dir\test_phase1_loss_families.cpp.obj
+[188/316] Building CXX object tests\CMakeFiles\test_phase1_mirrored_tensor.dir\test_phase1_mirrored_tensor.cpp.obj
+[189/316] Building CXX object tests\CMakeFiles\test_phase1_thread_pool.dir\test_phase1_thread_pool.cpp.obj
+[190/316] Building CXX object tests\CMakeFiles\test_phase3_fusion.dir\test_phase3_fusion.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(82) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(189) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(144) : warning C4702: ulaşılamayan kod
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\classification.hpp(445) : warning C4702: ulaşılamayan kod
+[191/316] Building CXX object tests\CMakeFiles\test_phase4_custom_extensions.dir\test_phase4_custom_extensions.cpp.obj
+[192/316] Building CXX object tests\CMakeFiles\test_phase5_rl_and_marl.dir\test_phase5_rl_and_marl.cpp.obj
+[193/316] Building CXX object tests\CMakeFiles\test_phase8_sequence_vision.dir\test_phase8_sequence_vision.cpp.obj
+[194/316] Building CXX object tests\CMakeFiles\test_phase9_blocks.dir\test_phase9_blocks.cpp.obj
+[195/316] Building CXX object tests\CMakeFiles\test_phase10_structure.dir\test_phase10_structure.cpp.obj
+[196/316] Building CXX object tests\CMakeFiles\test_phase13_isa.dir\test_phase13_isa.cpp.obj
+[197/316] Building CXX object tests\CMakeFiles\test_phase11_sequence.dir\test_phase11_sequence.cpp.obj
+[198/316] Building CXX object tests\CMakeFiles\test_phase12_catalog.dir\test_phase12_catalog.cpp.obj
+[199/316] Building CXX object tests\CMakeFiles\test_phase6_trainer.dir\test_phase6_trainer.cpp.obj
+[200/316] Building CXX object tests\parity\CMakeFiles\test_phase0_prof.dir\test_phase0_prof.cpp.obj
+[201/316] Building CXX object tests\parity\CMakeFiles\test_estimate_parity.dir\test_estimate_parity.cpp.obj
+[202/316] Building CXX object tests\parity\CMakeFiles\test_phase1_allocator.dir\test_phase1_allocator.cpp.obj
+[203/316] Building CXX object tests\parity\CMakeFiles\test_phase2_autograd.dir\test_phase2_autograd.cpp.obj
+[204/316] Building CXX object tests\parity\CMakeFiles\test_phase3_fused.dir\test_phase3_fused.cpp.obj
+[205/316] Building CXX object tests\CMakeFiles\test_nxs.dir\test_nxs.cpp.obj
+[206/316] Building CXX object tests\parity\CMakeFiles\test_phase1_dtype.dir\test_phase1_dtype.cpp.obj
+[207/316] Building CXX object tests\parity\CMakeFiles\test_phase4_mixed_precision.dir\test_phase4_mixed_precision.cpp.obj
+C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.44.34823\include\utility(274): warning C4244: 'başlatılıyor': '_Ty' - '_Ty2' dönüşümü; veri kaybı olabilir
+        with
+        [
+            _Ty=int
+        ]
+        and
+        [
+            _Ty2=uint8_t
+        ]
+C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.44.34823\include\utility(274): note: şablon örneği oluşturma bağlamı (önce en eski olan)
+C:\Users\muham\Desktop\Nexus\tests\parity\test_phase4_mixed_precision.cpp(72): note: derlenen şablon işlevi 'std::pair<float,uint8_t>::pair<float,int,0>(_Other1 &&,_Other2 &&) noexcept' örneği oluşturma başvurusuna bakın
+        with
+        [
+            _Other1=float,
+            _Other2=int
+        ]
+C:\Users\muham\Desktop\Nexus\tests\parity\test_phase4_mixed_precision.cpp(72): note: '`anonymous-namespace'::fp8_tests' içinde ilk 'std::pair<float,uint8_t>::pair' başvurusuna bakın
+[208/316] Building CXX object tests\parity\CMakeFiles\test_phase3_training.dir\test_phase3_training.cpp.obj
+[209/316] Building CXX object tests\parity\CMakeFiles\test_phase2_engine.dir\test_phase2_engine.cpp.obj
+[210/316] Building CXX object tests\parity\CMakeFiles\test_phase7_memory.dir\test_phase7_memory.cpp.obj
+[211/316] Building CXX object tests\parity\CMakeFiles\test_parity_nano.dir\test_parity_nano.cpp.obj
+[212/316] Building CXX object tests\parity\CMakeFiles\test_phase6_lm.dir\test_phase6_lm.cpp.obj
+[213/316] Building CXX object tests\parity\CMakeFiles\test_phase8_data.dir\test_phase8_data.cpp.obj
+[214/316] Building CXX object tests\parity\CMakeFiles\test_phase10_dist.dir\test_phase10_dist.cpp.obj
+[215/316] Building CXX object tests\parity\CMakeFiles\test_phase9_trainer.dir\test_phase9_trainer.cpp.obj
+[216/316] Building CXX object tests\parity\CMakeFiles\test_phase12_parallel.dir\test_phase12_parallel.cpp.obj
+[217/316] Building CXX object tests\parity\CMakeFiles\test_phase12_autoconfig.dir\test_phase12_autoconfig.cpp.obj
+[218/316] Building CXX object tests\parity\CMakeFiles\test_phase11_fsdp.dir\test_phase11_fsdp.cpp.obj
+[219/316] Building CXX object tests\parity\CMakeFiles\test_phase16_infer.dir\test_phase16_infer.cpp.obj
+[220/316] Building CXX object tests\parity\CMakeFiles\test_phase13_compile.dir\test_phase13_compile.cpp.obj
+[221/316] Building CXX object tests\parity\CMakeFiles\test_phase14_moe.dir\test_phase14_moe.cpp.obj
+[222/316] Building CXX object tests\parity\CMakeFiles\test_phase15_durability.dir\test_phase15_durability.cpp.obj
+[223/316] Linking CXX shared library tests\parity\nexus_pjrt_test_plugin.dll
+[224/316] Building CXX object tests\parity\CMakeFiles\test_phase17_interop.dir\test_phase17_interop.cpp.obj
+C:\Users\muham\Desktop\Nexus\tests\parity\test_phase17_interop.cpp(253): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\muham\Desktop\Nexus\tests\parity\test_phase17_interop.cpp(348): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\muham\Desktop\Nexus\tests\parity\test_phase17_interop.cpp(472): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+[225/316] Building CXX object tests\parity\CMakeFiles\test_phase19_backends.dir\test_phase19_backends.cpp.obj
+[226/316] Building CXX object tests\parity\CMakeFiles\test_phase18_cpu.dir\test_phase18_cpu.cpp.obj
+[227/316] Building CXX object tests\parity\CMakeFiles\test_pjrt_plugin.dir\test_pjrt_plugin.cpp.obj
+[228/316] Building CXX object benchmarks\CMakeFiles\bench_phase2_heterogeneous.dir\bench_phase2_heterogeneous.cpp.obj
+[229/316] Building CXX object benchmarks\CMakeFiles\bench_phase1_bridge.dir\bench_phase1_bridge.cpp.obj
+[230/316] Building CXX object benchmarks\CMakeFiles\bench_phase3_optim_model.dir\bench_phase3_optim_model.cpp.obj
+[231/316] Building CXX object benchmarks\CMakeFiles\bench_phase4_custom.dir\bench_phase4_custom.cpp.obj
+[232/316] Building CXX object benchmarks\CMakeFiles\bench_phase5_rl_throughput.dir\bench_phase5_rl_throughput.cpp.obj
+[233/316] Building CXX object benchmarks\CMakeFiles\bench_phase8_layers.dir\bench_phase8_layers.cpp.obj
+[234/316] Building CXX object benchmarks\CMakeFiles\bench_phase9_blocks.dir\bench_phase9_blocks.cpp.obj
+[235/316] Building CXX object benchmarks\CMakeFiles\bench_phase10_structure.dir\bench_phase10_structure.cpp.obj
+[236/316] Building CXX object benchmarks\CMakeFiles\bench_phase11_sequence.dir\bench_phase11_sequence.cpp.obj
+[237/316] Building CXX object benchmarks\CMakeFiles\bench_phase12_catalog.dir\bench_phase12_catalog.cpp.obj
+[238/316] Building CXX object benchmarks\CMakeFiles\bench_phase13_baseline.dir\bench_phase13_baseline.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(82) : warning C4702: ulaşılamayan kod
+[239/316] Building CXX object benchmarks\CMakeFiles\bench_phase24_close.dir\bench_phase24_close.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(82) : warning C4702: ulaşılamayan kod
+[240/316] Building CXX object benchmarks\CMakeFiles\bench_phase30_close.dir\bench_phase30_close.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(82) : warning C4702: ulaşılamayan kod
+[241/316] Building CXX object benchmarks\CMakeFiles\bench_competitor_protocol.dir\bench_competitor_protocol.cpp.obj
+C:\Users\muham\Desktop\Nexus\lib\NexusLoss\include\nexusloss\losses\regression.hpp(82) : warning C4702: ulaşılamayan kod
+[242/316] Building CXX object benchmarks\runner\CMakeFiles\bench_phase0.dir\bench_phase0.cpp.obj
+[243/316] Building CXX object benchmarks\runner\CMakeFiles\bench_phase1.dir\bench_phase1.cpp.obj
+[244/316] Building CXX object benchmarks\runner\CMakeFiles\bench_phase2.dir\bench_phase2.cpp.obj
+[245/316] Building CXX object benchmarks\runner\CMakeFiles\bench_phase3_fused.dir\bench_phase3_fused.cpp.obj
+[246/316] Building CXX object benchmarks\CMakeFiles\nexus_master_benchmark.dir\nexus_master_benchmark.cpp.obj
+[247/316] Linking CXX executable tools\nexus_estimate\nexus_estimate.exe
+[248/316] Building CXX object benchmarks\runner\CMakeFiles\bench_phase3_training.dir\bench_phase3_training.cpp.obj
+[249/316] Linking CXX executable tools\nexus_tokenize\nexus_tokenize.exe
+[250/316] Linking CXX executable tools\nexus_run\nexus-run.exe
+[251/316] Building CXX object benchmarks\runner\CMakeFiles\bench_phase21.dir\bench_phase21.cpp.obj
+[252/316] Linking CXX executable tests\test_phase1_loss_families.exe
+[253/316] Linking CXX executable tests\test_phase1_bridge.exe
+[254/316] Building CXX object benchmarks\runner\CMakeFiles\bench_attention_cpu.dir\bench_attention_cpu.cpp.obj
+[255/316] Linking CXX executable tests\test_phase2_hardware.exe
+[256/316] Linking CXX executable tests\test_phase1_thread_pool.exe
+[257/316] Linking CXX executable tests\test_phase3_fusion.exe
+[258/316] Linking CXX executable tests\test_phase1_mirrored_tensor.exe
+[259/316] Linking CXX executable tests\test_phase8_sequence_vision.exe
+[260/316] Linking CXX executable tests\test_phase6_trainer.exe
+[261/316] Linking CXX executable tests\test_phase4_custom_extensions.exe
+[262/316] Linking CXX executable tests\test_phase5_rl_and_marl.exe
+[263/316] Linking CXX executable tests\test_phase9_blocks.exe
+[264/316] Linking CXX executable tests\test_phase10_structure.exe
+[265/316] Linking CXX executable tests\test_phase11_sequence.exe
+[266/316] Linking CXX executable tests\test_phase12_catalog.exe
+[267/316] Linking CXX executable tests\test_phase13_isa.exe
+[268/316] Linking CXX executable tests\parity\test_estimate_parity.exe
+[269/316] Linking CXX executable tests\parity\test_phase0_prof.exe
+[270/316] Linking CXX executable tests\test_nxs.exe
+[271/316] Linking CXX executable tests\parity\test_phase1_allocator.exe
+[272/316] Linking CXX executable tests\parity\test_phase2_autograd.exe
+[273/316] Linking CXX executable tests\parity\test_phase3_fused.exe
+[274/316] Linking CXX executable tests\parity\test_phase2_engine.exe
+[275/316] Linking CXX executable tests\parity\test_phase3_training.exe
+[276/316] Linking CXX executable tests\parity\test_phase1_dtype.exe
+[277/316] Linking CXX executable tests\parity\test_phase4_mixed_precision.exe
+[278/316] Linking CXX executable tests\parity\test_parity_nano.exe
+[279/316] Linking CXX executable tests\parity\test_phase8_data.exe
+[280/316] Linking CXX executable tests\parity\test_phase7_memory.exe
+[281/316] Linking CXX executable tests\parity\test_phase6_lm.exe
+[282/316] Linking CXX executable tests\parity\test_phase9_trainer.exe
+[283/316] Linking CXX executable tests\parity\test_phase10_dist.exe
+[284/316] Linking CXX executable tests\parity\test_phase12_parallel.exe
+[285/316] Linking CXX executable tests\parity\test_phase11_fsdp.exe
+[286/316] Linking CXX executable tests\parity\test_phase12_autoconfig.exe
+[287/316] Linking CXX executable tests\parity\test_phase16_infer.exe
+[288/316] Linking CXX executable tests\parity\test_phase14_moe.exe
+[289/316] Linking CXX executable tests\parity\test_phase13_compile.exe
+[290/316] Linking CXX executable tests\parity\test_phase15_durability.exe
+[291/316] Linking CXX executable tests\parity\test_phase17_interop.exe
+[292/316] Linking CXX executable tests\parity\test_pjrt_plugin.exe
+[293/316] Linking CXX executable tests\parity\test_phase19_backends.exe
+[294/316] Linking CXX executable tests\parity\test_phase18_cpu.exe
+[295/316] Linking CXX executable benchmarks\bench_phase3_optim_model.exe
+[296/316] Linking CXX executable benchmarks\bench_phase2_heterogeneous.exe
+[297/316] Linking CXX executable benchmarks\bench_phase4_custom.exe
+[298/316] Linking CXX executable benchmarks\bench_phase1_bridge.exe
+[299/316] Linking CXX executable benchmarks\bench_phase8_layers.exe
+[300/316] Linking CXX executable benchmarks\bench_phase9_blocks.exe
+[301/316] Linking CXX executable benchmarks\bench_phase10_structure.exe
+[302/316] Linking CXX executable benchmarks\bench_phase5_rl_throughput.exe
+[303/316] Linking CXX executable benchmarks\bench_phase12_catalog.exe
+[304/316] Linking CXX executable benchmarks\bench_phase11_sequence.exe
+[305/316] Linking CXX executable benchmarks\bench_phase13_baseline.exe
+[306/316] Linking CXX executable benchmarks\bench_phase24_close.exe
+[307/316] Linking CXX executable benchmarks\bench_competitor_protocol.exe
+[308/316] Linking CXX executable benchmarks\bench_phase30_close.exe
+[309/316] Linking CXX executable benchmarks\runner\bench_phase0.exe
+[310/316] Linking CXX executable benchmarks\nexus_master_benchmark.exe
+[311/316] Linking CXX executable benchmarks\runner\bench_phase2.exe
+[312/316] Linking CXX executable benchmarks\runner\bench_phase1.exe
+[313/316] Linking CXX executable benchmarks\runner\bench_phase3_fused.exe
+[314/316] Linking CXX executable benchmarks\runner\bench_phase3_training.exe
+[315/316] Linking CXX executable benchmarks\runner\bench_attention_cpu.exe
+[316/316] Linking CXX executable benchmarks\runner\bench_phase21.exe

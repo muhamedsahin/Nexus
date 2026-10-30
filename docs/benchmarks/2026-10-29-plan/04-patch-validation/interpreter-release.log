@@ -1,0 +1,83 @@
+== nexus_estimate (FAZ 0) ==
+Parametreler: toplam 124439808 (embed 38597376 + konum 786432 + dikkat 28348416 + ffn 56669184 + norm 38400 + head 0)
+Bellek/aygit: statik 1991036928 + aktivasyon 2151677952 + logit 411705344 = 4554420224 bayt (butce 8589934592, sigar: evet)
+FLOP/adim: 8.757e+11 (token/adim 1024, token basina 8.552e+08)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_cpp_gpt2.json
+== nexus_estimate (FAZ 0, python) ==
+Parametreler: toplam 124439808 (embed 38597376 + konum 786432 + dikkat 28348416 + ffn 56669184 + norm 38400 + head 0)
+Bellek/aygit: statik 1991036928 + aktivasyon 2151677952 + logit 411705344 = 4554420224 bayt (butce 8589934592, sigar: evet)
+FLOP/adim: 8.757e+11 (token/adim 1024, token basina 8.552e+08)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_py_gpt2.json
+== nexus_estimate (FAZ 0) ==
+Parametreler: toplam 6738415616 (embed 131072000 + konum 0 + dikkat 2147483648 + ffn 4328521728 + norm 266240 + head 131072000)
+Bellek/aygit: statik 107814649856 + aktivasyon 61203283968 + logit 524288000 = 169542221824 bayt (butce 8589934592, sigar: hayir)
+FLOP/adim: 8.779e+13 (token/adim 2048, token basina 4.287e+10)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_cpp_llama.json
+== nexus_estimate (FAZ 0, python) ==
+Parametreler: toplam 6738415616 (embed 131072000 + konum 0 + dikkat 2147483648 + ffn 4328521728 + norm 266240 + head 131072000)
+Bellek/aygit: statik 107814649856 + aktivasyon 61203283968 + logit 524288000 = 169542221824 bayt (butce 8589934592, sigar: hayir)
+FLOP/adim: 8.779e+13 (token/adim 2048, token basina 4.287e+10)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_py_llama.json
+== nexus_estimate (FAZ 0) ==
+Parametreler: toplam 25836032 (embed 4608000 + konum 0 + dikkat 3932160 + ffn 12681216 + norm 6656 + head 4608000)
+Bellek/aygit: statik 206688256 + aktivasyon 6291456 + logit 36864000 = 249843712 bayt (butce 8589934592, sigar: evet)
+FLOP/adim: 5.604e+11 (token/adim 4096, token basina 1.368e+08)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_cpp_ozel.json
+== nexus_estimate (FAZ 0, python) ==
+Parametreler: toplam 25836032 (embed 4608000 + konum 0 + dikkat 3932160 + ffn 12681216 + norm 6656 + head 4608000)
+Bellek/aygit: statik 206688256 + aktivasyon 6291456 + logit 36864000 = 249843712 bayt (butce 8589934592, sigar: evet)
+FLOP/adim: 5.604e+11 (token/adim 4096, token basina 1.368e+08)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_py_ozel.json
+kalibrasyon: parametre sayimi
+  PASS  GPT-2 124M tam sayim
+  PASS  GPT-2 embed+konum
+  PASS  GPT-2 dikkat+ffn
+  PASS  GPT-2 normlar+bagli head
+  info  gpt2_nominal_fark=0.00354684
+  PASS  GPT-2 nominal 124M'e <= %0,5
+  PASS  LLaMA-7B tam sayim
+  PASS  LLaMA dikkat+swiglu
+  info  llama_nominal_fark=0.000235072
+  PASS  LLaMA ~6,74B'ye <= %0,5
+flop formulu capraz kontrol
+  PASS  bagli head'de N = toplam - konum
+  PASS  token/adim = b*s*dp*accum
+  PASS  token basina 6N + 12Lds
+  PASS  adim floplari
+  PASS  ayrik head'de N = toplam - embed
+gqa ve gecersiz girdiler
+  PASS  GQA k/v daralir
+  PASS  d_model % n_head != 0 firlatilir
+  PASS  n_head % n_kv_head != 0 firlatilir
+  PASS  zero_stage > 3 firlatilir
+zero bolusumu ve yeniden hesaplama
+  PASS  ZeRO 0>1>2>3 statik bellegi daraltir
+  PASS  Korthikanti aktivasyon formulu
+  PASS  logit 2*b*s*V*4
+  PASS  tam yeniden hesaplamada 2sbh*k*L
+  PASS  yeniden hesaplama bellegi kucultur
+  PASS  GPT-2 124M FP32 mb=1 tek 8GiB aygita sigar
+  PASS  GPT-2 XL FP32 tek 8GiB aygita sigmaz (durust rapor)
+roofline siniri
+  PASS  yogunluk = flop/bayt
+  PASS  bellek siniri: yogunluk*bant
+  PASS  hesap siniri: zirve
+  PASS  sifir bayt roofline firlatilir
+CLI ve python aynasi paritesi
+  PASS  CLI kosuldu: gpt2
+  PASS  python kosuldu: gpt2
+  PASS  parite: gpt2
+  PASS  CLI kosuldu: llama
+  PASS  python kosuldu: llama
+  PASS  parite: llama
+  PASS  CLI kosuldu: ozel
+  PASS  python kosuldu: ozel
+  PASS  parite: ozel
+  PASS  CLI tablo cikisi
+faz0-tahmin-paritesi: 38 gecti, 0 basarisiz

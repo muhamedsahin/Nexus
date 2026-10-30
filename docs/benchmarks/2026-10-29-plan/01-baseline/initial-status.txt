@@ -1,0 +1,38 @@
+ M docs/benchmarks/2026-10-23-faz0/bench_phase0.json
+ M docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json
+ M docs/benchmarks/2026-10-23-faz1/bench_phase1.json
+ M docs/benchmarks/2026-10-23-faz2/bench_phase2.json
+ M docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json
+ M docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json
+ M docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json
+ M docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json
+ M docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json
+ M docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json
+ m lib/MatrixFlash-Pro
+ m lib/NexusLoss
+ m lib/NexusOptim
+?? docs/benchmarks/2026-10-24-faz7/bench_cuda_phase7_all.json
+?? docs/benchmarks/2026-10-28-faz21/asan-final.log
+?? docs/benchmarks/2026-10-28-faz21/asan-final.xml
+?? docs/benchmarks/2026-10-28-faz21/asan-native.jsonl
+?? docs/benchmarks/2026-10-28-faz21/asan-native.log
+?? docs/benchmarks/2026-10-28-faz21/asan-publish.log
+?? docs/benchmarks/2026-10-28-faz21/asan-publish.xml
+?? docs/benchmarks/2026-10-28-faz21/asan-tests.log
+?? docs/benchmarks/2026-10-28-faz21/asan-tests.xml
+?? docs/benchmarks/2026-10-28-faz21/ci-jobs-latest.json
+?? docs/benchmarks/2026-10-28-faz21/ci-jobs.json
+?? docs/benchmarks/2026-10-28-faz21/ci-run.json
+?? docs/benchmarks/2026-10-28-faz21/ci-status.json
+?? docs/benchmarks/2026-10-28-faz21/release-final.log
+?? docs/benchmarks/2026-10-28-faz21/release-final.xml
+?? docs/benchmarks/2026-10-28-faz21/release-publish.log
+?? docs/benchmarks/2026-10-28-faz21/release-publish.xml
+?? docs/benchmarks/2026-10-28-faz21/release-tests.log
+?? docs/benchmarks/2026-10-28-faz21/release-tests.xml
+?? docs/benchmarks/2026-10-28-faz21/run-01/
+?? docs/benchmarks/2026-10-28-faz21/run-02/
+?? docs/benchmarks/2026-10-29-plan/
+?? plan.txt
+?? promt.txt
+?? web/AGENTS.md

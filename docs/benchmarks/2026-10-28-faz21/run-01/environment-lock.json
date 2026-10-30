@@ -1,0 +1,11 @@
+{
+  "command": [
+    ".bench-venv-cuda/Scripts/python.exe",
+    "-m",
+    "pip",
+    "freeze"
+  ],
+  "returncode": 0,
+  "stdout": "certifi==2026.10.23\ncharset-normalizer==3.5.2\nfilelock==3.32.3\nfsspec==2026.7.0\nidna==3.20\nJinja2==3.1.6\nMarkupSafe==3.0.3\nmpmath==1.3.0\nnetworkx==3.6.1\nnumpy==2.5.4\nregex==2026.9.29\nrequests==2.34.2\nsetuptools==78.1.0\nsympy==1.14.0\ntiktoken==0.14.0\ntorch==2.14.1+cu132\ntriton-windows==3.8.0.post29\ntyping_extensions==4.16.0\nurllib3==2.8.0\n",
+  "stderr": ""
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="4"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="30"
+	timestamp="2026-10-28T20:51:03"
+	>
+	<testcase name="test_parity_nano" classname="test_parity_nano" time="11.2091" status="run">
+		<system-out>parity nano: L=2 d=64 h=4 ff=256 V=256 B=4 T=64
+  info  nexus_loss=5.53867865 fwd+bwd=0.22s
+  info  torch_loss=5.53867865 (torch 2.14.1+cpu)
+  info  loss nexus=5.53867865 torch=5.53867865 max_rel=7.064e-10 (esik 1e-05)
+  info  gradyan en kotu max_rel=7.301e-07 (h1.wv), min kosinus=0.999999897 (esik 0.0001)
+  info  5 tens[NON-UTF-8-BYTE-0xF6]r gurultu tabaninda (analitik ~0): h0.wq, h0.bq, h0.wk, h0.bk, h1.bk
+  PASS  Nexus vs PyTorch FP32 parity (nano)
+  info  rapor: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_parity_nano_4x64\parity_report.json
+</system-out>
+	</testcase>
+	<testcase name="test_parity_tiny" classname="test_parity_tiny" time="16.026" status="run">
+		<system-out>parity tiny: L=6 d=384 h=6 ff=1536 V=8192 B=1 T=64
+  info  nexus_loss=9.19247723 fwd+bwd=6.66s
+  info  torch_loss=9.19247818 (torch 2.14.1+cpu)
+  info  loss nexus=9.19247723 torch=9.19247818 max_rel=1.033e-07 (esik 1e-05)
+  info  gradyan en kotu max_rel=4.929e-06 (wte), min kosinus=0.999999873 (esik 0.0001)
+  info  7 tens[NON-UTF-8-BYTE-0xF6]r gurultu tabaninda (analitik ~0): h0.wq, h0.bk, h1.bk, h2.bk, h3.bk, h4.bk, h5.bk
+  PASS  Nexus vs PyTorch FP32 parity (tiny)
+  info  rapor: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_parity_tiny_1x64\parity_report.json
+</system-out>
+	</testcase>
+	<testcase name="test_phase21_bench" classname="test_phase21_bench" time="2.31809" status="run">
+		<system-out>.......
+----------------------------------------------------------------------
+Ran 7 tests in 1.330s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_phase20_evidence" classname="test_phase20_evidence" time="0.705693" status="run">
+		<system-out>.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.083s
+
+OK
+</system-out>
+	</testcase>
+</testsuite>

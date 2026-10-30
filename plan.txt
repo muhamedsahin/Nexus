@@ -1,0 +1,269 @@
+================================================================================
+NEXUS — SON DENETİM + "PYTORCH VE TENSORFLOW'U HER ALANDA GEÇ" MASTER PLANI
+Tarih: 2026-10-30   (önceki sürüm: plan.txt.bak-2026-10-29)
+Kaynak: promt.txt (FAZ 0–22), docs/benchmarks/* raporları, kaynak kod (git HEAD 261cc06
++ çalışma ağacındaki commit'lenmemiş değişiklikler), 2026-10-30 yeniden yoklama.
+================================================================================
+
+0. ÇERÇEVE — "DÜNYANIN EN HIZLISI" NE DEMEK, NE DEMEK DEĞİL
+--------------------------------------------------------------------------------
+Hedef: aynı donanım, aynı veri, aynı sayısal sonuç (parity) altında aşağıdaki
+metriklerin HER BİRİNDE PyTorch (eager + torch.compile max-autotune), TensorFlow
+(eager + XLA/jit_compile) ve ilgili alanda uzman araçtan (llama.cpp, vLLM, oneDNN,
+cuBLAS/cuDNN) ölçülmüş olarak daha iyi olmak:
+
+  - eğitim: token/s, ms/adım, MFU, tepe bellek, doğrulama kaybına varış süresi
+  - çıkarım: TTFT, TPOT, toplu token/s, bellek
+  - çekirdek: GEMM / attention / norm / optimizer GFLOPS ve GB/s
+  - soğuk başlangıç: derleme + ilk adım süresi
+
+Değişmez kurallar (KURAL 2 / 3):
+  K1. Parity geçmeden hız iddiası yok (eğitim kaybı farkı ≤ 1e-3 bağıl, çekirdek ≤ 1e-5).
+  K2. Aynı sürüm: Nexus ve PyTorch aynı CUDA toolkit / sürücü / cuDNN / iş parçacığı.
+  K3. İstatistik: ≥ 5 bağımsız süreç, medyan + IQR + CV; CV > %10 → "no_data".
+  K4. Her satırın etiketi: measured / no_data / failed / hardware_blocked.
+  K5. Fişte ölçüm (Win32_Battery = 2), GPU saat kilidi bilgisi rapora yazılır.
+
+Fiziksel sınır (dürüst not): bu makine tek RTX 3070 Laptop (8 GB, sm_86) + Ryzen 7
+5800H (AVX2, AVX-512/AMX YOK). Şunlar burada ÖLÇÜLEMEZ, plan bunları
+hardware_blocked bırakır, sahte kanıt üretmez:
+  - çok GPU / NCCL / çok düğüm ölçek verimliliği, 7B+ eğitim MFU
+  - AVX-512 / VNNI / AMX çekirdekleri, çok düğümlü NUMA
+  - FP8 tensör çekirdekleri (sm_89+), ROCm, Metal, TPU
+"Her alanda geçmek" bu makinede = tek GPU + tek CPU soketindeki her metrikte geçmek.
+Kalan alanlar için kod yazılabilir ama "geçti" denemez; donanım gelince ölçülür.
+
+================================================================================
+1. SKOR TABLOSU — BUGÜN NEREDEYİZ (ölçülmüş son değerler)
+================================================================================
+Alan                         | Nexus                | Rakip                     | Durum
+-----------------------------+----------------------+---------------------------+---------------
+CPU FP32 GEMM 256–4096 (8ip) | 210–328 GFLOPS       | PyTorch 316–396           | GERİDE %8–34
+CPU BF16-ağırlık GEMM        | 229–333              | PyTorch BF16 0.75–0.97    | önde (rakip zayıf)
+CPU GEMV FP32 / BF16         | 35–37 / 39–55 GB/s   | PyTorch 24–26 / 38–41     | önde
+CPU FlashAttention (16 ip)   | 15/16 durumda hızlı  | PyTorch SDPA              | önde; 4096 tam ileri %9 geride
+CPU FlashAttention (8 ip)    | ileri %11–21 geride  | PyTorch SDPA (8 ip)       | GERİDE (eşit ip)
+CPU FP32 GEMM 2048 (FAZ 21)  | 49.6 ms, CV %24      | PyTorch 46.8 ms           | no_data (gürültü)
+CUDA BF16 GEMM 2048          | 0.657 ms             | PyTorch 0.724 ms          | no_data (CUDA 13.4 vs 13.2)
+CUDA FlashAttention fwd+bwd  | tepe BF16 %19–29     | FA-2 ~%50–70 (literatür)  | GERİDE, aynı-donanım ref. yok
+124M BF16 eğitim adımı       | 66.5 ms              | torch.compile 68.1 ms     | no_data (parity 0.0021 > 0.001)
+1.3B eğitim                  | 906 ms (8-bit Adam)  | eşdeğer optimizer yok     | no_data
+LR=6e-4 parity (FAZ 20)      | fark 0.0428          | PyTorch                   | FAILED
+GPT-2 124M TPOT              | 1.30–2.32 ms         | torch.compile 2.00–3.77   | önde (FAZ 16)
+TinyLlama-1.1B CPU decode    | 5.5 tok/s FP32       | llama.cpp ölçülmedi       | no_data
+ZeRO-Offload CPU Adam        | adım %23–31 kısa     | DeepSpeed ölçülmedi       | no_data
+Tokenizer                    | 24–28 MB/s/çekirdek  | tiktoken ~ (5–8× önde)    | önde; spec 50 MB/s açık
+TensorFlow herhangi alan     | —                    | KURULU DEĞİL              | no_data (hepsi)
+
+Özet: kanıtlı üstünlük yalnız birkaç dar alanda (GEMV, CPU attention 16 ip,
+TPOT, tokenizer). Ana savaş alanları (GPU GEMM, GPU attention, uçtan uca eğitim,
+CPU FP32 GEMM) ya geride ya da ölçüm kuralları yüzünden geçersiz.
+
+================================================================================
+2. FAZ FAZ EKSİKLER (2026-10-30 yoklaması; dosya:satır kanıtı güncel kodda doğrulandı)
+================================================================================
+FAZ 0  Ölçüm altyapısı — KISMİ: ledger ↔ estimate ±%5 uyumu kanıtsız; nexus_model ayrı
+       ayırıcı → ledger kapsamı eksik.
+FAZ 1  Tensör — AÇIK: include/nexus/core/tensor.hpp tensörü yalnız float*, dtype alanı yok;
+       genel stride/offset/view, sürüm sayacı, birleşik Storage yok. (Tüm "her dtype'ta
+       hızlı" hedefleri buna bağlı — kritik yol.)
+FAZ 2  Autograd — KISMİ: çok akış, reentrant, tam çift backward, Python Function yok.
+FAZ 3  GPU eğitim — KISMİ: hızlı yol yalnız cuda::GptModel; genel nn:: katmanları GPU'da yok.
+FAZ 4  Karma hassasiyet — KISMİ: BF16 %1 ölçütü kapanmadı; FP8 sm_86'da yok (hw_blocked).
+FAZ 5  CUDA FlashAttention — AÇIK: src/cuda/*.cu içinde cp.async / ldmatrix YOK (grep 0);
+       swizzle, split-KV, autotune yok. Verim tepe %19–29.
+FAZ 6  LLaMA — KISMİ: GPU LLaMA yolu yok; src/cuda/infer.cpp:776 "yalniz head_dim 64".
+FAZ 7  Bellek — KISMİ: 8-bit AdamW kayıp +%3.0 (spec %2); aktivasyon offload, Adafactor yok;
+       1.3B ZeRO-Offload host belleği yetmiyor (17 GiB gerek / 14.5 boş).
+FAZ 8  Veri — KISMİ: 50 MB/s/çekirdek, o200k, SentencePiece/tokenizer.json, Parquet,
+       MinHash, RAM'den büyük veri, GPU cu_seqlens/loss mask yok.
+FAZ 9  Trainer — KISMİ: parity + aynı CUDA eşleşmesi yok → üstünlük geçersiz.
+FAZ 10 DDP — AÇIK: src/cuda/lm_backend.cpp:255 bucket başına D2H → TCP → H2D; NCCL yalnız
+       adı geçiyor (process_group.cpp), gerçek yol yok; CUDA Graph + DDP desteklenmiyor.
+FAZ 11 FSDP — AÇIK: GPU FSDP yok; CPU'da pack/unpack kopyası; NVMe 0.69 → 36.9 ms.
+FAZ 12 TP/PP/CP — AÇIK: yalnız CPU FP32.
+FAZ 13 Derleyici — AÇIK: GPU eğitimi genel IR yürütmüyor; füzyon 2.07× (spec 3×); CPU JIT
+       yalnız cl.exe; autotune önbelleği kalıcı değil.
+FAZ 14 MoE — AÇIK: src/moe/moe.cpp:46 her çağrıda std::thread havuzu açılıyor; BF16/FP8
+       uzman FP32'ye açılıyor; GPU MoE, grouped GEMM, a2a örtüşmesi yok.
+FAZ 15 Dayanıklılık — KISMİ: async ckpt +%20 / +%63 ek yük; çift byte vector kopyası.
+FAZ 16 Çıkarım — AÇIK: yalnız GPT-2 d64; W4A16 m>16 her çağrıda açma; spekülatif greedy'den
+       yavaş (339 vs 201 ms); 7B INT4, llama.cpp/vLLM kıyası yok.
+FAZ 17 Interop — KISMİ: transformers/llama.cpp/ORT doğrulaması yok; wheel yok.
+FAZ 18 CPU — KISMİ: FP32 GEMM PyTorch'tan geride; AVX-512/AMX hw_blocked; uçtan uca
+       BF16/INT8 decode sonradan eklendi ama llama.cpp kıyası yok. 27 Ekim regresyonunda
+       test_cpu_train_parity ASan altında zaman aşımı, bench_cuda_phase5 1500 s zaman
+       aşımı → yeniden doğrulanmalı (o koşu eski ağaçtaydı).
+FAZ 19 Hızlandırıcılar — AÇIK: DirectML her GEMM'de CreateOperator+Compile+wait;
+       Vulkan her dispatch'te sonsuz fence; HIP/Metal/TPU yürütme yok (hw_blocked).
+FAZ 20 Ölçek — AÇIK: LR=6e-4 parity BAŞARISIZ (0.0428); >24 saat kararlılık, Linux build yok.
+FAZ 21 Rakip bench — AÇIK: tablo yukarıda; TensorFlow ve JAX kurulu değil.
+FAZ 22 Ürünleşme — AÇIK: src/prof/prof.cpp:194–224 her sayaçta global mutex; profil
+       CLI, canlı panel, belge, release yok.
+README  — rozet ve yol haritası FAZ 19–21 commit'leriyle hizalı değil.
+
+================================================================================
+3. STRATEJİ — NEDEN BU SIRA
+================================================================================
+Hız kazancının %80'i 5 yerden gelir: (1) GPU GEMM + epilog füzyonu, (2) GPU attention,
+(3) uçtan uca eğitim adımında çekirdek sayısı / bellek trafiği / host ek yükü,
+(4) çıkarım decode'unda ağırlık bant genişliği, (5) CPU GEMM mikroçekirdeği.
+Ama hiçbiri "kanıt kapısı" (parity + aynı sürüm + kararlı ölçüm) olmadan sayılmaz.
+Bu yüzden sıra: KAPI → TEMEL (dtype'lı tensör) → GPU P0 → UÇTAN UCA → ÇIKARIM →
+CPU → diğer → ürünleşme. Her dalga sonunda tam ctest + ASan + bench kapısı.
+
+================================================================================
+4. DALGALAR (uygulanacak iş, dosya, teknik, hedef, kapı)
+================================================================================
+
+DALGA 0 — Ağaç doğrulama + referans ortamı (1–2 gün)
+  0.1 Çalışma ağacındaki commit'lenmemiş değişiklikleri (workflow, faz20/21 python, test
+      dosyaları, tools/nexus_run) derle; tam ctest Release + ASan + CUDA odak testleri.
+  0.2 Zaman aşımları: test_cpu_train_parity ASan'da 60 → 15 adım veya ASan'da ayrı etiket;
+      bench_cuda_phase5 ctest'ten "bench" etiketine taşınır (test değil benchmark).
+  0.3 Referans kurulumları (İNDİRME = KULLANICI ONAYI GEREKİR, bkz. Bölüm 7):
+      - PyTorch CUDA wheel Nexus ile AYNI CUDA sürümünde (veya Nexus'u 13.2'ye karşı derle).
+      - TensorFlow 2.x CPU (+ mümkünse WSL2'de TF GPU; Windows'ta TF GPU resmi yok).
+      - JAX CPU; llama.cpp (CPU AVX2 + CUDA build); vLLM yalnız WSL2/Linux.
+  0.4 Harness: süreç içi CV + IQR + bootstrap CI; soğuk/ılık/ilk adım ayrı; GPU saat
+      ve sıcaklık kaydı; "warmup" ikiye ayrılır (scheduler vs zaman atma).
+  Kapı: tam suite yeşil, referanslar aynı sürümde koşuyor, CV ≤ %10.
+
+DALGA 1 — Doğruluk kapıları (2–4 gün)
+  1.1 LR=6e-4 parity kök neden: adım adım tensör diff (ilk ayrışan adım/katman),
+      sırayla dene: GELU tanh/erf, vocab dolgusu logit maskesi, clip sırası (norm önce mi
+      sonra mı), AdamW eps konumu, BF16 yuvarlama noktaları, embedding wte bağlı gradyan
+      toplama sırası. Hedef ≤ 1e-3.
+  1.2 FAZ 21 124M parity 0.0021 → ≤ 0.001 (1.1 ile aynı kök neden olabilir).
+  1.3 1.3B için eşdeğer referans: Nexus'a FP32-master standart AdamW + ZeRO-Offload
+      (host belleği planı: BF16 m/v seçeneği → 1.3B × 10 B = 13 GiB, sığar).
+  Kapı: üç eğri de parity içinde; o zamana kadar hiçbir eğitim hızı satırı "measured" değil.
+
+DALGA 2 — Temel: dtype'lı birleşik Tensor (FAZ 1 borcu) (1–2 hafta)
+  Neden önce: "her alanda" = BF16/FP16/INT8 her op'ta; float* tensörle genel yol FP32'ye
+  mahkum, tüm hız işi özel yollara (GptModel) sıkışıyor.
+  2.1 Storage (ayırıcı + bayt) / TensorImpl (dtype, shape, stride, offset, device, version).
+  2.2 view/slice/transpose/expand kopyasız; contiguous() yalnız gerektiğinde.
+  2.3 Op dağıtıcı: (op, dtype, device) → çekirdek tablosu; eksik kombinasyon AÇIK HATA.
+  2.4 Eski float* API ince sarmalayıcı (kırılma yok), parity testleri aynen geçmeli.
+  Kapı: tüm parity testleri bit bit; eager op ek yükü ≤ 2 µs/op (PyTorch ~5–10 µs).
+  → Bu, "eager mod PyTorch'tan hızlı" iddiasının da temeli (host ek yükü).
+
+DALGA 3 — GPU P0 çekirdekler (2–3 hafta)  [en büyük kazanç]
+  3.1 GEMM (src/cuda/gemm_lt.cpp):
+      - global mutex kalkar: plan önbelleği kilitsiz okunur (RCU/atomic shared_ptr),
+        yalnız ekleme kilitli; workspace akış başına (event korumalı).
+      - şekil başına cuBLASLt heuristic'ten 8–16 aday → ölçüp en iyisini seç, diske yaz.
+      - epilog füzyonu: bias + GELU/SiLU + residual + BF16 çıkış tek çağrıda
+        (CUBLASLT_EPILOGUE_*), dgelu backward epilogu.
+      - küçük-M (decode) için kendi skinny çekirdek (zaten var) + split-K.
+      Hedef: her eğitim GEMM şeklinde PyTorch (aynı CUDA) ≥ 1.00×, epilog dahil ≥ 1.10×.
+  3.2 FlashAttention-2 yeniden yazımı (src/cuda/*attention*.cu):
+      - cp.async çift/üçlü tampon K/V yükleme, ldmatrix + mma.sync m16n8k16,
+        XOR swizzle'lı shared memory (banka çakışması 0).
+      - Q döşemesi 128 (d64) / 64 (d128), 4 warp; causal blok atlama; exp2 + ölçek
+        katlama; backward'da dQ atomik yerine ayrık dQ geçişi (belirlenimci seçenek).
+      - decode için split-KV (flash-decoding) + paged KV doğrudan okuma.
+      - şekil autotune (Br, Bc, warp, aşama) kalıcı önbellek.
+      Hedef: d64 fwd+bwd tepe BF16'nın ≥ %55'i (bugün %29); PyTorch SDPA (aynı GPU,
+      mem-efficient/flash arka ucu) ≥ 1.0×.
+  3.3 Füzyon çekirdekleri: RMSNorm/LayerNorm + residual + (FP8/BF16) cast tek geçiş;
+      RoPE'u QKV GEMM epilogu veya attention girişine kat; SwiGLU (gate*silu(up)) tek
+      çekirdek; çapraz entropi + softmax + backward tek geçiş (zaten parçalı — doğrula);
+      çok tensörlü AdamW tek başlatma (var) + grad clip norm aynı başlatmada.
+  3.4 Başlatma ek yükü: tüm adım CUDA Graph (var) → DDP/ckpt ile uyumlu hâle getir;
+      graf içi dinamik LR/ölçek cihaz belleğinden okunsun.
+  Kapı: compute-sanitizer 0 hata; çekirdek parity ≤ 1e-5 (FP32) / BF16 toleransı.
+
+DALGA 4 — Uçtan uca eğitim (1–2 hafta)
+  4.1 Adım profili (nsys + kendi izleyici): çekirdek sayısı, boşluk, D2H senkron
+      noktaları; hedef GPU boşta < %3.
+  4.2 Bellek: selective recompute'u kayıp-başına maliyet modeliyle seç (min-cut var);
+      aktivasyon offload (pinned, ayrı akış) seçeneği; 8 GB'ta en büyük batch.
+  4.3 GPU LLaMA eğitim yolu (RoPE, GQA, SwiGLU, RMSNorm) — GptModel'in genel hâli,
+      Dalga 2 tensörü üstünde.
+  4.4 Doğrulama kaybına varış süresi: aynı veri/seed/LR planı; Nexus vs PyTorch
+      compile vs TF XLA (TF GPU yoksa CPU küçük model).
+  Hedef (124M, 350M, LLaMA-350M, 8 GB): ms/adım ≥ %10 hızlı, tepe bellek ≤ PyTorch,
+  MFU raporlu; parity ≤ 1e-3.
+
+DALGA 5 — Çıkarım (1–2 hafta)
+  5.1 GPU LLaMA çıkarımı (head_dim 64/128, GQA, RoPE ölçekleme) — infer.cpp:776 kısıtı kalkar.
+  5.2 W4A16: prefill'de açma kaldırılır → fused dequant-GEMM (döşeme içi açma, Marlin
+      tarzı düzen); decode skinny W4 çekirdeği; W8A8 decode kazancı ölçülür.
+  5.3 Spekülatif: CUDA Graph'lı taslak + doğrulama, async; kabul oranı raporu;
+      net hızlanma yoksa varsayılan kapalı.
+  5.4 KV: paged + INT8/FP8-emülasyon KV; prefix cache.
+  5.5 CPU: TinyLlama BF16/INT8/Q4 uçtan uca; GEMV dışı ek yükü (dikkat, norm, autograd
+      nesnesi) sıfıra yakın — çıkarım yolu autograd'sız ham tamponlarla.
+  Hedef: TinyLlama-1.1B / LLaMA-7B Q4 (8 GB'a sığan) TTFT/TPOT llama.cpp (aynı ip
+  sayısı, aynı nicemleme) ≥ 1.0×; GPU'da vLLM (WSL2) ile toplu token/s kıyası.
+
+DALGA 6 — CPU (1–2 hafta)
+  6.1 FP32 GEMM açığını kapat (%8–34):
+      - mikroçekirdek: 6×16 → 8×12 / 12×8 deneyleri (Zen3'te yük/FMA oranı), k-açma 8,
+        A yayınını yazmaçtan, B'yi hizalı yükle; asm (MASM) yolu ile intrinsics kıyası.
+      - paralellik: 2B bağımsız bloklar yerine BLIS tarzı paylaşılan B paneli (jc/ic
+        döngüsü iş parçacıkları arası), paketleme de paralel — L3 trafiği yarıya.
+      - küçük n (256–512): paketlemesiz yol / A paneli tekrar paketlenmez.
+      - otomatik ayar: (MC, KC, NC, ızgara) şekil sınıfı başına diskte.
+      Hedef: 256–4096 tüm n'de PyTorch oneDNN ≥ 1.0× (8 ip), CV ≤ %5.
+  6.2 CPU attention: eşit 8 iş parçacığında da önde olmak için QKᵀ'yi B-paketli GEMM
+      çekirdeğiyle, exp'i polinom + tablo; tek geçişli backward tüm dtype'larda.
+  6.3 CPU füzyon derleyicisi (18.6): eleman eleman + indirgeme füzyonu, Linux clang/gcc
+      arka ucu, önbellek anahtarına derleyici sürümü.
+  6.4 TensorFlow CPU (oneDNN) ve JAX ile GEMM / conv / attention / küçük eğitim kıyası.
+  6.5 AVX-512/AMX: kod derlenebilir hâle getirilir ama "hızlı" denmez → hw_blocked
+      (kiralık bulut sunucu onaylanırsa ölçülür).
+
+DALGA 7 — Dağıtık + diğer arka uçlar (donanıma bağlı)
+  7.1 NCCL ProcessGroup (Linux/WSL2) — tek GPU'da yalnız doğruluk; ölçek hw_blocked.
+  7.2 GPU FSDP/ZeRO-3 katman akışı (tek GPU'da offload ile anlamlı: 1.3B–3B sığdırma).
+  7.3 MoE: moe.cpp:46 thread açma → cpu::Pool; GPU grouped GEMM; a2a örtüşmesi.
+  7.4 DirectML: operatör/descriptor önbelleği, wait yalnız senkron noktasında.
+      Vulkan: komut biriktirme, async fence.
+  7.5 Async checkpoint: akışlı yazma, ikinci byte vector kalkar; hedef ek yük < %2.
+
+DALGA 8 — Veri hattı
+  nexus_tokenize çok aşamalı boru hattı (ayrıştırma / dedup / yazma örtüşür),
+  50 MB/s/çekirdek; o200k, tokenizer.json, SentencePiece; GPU varlen + loss mask.
+  Hedef: HF tokenizers ve tf.data'dan hızlı (aynı çıktı bayt bayt).
+
+DALGA 9 — Ürünleşme + rapor hijyeni (FAZ 22)
+  prof.cpp sayaçları iş parçacığı yerel + kilitsiz; halka tampon; profil ek yükü < %2
+  ölçülmüş; `nexus profile` CLI; belgeler; README rozet/yol haritası FAZ 19–22 ile
+  hizalanır; her "geçtik" satırı K1–K5'e uyar.
+
+================================================================================
+5. HER DALGA SONUNDA KAPI (değişmez)
+================================================================================
+  1. Release build + tam ctest yeşil; ASan yeşil; CUDA değişikliğinde compute-sanitizer 0.
+  2. Bench: ≥ 5 süreç, medyan/IQR/CV, aynı sürüm; yeni tarihli docs/benchmarks/ dizini;
+     eski kanıtların üzerine yazılmaz; ctest'in ezdiği JSON'lar geri alınır.
+  3. Regresyon: çekirdek matrisinde > %3 yavaşlama yok.
+  4. Rapor: geride olduğumuz satırlar da yazılır; KURAL 6 cümlesi sonda.
+
+================================================================================
+6. "TEK SEFERDE" NASIL — YÜRÜTME DÜZENİ
+================================================================================
+Hepsi tek planla, durmadan sırayla yürütülür; ama tek commit'te değil:
+  - her dalga kendi dalında, kapıyı geçince main'e (commit + push).
+  - bağımsız işler paralel oturumlarda yürütülebilir (örn. Dalga 6 CPU ile Dalga 3 GPU
+    farklı dosyalara dokunur); aynı dosyaya iki yazar yok.
+  - tahmini toplam: tam zamanlı 10–14 hafta (tek GPU makinede). En kısa yoldan ilk
+    "kanıtlı üstünlük" tablosu: Dalga 0 + 1 + 3.1 + 3.2 ≈ 4–5 hafta.
+  - Erken dur kuralı: bir hedef 2 deneme turunda tutmazsa ölçüm rapora "geride" yazılır,
+    sonraki maddeye geçilir; yalan yeşil yok.
+
+================================================================================
+7. KULLANICI KARARI GEREKEN NOKTALAR (bunlar olmadan ilgili satırlar no_data kalır)
+================================================================================
+  D1. İndirme onayı: TensorFlow 2.x CPU, JAX, Nexus ile aynı CUDA'lı PyTorch wheel,
+      llama.cpp, LLaMA-7B Q4 ağırlığı (~4 GB), WSL2 + vLLM.
+  D2. Donanım: çok GPU / AVX-512 / sm_89+ ölçümleri için bulut sunucu kullanılsın mı?
+  D3. Dalga 2 (Tensor yeniden tasarımı) API kırılmasına izin var mı, yoksa yalnız
+      sarmalayıcıyla mı ilerlenecek?
+  D4. Çalışma ağacındaki commit'lenmemiş değişiklikler (workflow, faz20/21 python,
+      testler) Dalga 0'dan önce commit'lensin mi?
+
+Bu yazılım ekosistemi Bursa Teknik Üniversitesi Bilgisayar Mühendisliği 1. sınıf öğrencisi Muhammed Fatih Şahin tarafından yapay zeka destekli olarak geliştirilmiştir.

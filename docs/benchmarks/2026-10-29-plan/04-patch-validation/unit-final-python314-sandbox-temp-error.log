@@ -1,0 +1,270 @@
+....E.....EEEE
+======================================================================
+ERROR: test_legacy_rows_do_not_supply_missing_dispersion (__main__.BenchTests.test_legacy_rows_do_not_supply_missing_dispersion)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 89, in test_legacy_rows_do_not_supply_missing_dispersion
+    report(temp,dict(schema=1,repeats=5,runs=self.runs,rows=legacy))
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\Desktop\Nexus\python\src\nexus_bench\evidence.py", line 208, in report
+    write(directory / 'claims.json', claim_rows)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\Desktop\Nexus\python\src\nexus_bench\evidence.py", line 19, in write
+    Path(path).write_text(json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + '\n', encoding='utf-8')
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py", line 809, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpl69c6u7d\\claims.json'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpl69c6u7d'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 88, in test_legacy_rows_do_not_supply_missing_dispersion
+    with tempfile.TemporaryDirectory() as temp:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 972, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 976, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 956, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 928, in onexc
+    _resetperms(path)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 283, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 272, in _dont_follow_symlinks
+    func(path, *args, follow_symlinks=False)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpl69c6u7d'
+
+======================================================================
+ERROR: test_report_generation (__main__.BenchTests.test_report_generation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 142, in test_report_generation
+    report(path,document)
+    ~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\muham\Desktop\Nexus\python\src\nexus_bench\evidence.py", line 208, in report
+    write(directory / 'claims.json', claim_rows)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\Desktop\Nexus\python\src\nexus_bench\evidence.py", line 19, in write
+    Path(path).write_text(json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + '\n', encoding='utf-8')
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py", line 809, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpulusmq13\\claims.json'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpulusmq13'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 140, in test_report_generation
+    with tempfile.TemporaryDirectory() as temp:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 972, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 976, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 956, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 928, in onexc
+    _resetperms(path)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 283, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 272, in _dont_follow_symlinks
+    func(path, *args, follow_symlinks=False)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpulusmq13'
+
+======================================================================
+ERROR: test_report_rejects_edited_dispersion (__main__.BenchTests.test_report_rejects_edited_dispersion)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpdb7yopio'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 96, in test_report_rejects_edited_dispersion
+    with tempfile.TemporaryDirectory() as temp:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 972, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 976, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 956, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 928, in onexc
+    _resetperms(path)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 283, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 272, in _dont_follow_symlinks
+    func(path, *args, follow_symlinks=False)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpdb7yopio'
+
+======================================================================
+ERROR: test_timeout_kills_owned_tree (__main__.BenchTests.test_timeout_kills_owned_tree)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpkpgo8v7_'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 117, in test_timeout_kills_owned_tree
+    with tempfile.TemporaryDirectory() as temp:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 972, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 976, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 956, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 928, in onexc
+    _resetperms(path)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 283, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 272, in _dont_follow_symlinks
+    func(path, *args, follow_symlinks=False)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmpkpgo8v7_'
+
+======================================================================
+ERROR: test_version_one_archive_replays_exactly (__main__.BenchTests.test_version_one_archive_replays_exactly)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 104, in test_version_one_archive_replays_exactly
+    report(temp,original)
+    ~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\muham\Desktop\Nexus\python\src\nexus_bench\evidence.py", line 208, in report
+    write(directory / 'claims.json', claim_rows)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\Desktop\Nexus\python\src\nexus_bench\evidence.py", line 19, in write
+    Path(path).write_text(json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + '\n', encoding='utf-8')
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py", line 809, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\pathlib\__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmp3dkwruec\\claims.json'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmp3dkwruec'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 103, in test_version_one_archive_replays_exactly
+    with tempfile.TemporaryDirectory() as temp:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 972, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 976, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 956, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 928, in onexc
+    _resetperms(path)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 283, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muham\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 272, in _dont_follow_symlinks
+    func(path, *args, follow_symlinks=False)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Erişim engellendi: 'C:\\Users\\muham\\AppData\\Local\\Packages\\sandbox.{2f30df5b-67c1-46b5-b71f-3c4f98ce4c72}\\AC\\Temp\\tmp3dkwruec'
+
+----------------------------------------------------------------------
+Ran 14 tests in 1.470s
+
+FAILED (errors=5)

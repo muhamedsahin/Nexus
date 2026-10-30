@@ -1,0 +1,18 @@
+{
+  "bench": "bench_phase1",
+  "phase": 1,
+  "results": {
+    "cache_hit_ns_per_op": 479.55399999999997,
+    "cache_miss_ns_per_op": 21039.083999999999,
+    "empty_cache_ns": 40714500,
+    "fragmentation_ratio_peak": 1.2837837837837838,
+    "reserved_peak_bytes": 389120,
+    "current_peak_bytes": 303104,
+    "gate_ops_per_sec": 173371.31089688968
+  },
+  "notes": {
+    "fragmentation": "reserved/current; FAZ 1 k64 havuzundan olculur",
+    "bins": "power-of-two boyut siniflari, 64 bayt taban",
+    "device": "FAZ 1 yalnizca AlignedHost havuzu; cihaz havuzu sonraki faz"
+  }
+}

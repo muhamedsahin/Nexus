@@ -1,0 +1,12 @@
+{
+  "phase":4,"device":"NVIDIA GeForce RTX 3070 Laptop GPU","compute_capability":"8.6","protocol":{"warmup":2,"repeats":7,"timing":"CUDA events"},
+  "linear_bf16":{"median":25.23443,"min":23.97594,"max":25.90925,"std":0.6212714,"repeats":15,"unit":"ms"},"linear_bf16_tflops":32.67891,"linear_bf16_dense_peak_tflops":31.9488,
+  "linear_fp16":{"median":25.39827,"min":24.33331,"max":26.58714,"std":0.6744006,"repeats":15,"unit":"ms"},"linear_fp16_tflops":32.4681,"linear_fp16_dense_peak_tflops":31.9488,
+  "gpt2s_fp32":{"median":168.5914,"min":165.2163,"max":172.5164,"std":2.485737,"repeats":7,"unit":"ms/step"},"gpt2s_fp32_tokens_per_s":6073.858,"gpt2s_fp32_peak_bytes":3697709056,"gpt2s_fp32_state_bytes":1991036928,"gpt2s_fp32_activation_bytes":1668820992,
+  "gpt2s_tf32":{"median":110.7425,"min":109.4523,"max":112.0491,"std":0.7357711,"repeats":7,"unit":"ms/step"},"gpt2s_tf32_tokens_per_s":9246.673,"gpt2s_tf32_peak_bytes":3697709056,"gpt2s_tf32_state_bytes":1991036928,"gpt2s_tf32_activation_bytes":1668820992,
+  "gpt2s_bf16_B":{"median":63.38867,"min":61.94585,"max":68.32435,"std":1.892702,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_B_tokens_per_s":16154.31,"gpt2s_bf16_B_peak_bytes":2959819264,"gpt2s_bf16_B_state_bytes":2239916544,"gpt2s_bf16_B_activation_bytes":680819200,
+  "gpt2s_fp16_B":{"median":66.52928,"min":66.24666,"max":66.80167,"std":0.1817788,"repeats":7,"unit":"ms/step"},"gpt2s_fp16_B_tokens_per_s":15391.72,"gpt2s_fp16_B_peak_bytes":2959819264,"gpt2s_fp16_B_state_bytes":2239916544,"gpt2s_fp16_B_activation_bytes":680819200,
+  "gpt2s_bf16_A":{"median":64.37888,"min":63.32621,"max":67.75092,"std":1.415383,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_A_tokens_per_s":15905.84,"gpt2s_bf16_A_peak_bytes":2959819264,"gpt2s_bf16_A_state_bytes":2239916544,"gpt2s_bf16_A_activation_bytes":680819200,
+  "gpt2s_bf16_C":{"median":61.10925,"min":60.82253,"max":62.07488,"std":0.4783696,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_C_tokens_per_s":16756.87,"gpt2s_bf16_C_peak_bytes":2462021120,"gpt2s_bf16_C_state_bytes":1742642688,"gpt2s_bf16_C_activation_bytes":680819200,
+  "notes":"Yerel FP8 Tensor Core yok; FP8 hiz iddiasi yapilmaz. PyTorch karsilastirmasi ayri calistirilmalidir."
+}

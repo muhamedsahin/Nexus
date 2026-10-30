@@ -1,0 +1,12 @@
+[OUTPUT] 
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+
+[HANDLER_OUTPUT] 
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+
+    Start 18: test_estimate_parity
+1/1 Test #18: test_estimate_parity .............   Passed    1.80 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   1.87 sec

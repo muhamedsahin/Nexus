@@ -1,0 +1,16 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start  37: test_deep_stack_stability
+1/3 Test  #37: test_deep_stack_stability ........   Passed  715.68 sec
+    Start 159: bench_phase0
+2/3 Test #159: bench_phase0 .....................***Not Run (Disabled)   0.00 sec
+    Start 164: bench_attention_cpu
+3/3 Test #164: bench_attention_cpu ..............***Not Run (Disabled)   0.00 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) = 715.73 sec
+
+The following tests did not run:
+	159 - bench_phase0 (Disabled)
+	164 - bench_attention_cpu (Disabled)

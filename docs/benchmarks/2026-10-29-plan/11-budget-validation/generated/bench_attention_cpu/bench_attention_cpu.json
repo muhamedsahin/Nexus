@@ -1,0 +1,12 @@
+{
+  "phase":5,"backend":"nexus_cpu_flash_fp32","threads":16,"shape":{"batch":1,"heads":8,"head_dim":64},"cases":[
+    {"T":512,"causal":false,"fwd_ms":1.3215,"fwd_bwd_ms":4.903},
+    {"T":512,"causal":true,"fwd_ms":0.6869,"fwd_bwd_ms":2.5042},
+    {"T":1024,"causal":false,"fwd_ms":4.4249,"fwd_bwd_ms":17.3329},
+    {"T":1024,"causal":true,"fwd_ms":2.8779,"fwd_bwd_ms":10.6488},
+    {"T":2048,"causal":false,"fwd_ms":18.8019,"fwd_bwd_ms":81.3739},
+    {"T":2048,"causal":true,"fwd_ms":10.2934,"fwd_bwd_ms":40.6345},
+    {"T":4096,"causal":false,"fwd_ms":103.8709,"fwd_bwd_ms":660.3553},
+    {"T":4096,"causal":true,"fwd_ms":66.6835,"fwd_bwd_ms":259.1906}
+  ],"protocol":{"warmup":1,"repeats":5,"stat":"median","timing":"steady_clock"}
+}

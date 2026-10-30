@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="376" role="img" aria-label="Median milliseconds per operation">
+<rect width="100%" height="100%" fill="white"/>
+<text x="12" y="22" font-size="14">(&#x27;flash-fwd-bwd&#x27;, &#x27;cuda&#x27;, &#x27;bf16&#x27;, (1, 8, 2048, 64)) — independent scale</text>
+<text x="12" y="58">nexus</text>
+<rect x="130" y="42" width="600.000" height="24" fill="#2563eb"/>
+<text x="745.000" y="58">1.647400 ms</text>
+<text x="12" y="92" font-size="14">(&#x27;gemm-2048&#x27;, &#x27;cpu&#x27;, &#x27;f32&#x27;, (2048, 2048, 2048)) — independent scale</text>
+<text x="12" y="128">jax</text>
+<rect x="130" y="112" width="600.000" height="24" fill="#64748b"/>
+<text x="745.000" y="128">53.310100 ms</text>
+<text x="12" y="170">nexus</text>
+<rect x="130" y="154" width="558.305" height="24" fill="#2563eb"/>
+<text x="703.305" y="170">49.605500 ms</text>
+<text x="12" y="212">torch</text>
+<rect x="130" y="196" width="527.236" height="24" fill="#64748b"/>
+<text x="672.236" y="212">46.845000 ms</text>
+<text x="12" y="246" font-size="14">(&#x27;gemm-2048&#x27;, &#x27;cuda&#x27;, &#x27;bf16&#x27;, (2048, 2048, 2048)) — independent scale</text>
+<text x="12" y="282">nexus</text>
+<rect x="130" y="266" width="544.566" height="24" fill="#2563eb"/>
+<text x="689.566" y="282">0.657200 ms</text>
+<text x="12" y="324">torch</text>
+<rect x="130" y="308" width="600.000" height="24" fill="#64748b"/>
+<text x="745.000" y="324">0.724100 ms</text>
+</svg>

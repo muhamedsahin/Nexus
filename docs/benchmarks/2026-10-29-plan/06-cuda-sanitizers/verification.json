@@ -1,0 +1,46 @@
+{
+  "purpose": "correctness_only_not_timing_benchmark",
+  "binary_sha256": "57346330f5aca516be1968c279b98723c284520ffa78e606ee87fb006747d6da",
+  "tool": {
+    "command": [
+      "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.4\\compute-sanitizer\\compute-sanitizer.exe",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "NVIDIA (R) Compute Sanitizer\nCopyright (c) 2020-2026 NVIDIA Corporation\nVersion 2026.3.0.0 (build 38637409) (public-release)\n",
+    "stderr": ""
+  },
+  "checks": {
+    "memcheck": {
+      "passed": true,
+      "returncode": 0,
+      "cuda_cases": [
+        "flash-fwd-bwd",
+        "gemm-2048"
+      ]
+    },
+    "racecheck": {
+      "passed": false,
+      "returncode": 124,
+      "cuda_cases": [
+        "gemm-2048"
+      ]
+    },
+    "initcheck": {
+      "passed": true,
+      "returncode": 0,
+      "cuda_cases": [
+        "flash-fwd-bwd",
+        "gemm-2048"
+      ]
+    },
+    "synccheck": {
+      "passed": true,
+      "returncode": 0,
+      "cuda_cases": [
+        "flash-fwd-bwd",
+        "gemm-2048"
+      ]
+    }
+  }
+}

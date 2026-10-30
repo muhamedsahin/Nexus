@@ -1,0 +1,6 @@
+{
+  "phase":6,"device":"NVIDIA GeForce RTX 3070 Laptop GPU","protocol":{"warmup":10,"repeats":10,"timing":"CUDA events"},
+  "swiglu_mlp":{"N":4096,"d":4096,"F":11008,"fwd":{"median":32.68813,"min":32.47923,"max":33.70189,"repeats":10,"unit":"ms"},"bwd":{"median":64.47206,"min":63.83207,"max":66.6112,"repeats":10,"unit":"ms"},"fwd_bwd":{"median":97.24211,"min":96.48333,"max":98.28761,"repeats":10,"unit":"ms"},"gemms_only":{"median":94.81933,"min":94.43328,"max":96.19559,"repeats":10,"unit":"ms"},"gated_kernels":{"median":2.163712,"min":2.080768,"max":2.176,"repeats":10,"unit":"ms"},"fwd_tflops":33.8992,"bwd_tflops":34.37463,"fwd_bwd_tflops":34.18585,"gated_kernels_gbps":333.4179},
+  "rope":[{"dtype":"bf16","time":{"median":0.943104,"min":0.883712,"max":0.9728,"repeats":10,"unit":"ms"},"gbps":358.0108},{"dtype":"f32","time":{"median":1.69472,"min":1.634304,"max":1.78688,"repeats":10,"unit":"ms"},"gbps":397.2254}],
+  "notes":"PyTorch CUDA kurulu degil: eager/compile karsilastirmasi yok. RoPE ayri cekirdek; flash yukleme fuzyonu yok."
+}

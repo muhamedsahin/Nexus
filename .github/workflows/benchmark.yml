@@ -5,8 +5,13 @@ on:
     paths:
       - '.github/workflows/benchmark.yml'
       - 'python/src/nexus_bench/**'
-      - 'benchmarks/runner/bench_phase21.cpp'
+      - 'benchmarks/runner/**'
       - 'tests/parity/test_phase21_bench.py'
+      - 'tests/parity/test_estimate_parity.cpp'
+      - 'tests/parity/test_phase10_dist.cpp'
+      - 'tests/parity/CMakeLists.txt'
+      - 'tools/nexus_run/**'
+      - 'tools/nexus_estimate/**'
       - 'lib/**'
       - 'src/**'
       - 'include/**'
@@ -35,12 +40,15 @@ jobs:
         with:
           python-version: '3.12'
       - run: python tests/parity/test_phase21_bench.py
+      - run: python -m py_compile benchmarks/runner/faz9_nanogpt.py benchmarks/runner/faz20_parity.py
       - name: Build portable CPU measurement
         run: >-
           cmake -S . -B build-ci -DCMAKE_BUILD_TYPE=Release -DNEXUS_ENABLE_CUDA=OFF
           -DNEXUS_ENABLE_AVX512=OFF -DNEXUS_ENABLE_VULKAN=OFF -DNEXUS_ENABLE_DIRECTML=OFF
           -DNEXUS_BUILD_PYTHON=OFF
-      - run: cmake --build build-ci --target bench_phase21 --parallel 2
+      - run: cmake --build build-ci --target bench_phase21 test_estimate_parity test_phase10_dist --parallel 2
+      - name: Verify estimate parity and launcher failure propagation
+        run: ctest --test-dir build-ci -R '^(test_estimate_parity|test_rank_failure_clean_exit)$' --repeat until-fail:3 --output-on-failure
       - name: Measure CPU without substituting GPU results
         env:
           OMP_NUM_THREADS: '8'

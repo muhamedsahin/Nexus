@@ -1,0 +1,9 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-asan\\tests\\parity\\test_phase14_moe.exe",
+    "grouped"
+  ],
+  "returncode": 0,
+  "stdout": "  info  gruplu GEMM (E=8, 8192 satir, d=256, F=512): sirali uzman dongusu 120.3 ms (53.6 GFLOP/s), paralel gruplu 108.9 ms (59.1 GFLOP/s, 1.10x), token basina dongu ~2825 ms (tahmini, 256 satirdan); token dongusu farki 0.0e+00\n  PASS  paralel gruplu GEMM == sirali uzman dongusu (bit bit)\n  info  performance_status=no_data (ASan instrumentation; use a stable Release benchmark)\n  PASS  token basina dongu ile ayni sonuc (satir bagimsiz)\ntest_phase14_moe: 2 gecti, 0 basarisiz\n",
+  "stderr": ""
+}

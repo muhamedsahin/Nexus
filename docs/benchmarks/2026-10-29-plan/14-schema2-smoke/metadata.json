@@ -1,0 +1,46 @@
+{
+  "schema": 2,
+  "started_utc": "2026-10-29T22:11:26.760471+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.8 (tags/v3.14.8:8e6e75d, Sep 30 2026, 18:19:33) [MSC v.1944 64 bit (AMD64)]",
+  "seed": 1337,
+  "threads_requested": 8,
+  "repeats": 5,
+  "machine": {
+    "host": "Rabia_Zeynep",
+    "processor": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 16
+  },
+  "git": {
+    "command": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "returncode": 0,
+    "stdout": "261cc06f04c8144322846020217698c97b1551fb\n",
+    "stderr": ""
+  },
+  "dirty": {
+    "command": [
+      "git",
+      "status",
+      "--porcelain"
+    ],
+    "returncode": 0,
+    "stdout": " M .github/workflows/benchmark.yml\n M CMakeLists.txt\n M benchmarks/runner/bench_cuda_phase5.cpp\n M benchmarks/runner/faz20_parity.py\n M benchmarks/runner/faz9_nanogpt.py\n M docs/benchmarks/2026-10-23-faz0/bench_phase0.json\n M docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json\n M docs/benchmarks/2026-10-23-faz1/bench_phase1.json\n M docs/benchmarks/2026-10-23-faz2/bench_phase2.json\n M docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json\n M docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json\n M docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json\n M docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json\n M docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json\n M docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json\n M lib/MatrixFlash-Pro\n M lib/NexusLoss\n M lib/NexusOptim\n M python/src/nexus_bench/cli.py\n M python/src/nexus_bench/evidence.py\n M tests/parity/CMakeLists.txt\n M tests/parity/test_estimate_parity.cpp\n M tests/parity/test_phase10_dist.cpp\n M tests/parity/test_phase14_moe.cpp\n M tests/parity/test_phase21_bench.py\n M tools/nexus_run/main.cpp\n?? docs/benchmarks/2026-10-24-faz7/bench_cuda_phase7_all.json\n?? docs/benchmarks/2026-10-28-faz21/asan-final.log\n?? docs/benchmarks/2026-10-28-faz21/asan-final.xml\n?? docs/benchmarks/2026-10-28-faz21/asan-native.jsonl\n?? docs/benchmarks/2026-10-28-faz21/asan-native.log\n?? docs/benchmarks/2026-10-28-faz21/asan-publish.log\n?? docs/benchmarks/2026-10-28-faz21/asan-publish.xml\n?? docs/benchmarks/2026-10-28-faz21/asan-tests.log\n?? docs/benchmarks/2026-10-28-faz21/asan-tests.xml\n?? docs/benchmarks/2026-10-28-faz21/ci-jobs-latest.json\n?? docs/benchmarks/2026-10-28-faz21/ci-jobs.json\n?? docs/benchmarks/2026-10-28-faz21/ci-run.json\n?? docs/benchmarks/2026-10-28-faz21/ci-status.json\n?? docs/benchmarks/2026-10-28-faz21/release-final.log\n?? docs/benchmarks/2026-10-28-faz21/release-final.xml\n?? docs/benchmarks/2026-10-28-faz21/release-publish.log\n?? docs/benchmarks/2026-10-28-faz21/release-publish.xml\n?? docs/benchmarks/2026-10-28-faz21/release-tests.log\n?? docs/benchmarks/2026-10-28-faz21/release-tests.xml\n?? docs/benchmarks/2026-10-28-faz21/run-01/\n?? docs/benchmarks/2026-10-28-faz21/run-02/\n?? docs/benchmarks/2026-10-29-plan/\n?? plan.txt\n?? promt.txt\n?? web/AGENTS.md\n",
+    "stderr": ""
+  },
+  "hardware": {
+    "command": [
+      "nvidia-smi",
+      "--query-gpu=name,uuid,driver_version,memory.total,clocks.max.sm",
+      "--format=csv"
+    ],
+    "returncode": 0,
+    "stdout": "name, uuid, driver_version, memory.total [MiB], clocks.max.sm [MHz]\nNVIDIA GeForce RTX 3070 Laptop GPU, GPU-eebcff4f-390d-6452-b555-cf8e07f287b0, 610.88, 8192 MiB, 2100 MHz\n",
+    "stderr": ""
+  },
+  "source_sha256": "7694aa42d021e799e7fc2d813f216ea134fbd24df4b8ec2a5cb54f3b124a27a5",
+  "native_sha256": "57346330f5aca516be1968c279b98723c284520ffa78e606ee87fb006747d6da"
+}

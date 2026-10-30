@@ -1,0 +1,8 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\benchmarks\\runner\\bench_phase21.exe"
+  ],
+  "returncode": 0,
+  "stdout": "{\"case\":\"gemm-2048\",\"device\":\"cpu\",\"dtype\":\"f32\",\"shape\":[2048,2048,2048],\"warmup\":2,\"seed\":1337,\"timing\":\"host_synchronized\",\"max_abs\":0,\"samples_ms\":[49.772300000000001,60.926000000000002,42.878900000000002,60.261200000000002,72.612300000000005,54.907400000000003,80.151799999999994],\"cpu_threads\":8}\n{\"case\":\"gemm-2048\",\"device\":\"cuda\",\"dtype\":\"bf16\",\"shape\":[2048,2048,2048],\"warmup\":2,\"seed\":1337,\"timing\":\"host_synchronized\",\"max_abs\":0,\"samples_ms\":[0.95709999999999995,0.68920000000000003,0.64449999999999996,0.68049999999999999,0.65269999999999995,0.6421,0.67000000000000004],\"peak_allocated_bytes\":58720256,\"peak_reserved_bytes\":92274688,\"driver_free_bytes\":7313178624,\"driver_total_bytes\":8589410304,\"cuda_build\":13040}\n{\"case\":\"flash-fwd-bwd\",\"device\":\"cuda\",\"dtype\":\"bf16\",\"shape\":[1,8,2048,64],\"warmup\":2,\"seed\":1337,\"timing\":\"host_synchronized\",\"max_abs\":0.00052097588069641154,\"samples_ms\":[1.6831,1.6593,1.6591,1.6672,1.7648999999999999,1.6308,1.635],\"peak_allocated_bytes\":54657536,\"peak_reserved_bytes\":94371840,\"driver_free_bytes\":7311081472,\"driver_total_bytes\":8589410304,\"cuda_build\":13040}\n",
+  "stderr": ""
+}

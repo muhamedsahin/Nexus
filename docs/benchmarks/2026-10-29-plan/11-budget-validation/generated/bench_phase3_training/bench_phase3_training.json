@@ -1,0 +1,18 @@
+{
+  "bench": "bench_phase3_training",
+  "phase": 3,
+  "machine": {"cpu": "AMD Ryzen 7 5800H with Radeon Graphics", "compiler": "MSVC 1944", "git_commit": "261cc06", "threads": 1},
+  "protocol": "isinma + tekrar; medyan/min/max/std (BOLUM G)",
+  "results": {
+    "ce_shifted_fused": {"median_ms": 1241.801600, "min_ms": 1176.035500, "max_ms": 1327.438900, "std_ms": 42.303016, "repeats": 7},
+    "ce_legacy_copies": {"median_ms": 1831.574100, "min_ms": 1780.002000, "max_ms": 1921.371900, "std_ms": 48.918971, "repeats": 7},
+    "ce_logit_bytes": 412090368,
+    "ce_fused_extra_heap_bytes": 0,
+    "ce_legacy_extra_heap_bytes": 1235474580,
+    "adamw_124m_foreach_fused": {"median_ms": 264.100200, "min_ms": 258.703500, "max_ms": 276.228400, "std_ms": 6.520162, "repeats": 5},
+    "adamw_124m_nexus_optim_avx2": {"median_ms": 149.449600, "min_ms": 147.034100, "max_ms": 149.728100, "std_ms": 1.025410, "repeats": 5},
+    "rms_norm_4096x768_fwd_bwd": {"median_ms": 17.427600, "min_ms": 17.027800, "max_ms": 19.651600, "std_ms": 0.819773, "repeats": 7},
+    "layer_norm_4096x768_fwd_bwd": {"median_ms": 32.025400, "min_ms": 29.796800, "max_ms": 44.533500, "std_ms": 4.598528, "repeats": 7}
+  },
+  "notes": "CPU tek is parcacigi. GPU (cuBLASLt/CUDA cekirdekleri) olculmedi; FAZ 3 GPU yolu acik is."
+}

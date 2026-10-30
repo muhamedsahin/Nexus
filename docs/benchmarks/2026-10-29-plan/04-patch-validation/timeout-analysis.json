@@ -1,0 +1,10 @@
+{
+  "ctest_version": "3.27.0",
+  "observed_global_cap_s": 1500,
+  "declared_deep_test_limit_s": 3600,
+  "configured_global_cap_after_s": 7200,
+  "upstream_source": "https://github.com/Kitware/CMake/blob/v3.27.0/Source/CTest/cmCTestRunTest.cxx",
+  "upstream_source_sha256": "83a384993fa5f19301d578df0daa947a5eb7b535d9798051d8a4d37b50b23c65",
+  "mechanism": "GetTimeOut() caps the explicit test timeout when smaller; current CTest behavior differs.",
+  "deep_debug_full_passed": false
+}

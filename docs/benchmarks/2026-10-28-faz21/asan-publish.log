@@ -1,0 +1,16 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start  51: test_nan_policy
+1/5 Test  #51: test_nan_policy ..................   Passed    0.11 sec
+    Start  53: test_trainer_resume
+2/5 Test  #53: test_trainer_resume ..............   Passed    0.10 sec
+    Start 103: test_save_load_exact
+3/5 Test #103: test_save_load_exact .............   Passed    0.94 sec
+    Start 141: test_phase21_bench
+4/5 Test #141: test_phase21_bench ...............   Passed    2.19 sec
+    Start 142: test_phase20_evidence
+5/5 Test #142: test_phase20_evidence ............   Passed    0.70 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   4.10 sec

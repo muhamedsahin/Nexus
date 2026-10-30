@@ -1,0 +1,10 @@
+{
+  "command": [
+    "nvidia-smi",
+    "--query-gpu=temperature.gpu,power.draw,clocks.sm,clocks.mem,memory.used",
+    "--format=csv"
+  ],
+  "returncode": 0,
+  "stdout": "temperature.gpu, power.draw [W], clocks.current.sm [MHz], clocks.current.memory [MHz], memory.used [MiB]\n47, 22.27 W, 405 MHz, 405 MHz, 502 MiB\n",
+  "stderr": ""
+}

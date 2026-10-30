@@ -1,0 +1,25 @@
+{
+  "bench": "bench_cuda_phase3",
+  "machine": {"gpu": "NVIDIA GeForce RTX 3070 Laptop GPU", "sm": "86", "driver": 13030, "runtime": 13030, "peak_mem_gbs": 448.064, "compiler": "MSVC 1944", "git_commit": "261cc06"},
+  "protocol": "isinma 3 + 7 tekrar, CUDA olaylari, medyan/min/max/std",
+  "results": {
+    "allocator_cache_hit_ns": {"median": 494.1, "min": 442.793, "max": 515.551, "std": 25.5552, "repeats": 7, "unit": "ns"},
+    "cuda_malloc_free_ns": {"median": 401444, "min": 380680, "max": 460808, "std": 25877.1, "repeats": 7, "unit": "ns"},
+    "memcpy_d2d_2p24_f32": {"median": 0.33792, "min": 0.327066, "max": 0.480973, "std": 0.0647037, "repeats": 7, "unit": "ms"}, "memcpy_d2d_gbs": 397.188,
+    "add_2p24_f32": {"median": 0.551526, "min": 0.489677, "max": 0.634982, "std": 0.0571139, "repeats": 7, "unit": "ms"}, "add_gbs": 365.035,
+    "sum_2p24_f32": {"median": 0.17193, "min": 0.169574, "max": 0.268083, "std": 0.0366172, "repeats": 7, "unit": "ms"}, "sum_gbs": 390.328,
+    "linear_fwd_bwd_fp32": {"median": 92.5788, "min": 91.7565, "max": 94.8941, "std": 0.924, "repeats": 7, "unit": "ms"}, "linear_tflops_fp32": 8.90737,
+    "cublas_direct_fp32": {"median": 92.5071, "min": 91.0254, "max": 93.4543, "std": 0.855415, "repeats": 7, "unit": "ms"}, "cublas_tflops_fp32": 8.91427,
+    "linear_fwd_bwd_tf32": {"median": 50.2098, "min": 48.638, "max": 50.9655, "std": 0.694808, "repeats": 7, "unit": "ms"}, "linear_tflops_tf32": 16.4238,
+    "cublas_direct_tf32": {"median": 49.836, "min": 48.3195, "max": 50.6081, "std": 0.652889, "repeats": 7, "unit": "ms"}, "cublas_tflops_tf32": 16.5469,
+    "layernorm_fwd_bwd_8192x768": {"median": 0.432128, "min": 0.41472, "max": 0.457728, "std": 0.0126467, "repeats": 7, "unit": "ms"}, "layernorm_gbs": 291.185,
+    "rmsnorm_fwd_bwd_8192x768": {"median": 0.415744, "min": 0.397312, "max": 0.644096, "std": 0.0818202, "repeats": 7, "unit": "ms"}, "rmsnorm_gbs": 302.66,
+    "ce_8192x50304": {"median": 17.3619, "min": 17.1223, "max": 17.6077, "std": 0.152495, "repeats": 7, "unit": "ms"}, "ce_logit_bytes": 1648361472, "ce_extra_peak_bytes": 0,
+    "adamw_124m": {"median": 11.8845, "min": 10.7418, "max": 12.2122, "std": 0.505422, "repeats": 7, "unit": "ms"}, "adamw_gbs": 335.063,
+    "gpt2s_b1_fp32": {"median": 165.394, "min": 162.185, "max": 169.796, "std": 2.83292, "repeats": 7, "unit": "ms/step"}, "gpt2s_b1_fp32_tokens_per_s": 6191.26, "gpt2s_b1_fp32_peak_bytes": 3697709056,
+    "gpt2s_b2_fp32": {"median": 306.113, "min": 302.728, "max": 310.079, "std": 2.4547, "repeats": 7, "unit": "ms/step"}, "gpt2s_b2_fp32_tokens_per_s": 6690.35, "gpt2s_b2_fp32_peak_bytes": 5365506048,
+    "gpt2s_b1_tf32": {"median": 110.61, "min": 109.583, "max": 111.115, "std": 0.535615, "repeats": 7, "unit": "ms/step"}, "gpt2s_b1_tf32_tokens_per_s": 9257.72, "gpt2s_b1_tf32_peak_bytes": 3697709056,
+    "gpt2s_b2_tf32": {"median": 196.367, "min": 194.579, "max": 200.187, "std": 1.62938, "repeats": 7, "unit": "ms/step"}, "gpt2s_b2_tf32_tokens_per_s": 10429.4, "gpt2s_b2_tf32_peak_bytes": 5365506048,
+    "notes": "PyTorch CUDA bu kurulumda yok (.bench-venv torch 2.14.1+cpu); GPU karsilastirmasi cuBLAS dogrudan cagriya karsidir."
+  }
+}

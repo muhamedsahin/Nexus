@@ -1,0 +1,18 @@
+{
+  "bench": "bench_phase0",
+  "phase": 0,
+  "results": {
+    "gate_alloc_free_ns_per_op": 115.658,
+    "ledger_snapshot_ns": 17.899999999999999,
+    "timer_disabled_ns": 63.811999999999998,
+    "timer_enabled_ns": 196.298,
+    "counter_add_flops_ns": 40.296999999999997,
+    "reference_matmul_gflops": 1.1460094879101437,
+    "trace_dump_us": 764.70000000000005
+  },
+  "notes": {
+    "mfu": "olculmedi: aygit zirve FLOP/s verilmeden MFU iddiasi uretilmez",
+    "fragmentation": "FAZ 1 k64 havuzu reserved/current ile olcecek",
+    "matmul": "naif FP32 256^3 referans; cekirdek kiyaslari FAZ 1+"
+  }
+}

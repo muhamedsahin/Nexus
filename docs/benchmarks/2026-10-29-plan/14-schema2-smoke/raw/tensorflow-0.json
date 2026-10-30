@@ -1,0 +1,11 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\.bench-venv-cuda\\Scripts\\python.exe",
+    "C:\\Users\\muham\\Desktop\\Nexus\\python\\src\\nexus_bench\\cli.py",
+    "_worker",
+    "tensorflow"
+  ],
+  "returncode": 77,
+  "stdout": "{\"status\": \"unavailable\", \"reason\": \"tensorflow is not installed\"}\n",
+  "stderr": ""
+}

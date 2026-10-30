@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "started_utc": "2026-10-28T17:52:09.728891+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.8 (tags/v3.14.8:8e6e75d, Sep 30 2026, 18:19:33) [MSC v.1944 64 bit (AMD64)]",
+  "seed": 1337,
+  "threads_requested": 8,
+  "repeats": 5,
+  "machine": {
+    "host": "Rabia_Zeynep",
+    "processor": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 16
+  },
+  "git": {
+    "command": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "returncode": 0,
+    "stdout": "77b7f0c2f2b12c2defeb6dffefaab04237730824\n",
+    "stderr": ""
+  },
+  "dirty": {
+    "command": [
+      "git",
+      "status",
+      "--porcelain"
+    ],
+    "returncode": 0,
+    "stdout": " M benchmarks/runner/CMakeLists.txt\n M benchmarks/runner/bench_cuda_phase20.cpp\n M benchmarks/runner/faz9_nanogpt.py\n M docs/benchmarks/2026-10-23-faz0/bench_phase0.json\n M docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json\n M docs/benchmarks/2026-10-23-faz1/bench_phase1.json\n M docs/benchmarks/2026-10-23-faz2/bench_phase2.json\n M docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json\n M docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json\n M docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json\n M docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json\n M docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json\n M docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json\n M lib/MatrixFlash-Pro\n M lib/NexusLoss\n M lib/NexusOptim\n M python/pyproject.toml\n M tests/parity/CMakeLists.txt\n?? .github/\n?? benchmarks/runner/bench_phase21.cpp\n?? docs/benchmarks/2026-10-24-faz7/bench_cuda_phase7_all.json\n?? docs/benchmarks/2026-10-28-faz21/\n?? promt.txt\n?? python/src/nexus_bench/\n?? tests/parity/test_phase21_bench.py\n?? web/AGENTS.md\n",
+    "stderr": ""
+  },
+  "hardware": {
+    "command": [
+      "nvidia-smi",
+      "--query-gpu=name,uuid,driver_version,memory.total,clocks.max.sm",
+      "--format=csv"
+    ],
+    "returncode": 0,
+    "stdout": "name, uuid, driver_version, memory.total [MiB], clocks.max.sm [MHz]\nNVIDIA GeForce RTX 3070 Laptop GPU, GPU-eebcff4f-390d-6452-b555-cf8e07f287b0, 610.88, 8192 MiB, 2100 MHz\n",
+    "stderr": ""
+  },
+  "source_sha256": "f2352997f77b000570acfb7e880c77a3311c136b951b2c7e1bd4011ffdce6ff6",
+  "native_sha256": "a792e0851b5ad5179932bcafb4486466a5574a8cd2907623f15626ee500fdd7f"
+}

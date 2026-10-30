@@ -1,0 +1,51 @@
+[
+  {
+    "case": "flash-fwd-bwd",
+    "device": "cuda",
+    "dtype": "bf16",
+    "status": "no_data",
+    "reason": "matched PyTorch reference unavailable",
+    "torch_over_nexus": null
+  },
+  {
+    "case": "gemm-2048",
+    "device": "cpu",
+    "dtype": "f32",
+    "status": "no_data",
+    "reason": "CV >10%; insufficient stability",
+    "torch_over_nexus": 0.9823062629129883
+  },
+  {
+    "case": "gemm-2048",
+    "device": "cuda",
+    "dtype": "bf16",
+    "status": "no_data",
+    "reason": "CUDA build differs; D.2 exact-version condition unmet",
+    "torch_over_nexus": 0.9540014354869315
+  },
+  {
+    "case": "train-124m",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "train-1.3b",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "time-to-validation-loss",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "inference-7b-int4",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "cluster-7b-mfu",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\faz19-xla-venv\\Scripts\\python.exe",
+    "C:\\Users\\muham\\Desktop\\Nexus\\python\\src\\nexus_bench\\cli.py",
+    "_worker",
+    "jax"
+  ],
+  "returncode": 0,
+  "stdout": "{\"version\": \"0.10.2\", \"rows\": [{\"case\": \"gemm-2048\", \"device\": \"cpu\", \"dtype\": \"f32\", \"shape\": [2048, 2048, 2048], \"samples_ms\": [105.51439999835566, 85.03960000234656, 80.54660001653247, 78.98069999646395, 76.3505999930203, 84.78520001517609, 83.21599999908358], \"max_abs\": 0.0, \"warmup\": 2, \"seed\": 1337, \"timing\": \"host_synchronized\"}]}\n",
+  "stderr": ""
+}

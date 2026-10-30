@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="1"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="1"
+	timestamp="2026-10-29T23:14:16"
+	>
+	<testcase name="test_estimate_parity" classname="test_estimate_parity" time="1.7973" status="run">
+		<system-out>== nexus_estimate (FAZ 0) ==
+Parametreler: toplam 124439808 (embed 38597376 + konum 786432 + dikkat 28348416 + ffn 56669184 + norm 38400 + head 0)
+Bellek/aygit: statik 1991036928 + aktivasyon 2151677952 + logit 411705344 = 4554420224 bayt (butce 8589934592, sigar: evet)
+FLOP/adim: 8.757e+11 (token/adim 1024, token basina 8.552e+08)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_cpp_gpt2.json
+== nexus_estimate (FAZ 0, python) ==
+Parametreler: toplam 124439808 (embed 38597376 + konum 786432 + dikkat 28348416 + ffn 56669184 + norm 38400 + head 0)
+Bellek/aygit: statik 1991036928 + aktivasyon 2151677952 + logit 411705344 = 4554420224 bayt (butce 8589934592, sigar: evet)
+FLOP/adim: 8.757e+11 (token/adim 1024, token basina 8.552e+08)
+Catilma orani: n/a (FAZ 1 k64 havuzu reserved/current ile olcecek)
+JSON yazildi: C:\Users\muham\Desktop\Nexus\build-phase1\faz20\nexus_est_py_gpt2.json
+== nexus_estimate (FAZ 0) ==
+Parametreler: ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

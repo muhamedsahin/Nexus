@@ -34,10 +34,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
+
+#if !defined(_WIN32)
+#include <sys/wait.h>
+#endif
 
 namespace nd = nexus::dist;
 using nexus::DType;
@@ -494,14 +502,36 @@ int main(int argc, char** argv) {
       nexus_test::expect(g_fail.load() == 0, "farkli kollektif kilitlenme yerine acik hata");
     } else if (mode == "failure" && argc > 3) {
       nexus_test::section("test_rank_failure_clean_exit: rank 1 olur (nexus-run, 3 surec, tcp)");
-      const std::string cmd = std::string("\"\"") + argv[2] + "\" --nproc-per-node 3 --master-port 29611 --grace-s 20 -- \"" +
-                              argv[3] + "\" die\"";
+      const auto log = std::filesystem::temp_directory_path() /
+          ("nexus_rank_failure_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".log");
+      std::string cmd = std::string("\"") + argv[2] + "\" --nproc-per-node 3 --master-port 29611 --grace-s 20 -- \"" +
+                        argv[3] + "\" die 2>\"" + log.string() + "\"";
+#if defined(_WIN32)
+      cmd = "\"" + cmd + "\"";
+#endif
       const auto t0 = std::chrono::steady_clock::now();
-      const int rc = std::system(cmd.c_str());
+      const int status = std::system(cmd.c_str());
+#if defined(_WIN32)
+      const int rc = status;
+#else
+      const int rc = status == -1 ? -1 : WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+#endif
       const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+      std::ifstream input(log);
+      const std::string output((std::istreambuf_iterator<char>(input)),std::istreambuf_iterator<char>());
+      std::printf("%s",output.c_str());
+      const auto first = output.find("nexus-run: rank ");
+      int observed_rank = -1, observed_code = -1;
+      bool observed = false;
+      if (first != std::string::npos) {
+        std::istringstream parser(output.substr(first + std::strlen("nexus-run: rank ")));
+        std::string separator;
+        observed = static_cast<bool>(parser >> observed_rank >> separator >> observed_code) && separator=="kod";
+      }
       nexus_test::info("baslatici_donus", rc);
       nexus_test::info("sure_s", s);
-      nexus_test::expect(rc == 3, "baslatici olen rank'in kodunu (3) dondurur");
+      nexus_test::expect(observed && (observed_code==3 || observed_code==4), "ilk gozlenen hata kaydi mevcut");
+      nexus_test::expect(observed && rc==observed_code, "baslatici ilk gozlenen hata kodunu korur");
       nexus_test::expect(s < 15.0, "digerleri zaman asimi/baglanti hatasiyla grace suresinden once cikar");
     } else if (mode == "topology") {
       nexus_test::section("topoloji (10.5) + LR olcek yardimcisi (10.4)");

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-asan\\tests\\parity\\test_phase10_dist.exe",
+    "failure",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-asan\\tools\\nexus_run\\nexus-run.exe",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-asan\\tests\\parity\\test_phase10_dist.exe"
+  ],
+  "returncode": 0,
+  "stdout": "test_rank_failure_clean_exit: rank 1 olur (nexus-run, 3 surec, tcp)\n  info  rank 2 hatayi gordu: Nexus dist: baglanti koptu (recv) (hata 10054) [rank 1]\n  info  rank 0 hatayi gordu: Nexus dist: baglanti koptu (recv) (hata 10054) [rank 2]\nnexus-run: rank 0 kod 4 ile cikti; digerlerine 20 s taninir\nnexus-run: deneme 0, 3 surec, 0.1 s\n  rank 0: cikis 4\n  rank 1: cikis 3\n  rank 2: cikis 4\nnexus-run: ilk basarisiz: rank 0 (kod 4)\n  info  baslatici_donus=4\n  info  sure_s=0.199087\n  PASS  ilk gozlenen hata kaydi mevcut\n  PASS  baslatici ilk gozlenen hata kodunu korur\n  PASS  digerleri zaman asimi/baglanti hatasiyla grace suresinden once cikar\ntest_phase10_dist: 3 gecti, 0 basarisiz\n",
+  "stderr": ""
+}

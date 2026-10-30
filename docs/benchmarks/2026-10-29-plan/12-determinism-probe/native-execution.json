@@ -1,0 +1,26 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\benchmarks\\runner\\bench_cuda_phase20.exe",
+    "--model",
+    "124m",
+    "--tokens",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\faz20\\tokens.bin",
+    "--out",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-29-plan\\12-determinism-probe\\nexus-repeat.jsonl",
+    "--steps",
+    "100",
+    "--warmup",
+    "10",
+    "--seq",
+    "1024",
+    "--precision",
+    "f32",
+    "--lr",
+    "0.0006",
+    "--dump-init",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\plan-parity-layout\\repeat-initial.bin"
+  ],
+  "returncode": 0,
+  "stdout": "step 0 loss 11.0009 ms 270.227\nstep 10 loss 7.02554 ms 197\nstep 20 loss 5.82202 ms 203.594\nstep 30 loss 5.82674 ms 200.215\nstep 40 loss 5.57172 ms 199.926\nstep 50 loss 5.61828 ms 197.983\nstep 60 loss 5.13075 ms 198.156\nstep 70 loss 4.75907 ms 200.799\nstep 80 loss 5.44259 ms 198.014\nstep 90 loss 5.11993 ms 200.371\n",
+  "stderr": ""
+}

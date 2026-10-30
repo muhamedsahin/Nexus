@@ -1,0 +1,6 @@
+========= COMPUTE-SANITIZER
+{"case":"gemm-2048","device":"cpu","dtype":"f32","shape":[2048,2048,2048],"warmup":2,"seed":1337,"timing":"host_synchronized","max_abs":0,"samples_ms":[38.305900000000001,91.667000000000002,163.02279999999999,165.4289,179.69820000000001,168.9128,202.84180000000001],"cpu_threads":8}
+{"case":"gemm-2048","device":"cuda","dtype":"bf16","shape":[2048,2048,2048],"warmup":2,"seed":1337,"timing":"host_synchronized","max_abs":0,"samples_ms":[16.881699999999999,18.794599999999999,14.494400000000001,15.9529,15.4148,16.658300000000001,15.8828],"peak_allocated_bytes":58720256,"peak_reserved_bytes":92274688,"driver_free_bytes":7248166912,"driver_total_bytes":8589410304,"cuda_build":13040}
+{"case":"flash-fwd-bwd","device":"cuda","dtype":"bf16","shape":[1,8,2048,64],"warmup":2,"seed":1337,"timing":"host_synchronized","max_abs":0.00052097588069641154,"samples_ms":[20.598500000000001,13.860900000000001,10.8523,11.431100000000001,16.835899999999999,20.082100000000001,14.190099999999999],"peak_allocated_bytes":54657536,"peak_reserved_bytes":94371840,"driver_free_bytes":7243972608,"driver_total_bytes":8589410304,"cuda_build":13040}
+========= ERROR SUMMARY: 0 errors
+

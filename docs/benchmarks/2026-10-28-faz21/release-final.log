@@ -1,0 +1,14 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+    Start  28: test_parity_nano
+1/4 Test  #28: test_parity_nano .................   Passed   11.21 sec
+    Start  29: test_parity_tiny
+2/4 Test  #29: test_parity_tiny .................   Passed   16.03 sec
+    Start 141: test_phase21_bench
+3/4 Test #141: test_phase21_bench ...............   Passed    2.32 sec
+    Start 142: test_phase20_evidence
+4/4 Test #142: test_phase20_evidence ............   Passed    0.71 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =  30.32 sec

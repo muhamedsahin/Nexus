@@ -13,6 +13,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(NexusOptions)
 include(NexusTargets)
 
+# CTest 3.27 clamps explicit test limits to this global value. Seed the
+# supported longest benchmark limit before a leaf includes CTest. User overrides
+# remain authoritative; existing build caches can set this value explicitly.
+set(DART_TESTING_TIMEOUT 7200 CACHE STRING "Default maximum test duration in seconds")
+
 # Yaprak kutuphaneler once gelir. NexusTrain ayni hedefleri tekrar eklemez.
 if(NOT TARGET nexusloss)
     add_subdirectory(lib/NexusLoss)

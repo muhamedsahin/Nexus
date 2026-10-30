@@ -1,0 +1,19 @@
+{
+  "purpose": "numerical_determinism_investigation_not_speed_benchmark",
+  "original_metadata": {
+    "purpose": "numerical_correctness_investigation_not_speed_benchmark",
+    "native_sha256": "51dd5959a83971847559976ace0ff3f8cf3cfbe5e9dcae3137453189b88bbdf4",
+    "tokens_sha256": "0ccef04d8043317378f9bd93f912241b1591fc271ee79a165f00e1bb47e2e443",
+    "initial_sha256": "8b9a7bb0d768045ed22429fab78d4e0e193f7ca7eed4398ecfdc6b7c3ff97f0c",
+    "reference_script_sha256": "d98f3ded66c192a5e27b2758afc883b0965ea2e633a576ea76a8e954e9dd698e",
+    "experiment_script_sha256": "b95df63355ad1277f4e2b8818900809b33bbabeba46072053723d8d51757f5c8",
+    "steps": 100,
+    "precision": "f32",
+    "lr": 0.0006,
+    "variables": "Only reference input geometry changes; valid target tokens stay identical."
+  },
+  "initial_sha256": "8b9a7bb0d768045ed22429fab78d4e0e193f7ca7eed4398ecfdc6b7c3ff97f0c",
+  "repeated_initial_sha256": "8b9a7bb0d768045ed22429fab78d4e0e193f7ca7eed4398ecfdc6b7c3ff97f0c",
+  "bootstrap": "import os,sys,runpy; os.environ['CUBLAS_WORKSPACE_CONFIG']=':4096:8'; import torch; torch.use_deterministic_algorithms(True); torch.backends.cudnn.benchmark=False; torch.backends.cudnn.deterministic=True; sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')",
+  "experiment_script_sha256": "628ddbc182d5f0cb93e04e8442fee06ecfa2909adc521f20fb0da728c6e301ea"
+}

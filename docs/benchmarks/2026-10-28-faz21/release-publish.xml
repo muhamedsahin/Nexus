@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="7"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="22"
+	timestamp="2026-10-28T21:06:25"
+	>
+	<testcase name="test_phase21_bench" classname="test_phase21_bench" time="2.01902" status="run">
+		<system-out>........
+----------------------------------------------------------------------
+Ran 8 tests in 1.296s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_phase20_evidence" classname="test_phase20_evidence" time="0.759784" status="run">
+		<system-out>.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.108s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_cuda_gpt_small" classname="test_cuda_gpt_small" time="12.8359" status="run">
+		<system-out>gpt small: L=2 C=64 H=4 V=257 B=2 T=32 param=120640 aktivasyon=1.0 MiB
+  info  nexus kayip: 5.527300 -&gt; 5.572584 (10 adim, 0.08 s)
+  info  torch 2.14.1+cpu kayip: 5.527300 -&gt; 5.572584
+  info  adim 0: nexus=5.5273004 torch32=5.5273004 torch64=5.5273003 |nexus-torch32|=2.18e-09 |nexus-fp64|=1.30e-08 |torch32-fp64|=1.08e-08
+  info  adim 1: nexus=5.5458880 torch32=5.5458884 torch64=5.5458879 |nexus-torch32|=4.74e-07 |nexus-fp64|=1.80e-09 |torch32-fp64|=4.76e-07
+  info  adim 2: nexus=5.5834103 torch32=5.5834103 torch64=5.5834106 |nexus-torch32|=3.06e-09 |nexus-fp64|=3.36e-07 |torch32-fp64|=3.33e-07
+  info  adim 3: nexus=5.5335746 torch32=5.5335736 torch64=5.5335746 |nexus-torch32|=9.53e-07 |nexus-fp64|=3.92e-08 |torch32-fp64|=9.92e-07
+  info  adim 4: nexus=5.5694327 torch32=5.5694323 torch64=5.5694329 |nexus-torch32|=4.81e-07 |nexus-fp64|=1.95e-07 |torch32-fp64|=6.76e-07
+  info  adim 5: nexus=5.6000233 torch32=5.6000228 torch64=5.6000231 |nexus-torch32|=4.77e-07 |nexus-fp64|=1.43e-07 |torch32-fp64|=3.34e-07
+  info...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_fused_8bit_update" classname="test_fused_8bit_update" time="2.17156" status="run">
+		<system-out>test_fused_8bit_update: geri geciste katman katman 8-bit AdamW vs ayri adim (C modu)
+  info  kayip[0]=6.2636 | son 50 ort.: ayri adim 1.9748, fused 1.9752 (bagil +2.03e-04) | durum 25.50 -&gt; 16.50 MiB
+  PASS  ilk kayip ayni (ayni baslatma)
+  info  fused 200 adim egrisi ayri adima yakin                       hata=2.032e-04 esik=2.0e-02
+  PASS  fused 200 adim egrisi ayri adima yakin
+  PASS  fused ogreniyor
+  PASS  fused: tam gradyan tamponu yok, daha az aygit durumu
+faz7-memory-cuda: 4 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_trainer_resume_cuda" classname="test_trainer_resume_cuda" time="0.743668" status="run">
+		<system-out>test_trainer_resume_cuda: BF16, 3 + kayit + 3 == 6
+  adim 0: 6.2300601 / 6.2300601
+  adim 1: 6.26301956 / 6.26301956
+  adim 2: 6.23705125 / 6.23705125
+  adim 3: 6.24076176 / 6.24076176
+  adim 4: 6.2416575 / 6.2416575
+  adim 5: 6.26366854 / 6.26366854
+  PASS  GPU devam: kesintisizle bit bit ayni
+faz9-trainer-cuda: 1 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_cuda_graph_replay_equal" classname="test_cuda_graph_replay_equal" time="0.855989" status="run">
+		<system-out>  info  CUDA Graph: 308 dugum, 11 yeniden oynatma; 12 adim kayip 6.24029 -&gt; 6.24716; dolgulu eager ile BIT BIT ayni; dolgusuz eager ile en buyuk kayip farki 4.34e-05
+  PASS  tum adim tek CUDA Graph olarak yakalandi ve yeniden oynatildi
+  PASS  test_cuda_graph_replay_equal: yeniden oynatma == ayni cekirdeklerle eager (kayip, norm, parametre)
+  PASS  GEMM dolgusu kaybi degistirmez (dolgusuz eager ile kucuk fark)
+test_phase13_compile_cuda: 3 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_phase20_resume_short" classname="test_phase20_resume_short" time="3.40507" status="run">
+		<system-out>step 0 loss 4.88579 ms 168.621
+ step 0 loss 4.88579 ms 176.655
+  PASS: BF16 8 steps == 4 + full checkpoint + fresh process + 4 (exact losses/LR); invalid options rejected
+</system-out>
+	</testcase>
+</testsuite>

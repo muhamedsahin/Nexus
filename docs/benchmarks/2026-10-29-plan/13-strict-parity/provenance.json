@@ -1,0 +1,16 @@
+{
+  "purpose": "100-step FP32 low-LR parity validation; not high-LR/BF16 or performance closure",
+  "copied_sha256": {
+    "initial.bin.json": "c6a98c52d0759e4c37e08604fd108e14f59dcb56287cda91592f21340bee46ba",
+    "metadata.json": "083f609655b665de2f574264c4cca5ef2fdbc8c199b9df4ee470c1c08397ca92",
+    "nanogpt.json": "2c816fcb3abc05d0fbc257655126465d950e429dfa51a6a522ce8d65a938df92",
+    "native.log": "5fe89068722c154564ea25582858b187a3a0af0dcd5699bd95cf7523af101f8e",
+    "nexus.jsonl": "90e09f05d5450afe59b4cee83a0b5a1049ed361b9ff6cf6390696089779a1102",
+    "parity.json": "b4842aa34385857ff6a465ea8f673c764c9345aaa8727bfe4e69fd8dcc5c5e75",
+    "reference.log": "fc8ce4b3142519e5e149e121e4efd47148c1595e168b175a76585ae09ad95a3a"
+  },
+  "initial_weights_sha256": "8b9a7bb0d768045ed22429fab78d4e0e193f7ca7eed4398ecfdc6b7c3ff97f0c",
+  "initial_weights_not_copied_bytes": 497759232,
+  "driver_sha256": "64ecd018b31c938487015e0544b386c734ae75672c47be5dcb85dbceb0785d35",
+  "reference_sha256": "3af13fbcb4b6cd8f2f8770c25dee4addae76c7f8ed35b36fae0d65f3644b035f"
+}

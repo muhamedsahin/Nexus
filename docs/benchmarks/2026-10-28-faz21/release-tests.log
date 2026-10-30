@@ -1,0 +1,16 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+    Start 141: test_phase21_bench
+1/5 Test #141: test_phase21_bench ...............   Passed    1.82 sec
+    Start 142: test_phase20_evidence
+2/5 Test #142: test_phase20_evidence ............   Passed    1.60 sec
+    Start 166: test_fused_8bit_update
+3/5 Test #166: test_fused_8bit_update ...........   Passed    5.20 sec
+    Start 176: test_cuda_graph_replay_equal
+4/5 Test #176: test_cuda_graph_replay_equal .....   Passed    1.65 sec
+    Start 208: test_phase20_resume_short
+5/5 Test #208: test_phase20_resume_short ........   Passed    6.78 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =  17.27 sec

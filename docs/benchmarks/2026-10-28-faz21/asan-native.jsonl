@@ -1,0 +1,2 @@
+{"case":"gemm-2048","device":"cpu","dtype":"f32","shape":[2048,2048,2048],"warmup":2,"seed":1337,"timing":"host_synchronized","max_abs":0,"samples_ms":[74.197100000000006,46.580800000000004,55.907699999999998,64.524500000000003,86.229900000000001,75.359099999999998,76.362799999999993],"cpu_threads":8}
+{"case":"cuda","status":"unavailable","reason":"CPU-only build"}

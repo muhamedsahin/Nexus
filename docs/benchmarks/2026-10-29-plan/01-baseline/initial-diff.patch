@@ -1,0 +1,235 @@
+diff --git a/docs/benchmarks/2026-10-23-faz0/bench_phase0.json b/docs/benchmarks/2026-10-23-faz0/bench_phase0.json
+index 8ddbe2e..dce9ec8 100644
+--- a/docs/benchmarks/2026-10-23-faz0/bench_phase0.json
++++ b/docs/benchmarks/2026-10-23-faz0/bench_phase0.json
+@@ -2,13 +2,13 @@
+   "bench": "bench_phase0",
+   "phase": 0,
+   "results": {
+-    "gate_alloc_free_ns_per_op": 110.47,
+-    "ledger_snapshot_ns": 17.899999999999999,
+-    "timer_disabled_ns": 59.404000000000003,
+-    "timer_enabled_ns": 214.51599999999999,
+-    "counter_add_flops_ns": 28.518999999999998,
+-    "reference_matmul_gflops": 1.0303147444000349,
+-    "trace_dump_us": 781.79999999999995
++    "gate_alloc_free_ns_per_op": 103.36,
++    "ledger_snapshot_ns": 18.395,
++    "timer_disabled_ns": 63.311999999999998,
++    "timer_enabled_ns": 266.68000000000001,
++    "counter_add_flops_ns": 32.432499999999997,
++    "reference_matmul_gflops": 1.0987487597730972,
++    "trace_dump_us": 854.10000000000002
+   },
+   "notes": {
+     "mfu": "olculmedi: aygit zirve FLOP/s verilmeden MFU iddiasi uretilmez",
+diff --git a/docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json b/docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json
+index e214817..e6b30c7 100644
+--- a/docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json
++++ b/docs/benchmarks/2026-10-23-faz0/bench_phase0_trace.json
+@@ -1 +1 @@
+-{"traceEvents":[{"name":"bench.forward","cat":"cpu_op","ph":"X","pid":1,"tid":7638838409631429457,"ts":114631,"dur":0.1},{"name":"bench.backward","cat":"cpu_op","ph":"X","pid":1,"tid":7638838409631429457,"ts":114634,"dur":0.1},{"name":"bench.simulated_step","cat":"train","ph":"X","pid":1,"tid":7638838409631429457,"ts":114631,"dur":3.3},{"name":"nexus_counters","ph":"C","pid":1,"tid":0,"ts":0,"args":{"bench.counter_flops":12800000,"bench.counter_bytes":0,"bench.counter_calls":0,"bench.matmul_flops":100663296,"bench.matmul_bytes":0,"bench.matmul_calls":0}}],"originNs":386382964656200,"displayTimeUnit":"ns"}
+\ No newline at end of file
++{"traceEvents":[{"name":"bench.forward","cat":"cpu_op","ph":"X","pid":1,"tid":5118279895884963928,"ts":111986,"dur":0.1},{"name":"bench.backward","cat":"cpu_op","ph":"X","pid":1,"tid":5118279895884963928,"ts":111988,"dur":0.1},{"name":"bench.simulated_step","cat":"train","ph":"X","pid":1,"tid":5118279895884963928,"ts":111986,"dur":3.2},{"name":"nexus_counters","ph":"C","pid":1,"tid":0,"ts":0,"args":{"bench.counter_flops":12800000,"bench.counter_bytes":0,"bench.counter_calls":0,"bench.matmul_flops":100663296,"bench.matmul_bytes":0,"bench.matmul_calls":0}}],"originNs":108006701666900,"displayTimeUnit":"ns"}
+\ No newline at end of file
+diff --git a/docs/benchmarks/2026-10-23-faz1/bench_phase1.json b/docs/benchmarks/2026-10-23-faz1/bench_phase1.json
+index 2b318b0..82f2458 100644
+--- a/docs/benchmarks/2026-10-23-faz1/bench_phase1.json
++++ b/docs/benchmarks/2026-10-23-faz1/bench_phase1.json
+@@ -2,13 +2,13 @@
+   "bench": "bench_phase1",
+   "phase": 1,
+   "results": {
+-    "cache_hit_ns_per_op": 40.688333333333333,
+-    "cache_miss_ns_per_op": 194.24000000000001,
+-    "empty_cache_ns": 1619100,
++    "cache_hit_ns_per_op": 38.076000000000001,
++    "cache_miss_ns_per_op": 178.44,
++    "empty_cache_ns": 1985700,
+     "fragmentation_ratio_peak": 1.2837837837837838,
+     "reserved_peak_bytes": 389120,
+     "current_peak_bytes": 303104,
+-    "gate_ops_per_sec": 8536815.4434406105
++    "gate_ops_per_sec": 9387908.3740142696
+   },
+   "notes": {
+     "fragmentation": "reserved/current; FAZ 1 k64 havuzundan olculur",
+diff --git a/docs/benchmarks/2026-10-23-faz2/bench_phase2.json b/docs/benchmarks/2026-10-23-faz2/bench_phase2.json
+index 6336d01..a0ef681 100644
+--- a/docs/benchmarks/2026-10-23-faz2/bench_phase2.json
++++ b/docs/benchmarks/2026-10-23-faz2/bench_phase2.json
+@@ -2,10 +2,10 @@
+   "bench": "bench_phase2",
+   "phase": 2,
+   "results": {
+-    "matmul_fwd_bwd_ops_per_sec": 748.82277945253657,
+-    "grad_enabled_ns_per_op": 440.78199999999998,
+-    "nograd_ns_per_op": 213.73849999999999,
+-    "mlp_fwd_bwd_steps_per_sec": 67887.510395275021
++    "matmul_fwd_bwd_ops_per_sec": 716.39792144880187,
++    "grad_enabled_ns_per_op": 554.47850000000005,
++    "nograd_ns_per_op": 252.11099999999999,
++    "mlp_fwd_bwd_steps_per_sec": 57967.822061973398
+   },
+   "notes": {
+     "engine": "bagimlilik sayaci + topolojik geri; reentrant per-cagri",
+diff --git a/docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json b/docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json
+index 7a6e0a1..40d4944 100644
+--- a/docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json
++++ b/docs/benchmarks/2026-10-23-faz3/bench_phase3_fused.json
+@@ -2,10 +2,10 @@
+   "bench": "bench_phase3_fused",
+   "phase": 3,
+   "results": {
+-    "fused_linear_ns_per_op": 1611960.8500000001,
+-    "unfused_linear_ns_per_op": 1654265.2,
+-    "fused_layernorm_ns_per_op": 44477.150000000001,
+-    "fused_softmax_ns_per_op": 46164.800000000003
++    "fused_linear_ns_per_op": 1610955.3999999999,
++    "unfused_linear_ns_per_op": 1762291.6000000001,
++    "fused_layernorm_ns_per_op": 54230.800000000003,
++    "fused_softmax_ns_per_op": 53649.199999999997
+   },
+   "notes": {
+     "fusion": "ileri+geri tek dugumde; ara aktivasyon ayri tensor dolasmaz",
+diff --git a/docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json b/docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json
+index 5ac9496..9a88f1c 100644
+--- a/docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json
++++ b/docs/benchmarks/2026-10-23-faz3/bench_phase3_training.json
+@@ -1,18 +1,18 @@
+ {
+   "bench": "bench_phase3_training",
+   "phase": 3,
+-  "machine": {"cpu": "AMD Ryzen 7 5800H with Radeon Graphics", "compiler": "MSVC 1944", "git_commit": "e52d3ca", "threads": 1},
++  "machine": {"cpu": "AMD Ryzen 7 5800H with Radeon Graphics", "compiler": "MSVC 1944", "git_commit": "6fdd057", "threads": 1},
+   "protocol": "isinma + tekrar; medyan/min/max/std (BOLUM G)",
+   "results": {
+-    "ce_shifted_fused": {"median_ms": 1043.064600, "min_ms": 1022.923900, "max_ms": 1232.217400, "std_ms": 69.253721, "repeats": 7},
+-    "ce_legacy_copies": {"median_ms": 1584.112900, "min_ms": 1555.714000, "max_ms": 1736.686400, "std_ms": 61.778560, "repeats": 7},
++    "ce_shifted_fused": {"median_ms": 1178.282300, "min_ms": 1164.603400, "max_ms": 1199.936500, "std_ms": 12.084482, "repeats": 7},
++    "ce_legacy_copies": {"median_ms": 1758.637600, "min_ms": 1742.281100, "max_ms": 1798.185900, "std_ms": 16.100115, "repeats": 7},
+     "ce_logit_bytes": 412090368,
+     "ce_fused_extra_heap_bytes": 0,
+     "ce_legacy_extra_heap_bytes": 1235474580,
+-    "adamw_124m_foreach_fused": {"median_ms": 260.288200, "min_ms": 244.925900, "max_ms": 273.018400, "std_ms": 9.532572, "repeats": 5},
+-    "adamw_124m_nexus_optim_avx2": {"median_ms": 163.815000, "min_ms": 159.996200, "max_ms": 166.634800, "std_ms": 2.276750, "repeats": 5},
+-    "rms_norm_4096x768_fwd_bwd": {"median_ms": 19.006200, "min_ms": 16.745500, "max_ms": 21.135900, "std_ms": 1.665694, "repeats": 7},
+-    "layer_norm_4096x768_fwd_bwd": {"median_ms": 31.801000, "min_ms": 30.706500, "max_ms": 33.457800, "std_ms": 0.976762, "repeats": 7}
++    "adamw_124m_foreach_fused": {"median_ms": 293.432000, "min_ms": 288.454800, "max_ms": 301.323600, "std_ms": 4.444973, "repeats": 5},
++    "adamw_124m_nexus_optim_avx2": {"median_ms": 156.273300, "min_ms": 154.220000, "max_ms": 161.951900, "std_ms": 3.320925, "repeats": 5},
++    "rms_norm_4096x768_fwd_bwd": {"median_ms": 22.199700, "min_ms": 18.134600, "max_ms": 25.451900, "std_ms": 2.494319, "repeats": 7},
++    "layer_norm_4096x768_fwd_bwd": {"median_ms": 35.048000, "min_ms": 31.946900, "max_ms": 38.524300, "std_ms": 2.273349, "repeats": 7}
+   },
+   "notes": "CPU tek is parcacigi. GPU (cuBLASLt/CUDA cekirdekleri) olculmedi; FAZ 3 GPU yolu acik is."
+ }
+diff --git a/docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json b/docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json
+index 29ba1ab..5fadab5 100644
+--- a/docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json
++++ b/docs/benchmarks/2026-10-24-faz1-3-gpu/bench_cuda_phase3.json
+@@ -1,25 +1,25 @@
+ {
+   "bench": "bench_cuda_phase3",
+-  "machine": {"gpu": "NVIDIA GeForce RTX 3070 Laptop GPU", "sm": "86", "driver": 13030, "runtime": 13030, "peak_mem_gbs": 448.064, "compiler": "MSVC 1944", "git_commit": "dc6b914"},
++  "machine": {"gpu": "NVIDIA GeForce RTX 3070 Laptop GPU", "sm": "86", "driver": 13030, "runtime": 13030, "peak_mem_gbs": 448.064, "compiler": "MSVC 1944", "git_commit": "6fdd057"},
+   "protocol": "isinma 3 + 7 tekrar, CUDA olaylari, medyan/min/max/std",
+   "results": {
+-    "allocator_cache_hit_ns": {"median": 458.008, "min": 437.679, "max": 503.218, "std": 19.3946, "repeats": 7, "unit": "ns"},
+-    "cuda_malloc_free_ns": {"median": 419672, "min": 381814, "max": 442488, "std": 21848.6, "repeats": 7, "unit": "ns"},
+-    "memcpy_d2d_2p24_f32": {"median": 0.398541, "min": 0.332902, "max": 0.405197, "std": 0.0306095, "repeats": 7, "unit": "ms"}, "memcpy_d2d_gbs": 336.773,
+-    "add_2p24_f32": {"median": 0.559923, "min": 0.557978, "max": 0.564122, "std": 0.00204935, "repeats": 7, "unit": "ms"}, "add_gbs": 359.561,
+-    "sum_2p24_f32": {"median": 0.170394, "min": 0.166502, "max": 0.237773, "std": 0.0292835, "repeats": 7, "unit": "ms"}, "sum_gbs": 393.846,
+-    "linear_fwd_bwd_fp32": {"median": 93.781, "min": 92.8389, "max": 96.2662, "std": 0.998081, "repeats": 7, "unit": "ms"}, "linear_tflops_fp32": 8.79319,
+-    "cublas_direct_fp32": {"median": 93.7861, "min": 92.3064, "max": 94.7732, "std": 0.73858, "repeats": 7, "unit": "ms"}, "cublas_tflops_fp32": 8.79271,
+-    "linear_fwd_bwd_tf32": {"median": 50.9583, "min": 50.0582, "max": 51.1908, "std": 0.374597, "repeats": 7, "unit": "ms"}, "linear_tflops_tf32": 16.1825,
+-    "cublas_direct_tf32": {"median": 50.2139, "min": 50.0398, "max": 51.1222, "std": 0.429009, "repeats": 7, "unit": "ms"}, "cublas_tflops_tf32": 16.4224,
+-    "layernorm_fwd_bwd_8192x768": {"median": 0.434176, "min": 0.407552, "max": 0.935936, "std": 0.175272, "repeats": 7, "unit": "ms"}, "layernorm_gbs": 289.811,
+-    "rmsnorm_fwd_bwd_8192x768": {"median": 0.416768, "min": 0.397312, "max": 0.88064, "std": 0.162485, "repeats": 7, "unit": "ms"}, "rmsnorm_gbs": 301.916,
+-    "ce_8192x50304": {"median": 17.7388, "min": 17.1612, "max": 17.9712, "std": 0.232486, "repeats": 7, "unit": "ms"}, "ce_logit_bytes": 1648361472, "ce_extra_peak_bytes": 0,
+-    "adamw_124m": {"median": 12.0709, "min": 11.9491, "max": 12.4436, "std": 0.151877, "repeats": 7, "unit": "ms"}, "adamw_gbs": 329.89,
+-    "gpt2s_b1_fp32": {"median": 167.117, "min": 166.352, "max": 175.352, "std": 2.96546, "repeats": 7, "unit": "ms/step"}, "gpt2s_b1_fp32_tokens_per_s": 6127.45, "gpt2s_b1_fp32_peak_bytes": 3697695744,
+-    "gpt2s_b2_fp32": {"median": 309.438, "min": 307.293, "max": 312.383, "std": 2.00722, "repeats": 7, "unit": "ms/step"}, "gpt2s_b2_fp32_tokens_per_s": 6618.44, "gpt2s_b2_fp32_peak_bytes": 5365492736,
+-    "gpt2s_b1_tf32": {"median": 113.044, "min": 112.053, "max": 114.028, "std": 0.572555, "repeats": 7, "unit": "ms/step"}, "gpt2s_b1_tf32_tokens_per_s": 9058.38, "gpt2s_b1_tf32_peak_bytes": 3697695744,
+-    "gpt2s_b2_tf32": {"median": 200.533, "min": 199.804, "max": 203.443, "std": 1.38842, "repeats": 7, "unit": "ms/step"}, "gpt2s_b2_tf32_tokens_per_s": 10212.8, "gpt2s_b2_tf32_peak_bytes": 5365492736,
++    "allocator_cache_hit_ns": {"median": 506.319, "min": 494.937, "max": 539.429, "std": 16.2051, "repeats": 7, "unit": "ns"},
++    "cuda_malloc_free_ns": {"median": 475145, "min": 441047, "max": 491358, "std": 17373.5, "repeats": 7, "unit": "ns"},
++    "memcpy_d2d_2p24_f32": {"median": 0.396595, "min": 0.333312, "max": 0.402022, "std": 0.0311838, "repeats": 7, "unit": "ms"}, "memcpy_d2d_gbs": 338.425,
++    "add_2p24_f32": {"median": 0.569037, "min": 0.56279, "max": 0.586342, "std": 0.00761992, "repeats": 7, "unit": "ms"}, "add_gbs": 353.802,
++    "sum_2p24_f32": {"median": 0.166502, "min": 0.164234, "max": 0.254464, "std": 0.0364461, "repeats": 7, "unit": "ms"}, "sum_gbs": 403.05,
++    "linear_fwd_bwd_fp32": {"median": 97.9005, "min": 96.1741, "max": 99.2563, "std": 0.915065, "repeats": 7, "unit": "ms"}, "linear_tflops_fp32": 8.42318,
++    "cublas_direct_fp32": {"median": 96.6554, "min": 94.1937, "max": 97.6507, "std": 1.02032, "repeats": 7, "unit": "ms"}, "cublas_tflops_fp32": 8.53169,
++    "linear_fwd_bwd_tf32": {"median": 51.5123, "min": 51.0136, "max": 52.9521, "std": 0.698748, "repeats": 7, "unit": "ms"}, "linear_tflops_tf32": 16.0085,
++    "cublas_direct_tf32": {"median": 53.4211, "min": 52.3899, "max": 53.9566, "std": 0.597146, "repeats": 7, "unit": "ms"}, "cublas_tflops_tf32": 15.4365,
++    "layernorm_fwd_bwd_8192x768": {"median": 0.411648, "min": 0.402432, "max": 0.470016, "std": 0.0224814, "repeats": 7, "unit": "ms"}, "layernorm_gbs": 305.672,
++    "rmsnorm_fwd_bwd_8192x768": {"median": 0.395264, "min": 0.386048, "max": 0.432128, "std": 0.0157826, "repeats": 7, "unit": "ms"}, "rmsnorm_gbs": 318.342,
++    "ce_8192x50304": {"median": 18.4494, "min": 18.2958, "max": 19.458, "std": 0.391002, "repeats": 7, "unit": "ms"}, "ce_logit_bytes": 1648361472, "ce_extra_peak_bytes": 0,
++    "adamw_124m": {"median": 12.7908, "min": 12.4017, "max": 13.1103, "std": 0.196023, "repeats": 7, "unit": "ms"}, "adamw_gbs": 311.324,
++    "gpt2s_b1_fp32": {"median": 171.681, "min": 169.26, "max": 178.825, "std": 2.95454, "repeats": 7, "unit": "ms/step"}, "gpt2s_b1_fp32_tokens_per_s": 5964.56, "gpt2s_b1_fp32_peak_bytes": 3697709056,
++    "gpt2s_b2_fp32": {"median": 318.275, "min": 315.517, "max": 323.078, "std": 2.95146, "repeats": 7, "unit": "ms/step"}, "gpt2s_b2_fp32_tokens_per_s": 6434.7, "gpt2s_b2_fp32_peak_bytes": 5365506048,
++    "gpt2s_b1_tf32": {"median": 117.164, "min": 113.871, "max": 118.326, "std": 1.8006, "repeats": 7, "unit": "ms/step"}, "gpt2s_b1_tf32_tokens_per_s": 8739.88, "gpt2s_b1_tf32_peak_bytes": 3697709056,
++    "gpt2s_b2_tf32": {"median": 208.462, "min": 204.037, "max": 211.251, "std": 2.92613, "repeats": 7, "unit": "ms/step"}, "gpt2s_b2_tf32_tokens_per_s": 9824.34, "gpt2s_b2_tf32_peak_bytes": 5365506048,
+     "notes": "PyTorch CUDA bu kurulumda yok (.bench-venv torch 2.14.1+cpu); GPU karsilastirmasi cuBLAS dogrudan cagriya karsidir."
+   }
+ }
+diff --git a/docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json b/docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json
+index 63226b4..721d131 100644
+--- a/docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json
++++ b/docs/benchmarks/2026-10-24-faz4/bench_cuda_phase4.json
+@@ -1,12 +1,12 @@
+ {
+   "phase":4,"device":"NVIDIA GeForce RTX 3070 Laptop GPU","compute_capability":"8.6","protocol":{"warmup":2,"repeats":7,"timing":"CUDA events"},
+-  "linear_bf16":{"median":26.53184,"min":25.75258,"max":33.05165,"std":2.421491,"repeats":15,"unit":"ms"},"linear_bf16_tflops":31.08091,"linear_bf16_dense_peak_tflops":31.9488,
+-  "linear_fp16":{"median":26.6537,"min":25.8089,"max":29.85779,"std":0.9988502,"repeats":15,"unit":"ms"},"linear_fp16_tflops":30.93881,"linear_fp16_dense_peak_tflops":31.9488,
+-  "gpt2s_fp32":{"median":163.2645,"min":158.1107,"max":177.5073,"std":5.989437,"repeats":7,"unit":"ms/step"},"gpt2s_fp32_tokens_per_s":6272.031,"gpt2s_fp32_peak_bytes":3697696768,"gpt2s_fp32_state_bytes":1991036928,"gpt2s_fp32_activation_bytes":1668820992,
+-  "gpt2s_tf32":{"median":118.9243,"min":117.7897,"max":119.3882,"std":0.6519351,"repeats":7,"unit":"ms/step"},"gpt2s_tf32_tokens_per_s":8610.52,"gpt2s_tf32_peak_bytes":3697696768,"gpt2s_tf32_state_bytes":1991036928,"gpt2s_tf32_activation_bytes":1668820992,
+-  "gpt2s_bf16_B":{"median":72.55347,"min":72.23705,"max":73.28256,"std":0.3520888,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_B_tokens_per_s":14113.73,"gpt2s_bf16_B_peak_bytes":3365490688,"gpt2s_bf16_B_state_bytes":2239916544,"gpt2s_bf16_B_activation_bytes":1085978624,
+-  "gpt2s_fp16_B":{"median":76.17024,"min":75.03258,"max":76.76109,"std":0.5066035,"repeats":7,"unit":"ms/step"},"gpt2s_fp16_B_tokens_per_s":13443.57,"gpt2s_fp16_B_peak_bytes":3365490688,"gpt2s_fp16_B_state_bytes":2239916544,"gpt2s_fp16_B_activation_bytes":1085978624,
+-  "gpt2s_bf16_A":{"median":67.52666,"min":66.28761,"max":70.67751,"std":1.317088,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_A_tokens_per_s":15164.38,"gpt2s_bf16_A_peak_bytes":3365490688,"gpt2s_bf16_A_state_bytes":2239916544,"gpt2s_bf16_A_activation_bytes":1085978624,
+-  "gpt2s_bf16_C":{"median":66.16371,"min":64.30515,"max":70.36314,"std":1.907495,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_C_tokens_per_s":15476.76,"gpt2s_bf16_C_peak_bytes":2867692544,"gpt2s_bf16_C_state_bytes":1742642688,"gpt2s_bf16_C_activation_bytes":1085978624,
++  "linear_bf16":{"median":25.46688,"min":25.20269,"max":26.39667,"std":0.3565044,"repeats":15,"unit":"ms"},"linear_bf16_tflops":32.38063,"linear_bf16_dense_peak_tflops":31.9488,
++  "linear_fp16":{"median":27.1913,"min":26.04646,"max":27.82925,"std":0.6155697,"repeats":15,"unit":"ms"},"linear_fp16_tflops":30.32712,"linear_fp16_dense_peak_tflops":31.9488,
++  "gpt2s_fp32":{"median":173.6858,"min":169.132,"max":176.9964,"std":3.056736,"repeats":7,"unit":"ms/step"},"gpt2s_fp32_tokens_per_s":5895.705,"gpt2s_fp32_peak_bytes":3697709056,"gpt2s_fp32_state_bytes":1991036928,"gpt2s_fp32_activation_bytes":1668820992,
++  "gpt2s_tf32":{"median":117.7139,"min":114.1525,"max":120.2627,"std":2.05829,"repeats":7,"unit":"ms/step"},"gpt2s_tf32_tokens_per_s":8699.056,"gpt2s_tf32_peak_bytes":3697709056,"gpt2s_tf32_state_bytes":1991036928,"gpt2s_tf32_activation_bytes":1668820992,
++  "gpt2s_bf16_B":{"median":65.40186,"min":63.89146,"max":69.21318,"std":1.85846,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_B_tokens_per_s":15657.05,"gpt2s_bf16_B_peak_bytes":2959819264,"gpt2s_bf16_B_state_bytes":2239916544,"gpt2s_bf16_B_activation_bytes":680819200,
++  "gpt2s_fp16_B":{"median":68.2025,"min":67.81952,"max":72.97024,"std":1.912441,"repeats":7,"unit":"ms/step"},"gpt2s_fp16_B_tokens_per_s":15014.11,"gpt2s_fp16_B_peak_bytes":2959819264,"gpt2s_fp16_B_state_bytes":2239916544,"gpt2s_fp16_B_activation_bytes":680819200,
++  "gpt2s_bf16_A":{"median":70.80243,"min":69.44768,"max":74.12941,"std":1.67064,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_A_tokens_per_s":14462.78,"gpt2s_bf16_A_peak_bytes":2959819264,"gpt2s_bf16_A_state_bytes":2239916544,"gpt2s_bf16_A_activation_bytes":680819200,
++  "gpt2s_bf16_C":{"median":64.34304,"min":62.96064,"max":69.43744,"std":1.998169,"repeats":7,"unit":"ms/step"},"gpt2s_bf16_C_tokens_per_s":15914.7,"gpt2s_bf16_C_peak_bytes":2462021120,"gpt2s_bf16_C_state_bytes":1742642688,"gpt2s_bf16_C_activation_bytes":680819200,
+   "notes":"Yerel FP8 Tensor Core yok; FP8 hiz iddiasi yapilmaz. PyTorch karsilastirmasi ayri calistirilmalidir."
+ }
+diff --git a/docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json b/docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json
+index 9e18803..46073b5 100644
+--- a/docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json
++++ b/docs/benchmarks/2026-10-24-faz5/bench_attention_cpu.json
+@@ -1,12 +1,12 @@
+ {
+   "phase":5,"backend":"nexus_cpu_flash_fp32","threads":16,"shape":{"batch":1,"heads":8,"head_dim":64},"cases":[
+-    {"T":512,"causal":false,"fwd_ms":9.366,"fwd_bwd_ms":23.9881},
+-    {"T":512,"causal":true,"fwd_ms":8.0112,"fwd_bwd_ms":15.6906},
+-    {"T":1024,"causal":false,"fwd_ms":15.4502,"fwd_bwd_ms":54.196},
+-    {"T":1024,"causal":true,"fwd_ms":8.5697,"fwd_bwd_ms":29.1383},
+-    {"T":2048,"causal":false,"fwd_ms":49.6978,"fwd_bwd_ms":172.8607},
+-    {"T":2048,"causal":true,"fwd_ms":30.1057,"fwd_bwd_ms":97.6883},
+-    {"T":4096,"causal":false,"fwd_ms":192.9229,"fwd_bwd_ms":727.2962},
+-    {"T":4096,"causal":true,"fwd_ms":96.2288,"fwd_bwd_ms":379.4507}
++    {"T":512,"causal":false,"fwd_ms":1.4572,"fwd_bwd_ms":4.9849},
++    {"T":512,"causal":true,"fwd_ms":1.0541,"fwd_bwd_ms":4.5895},
++    {"T":1024,"causal":false,"fwd_ms":5.0997,"fwd_bwd_ms":19.2926},
++    {"T":1024,"causal":true,"fwd_ms":2.8599,"fwd_bwd_ms":10.4818},
++    {"T":2048,"causal":false,"fwd_ms":19.6743,"fwd_bwd_ms":76.7166},
++    {"T":2048,"causal":true,"fwd_ms":12.027,"fwd_bwd_ms":41.9492},
++    {"T":4096,"causal":false,"fwd_ms":84.7751,"fwd_bwd_ms":326.1911},
++    {"T":4096,"causal":true,"fwd_ms":42.7357,"fwd_bwd_ms":160.3582}
+   ],"protocol":{"warmup":1,"repeats":5,"stat":"median","timing":"steady_clock"}
+ }
+diff --git a/docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json b/docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json
+index 460b70d..fdda5b4 100644
+--- a/docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json
++++ b/docs/benchmarks/2026-10-24-faz6/bench_cuda_phase6.json
+@@ -1,6 +1,6 @@
+ {
+   "phase":6,"device":"NVIDIA GeForce RTX 3070 Laptop GPU","protocol":{"warmup":10,"repeats":10,"timing":"CUDA events"},
+-  "swiglu_mlp":{"N":4096,"d":4096,"F":11008,"fwd":{"median":36.62746,"min":34.91123,"max":40.37632,"repeats":10,"unit":"ms"},"bwd":{"median":70.95399,"min":65.65786,"max":72.25344,"repeats":10,"unit":"ms"},"fwd_bwd":{"median":115.6813,"min":109.2495,"max":141.6868,"repeats":10,"unit":"ms"},"gemms_only":{"median":103.0554,"min":98.36749,"max":114.0101,"repeats":10,"unit":"ms"},"gated_kernels":{"median":2.161664,"min":2.10944,"max":2.957312,"repeats":10,"unit":"ms"},"fwd_tflops":30.2533,"bwd_tflops":31.23437,"fwd_bwd_tflops":28.73676,"gated_kernels_gbps":333.7338},
+-  "rope":[{"dtype":"bf16","time":{"median":0.9472,"min":0.881664,"max":1.492992,"repeats":10,"unit":"ms"},"gbps":356.4627},{"dtype":"f32","time":{"median":2.223104,"min":1.67936,"max":2.741248,"repeats":10,"unit":"ms"},"gbps":302.8135}],
++  "swiglu_mlp":{"N":4096,"d":4096,"F":11008,"fwd":{"median":107.1043,"min":101.4979,"max":109.27,"repeats":10,"unit":"ms"},"bwd":{"median":357.4139,"min":289.0619,"max":374.3795,"repeats":10,"unit":"ms"},"fwd_bwd":{"median":468.7933,"min":403.7335,"max":476.3792,"repeats":10,"unit":"ms"},"gemms_only":{"median":428.2624,"min":395.3234,"max":441.2662,"repeats":10,"unit":"ms"},"gated_kernels":{"median":29.94995,"min":26.25536,"max":32.01536,"repeats":10,"unit":"ms"},"fwd_tflops":10.34601,"bwd_tflops":6.200663,"fwd_bwd_tflops":7.091194,"gated_kernels_gbps":24.08753},
++  "rope":[{"dtype":"bf16","time":{"median":15.60474,"min":10.82368,"max":20.75648,"repeats":10,"unit":"ms"},"gbps":21.63711},{"dtype":"f32","time":{"median":29.97043,"min":24.67226,"max":35.40173,"repeats":10,"unit":"ms"},"gbps":22.46166}],
+   "notes":"PyTorch CUDA kurulu degil: eager/compile karsilastirmasi yok. RoPE ayri cekirdek; flash yukleme fuzyonu yok."
+ }

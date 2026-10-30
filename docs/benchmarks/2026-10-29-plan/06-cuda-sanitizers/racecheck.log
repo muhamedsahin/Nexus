@@ -1,0 +1,6 @@
+========= COMPUTE-SANITIZER
+{"case":"gemm-2048","device":"cpu","dtype":"f32","shape":[2048,2048,2048],"warmup":2,"seed":1337,"timing":"host_synchronized","max_abs":0,"samples_ms":[161.0822,150.773,175.9521,158.8597,117.17529999999999,147.06039999999999,224.78530000000001],"cpu_threads":8}
+{"case":"gemm-2048","device":"cuda","dtype":"bf16","shape":[2048,2048,2048],"warmup":2,"seed":1337,"timing":"host_synchronized","max_abs":0,"samples_ms":[6236.7786999999998,6698.8810999999996,7569.5953,7789.5924999999997,7711.4965000000002,7975.1652000000004,7995.6468999999997],"peak_allocated_bytes":58720256,"peak_reserved_bytes":92274688,"driver_free_bytes":7204126720,"driver_total_bytes":8589410304,"cuda_build":13040}
+
+
+Benchmark timeout after 180s; owned process tree terminated.

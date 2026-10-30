@@ -1,0 +1,15 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\.bench-venv-cuda\\Scripts\\python.exe",
+    "-c",
+    "import os,sys,runpy; os.environ['CUBLAS_WORKSPACE_CONFIG']=':4096:8'; import torch; torch.use_deterministic_algorithms(True); torch.backends.cudnn.benchmark=False; torch.backends.cudnn.deterministic=True; sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-29-plan\\08-parity-layout\\experiment-source.py",
+    "reference",
+    "prefix",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\plan-parity-layout\\initial.bin",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-29-plan\\12-determinism-probe\\prefix-deterministic-0.json"
+  ],
+  "returncode": 0,
+  "stdout": "number of parameters: 123.65M\nnum decayed parameter tensors: 50, with 124,318,464 parameters\nnum non-decayed parameter tensors: 98, with 121,344 parameters\nusing fused AdamW: True\nprefix completed 100 steps\n",
+  "stderr": ""
+}

@@ -1,0 +1,12 @@
+[0/1] Re-running CMake...
+-- Nexus: CUDA toolkit bulundu (C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.4/bin/nvcc.exe)
+-- MatrixFlash-Pro: cuDNN backend disabled by option
+-- MatrixFlash-Pro 1.0.0: tests=OFF benchmarks=OFF examples=OFF cudnn=FALSE
+-- Nexus: nexus::nexus MatrixFlash-Pro ile baglandi (CUDA=ON)
+-- Nexus: FAZ19 Vulkan compute etkin (C:/VulkanSDK/1.4.363.0/Include)
+-- Nexus: FAZ19 DirectML (DirectX 12) etkin
+-- Configuring done (7.0s)
+-- Generating done (2.1s)
+-- Build files have been written to: C:/Users/muham/Desktop/Nexus/build-phase1
+[1/3] Building CXX object tests\parity\CMakeFiles\test_estimate_parity.dir\test_estimate_parity.cpp.obj
+[2/3] Linking CXX executable tests\parity\test_estimate_parity.exe

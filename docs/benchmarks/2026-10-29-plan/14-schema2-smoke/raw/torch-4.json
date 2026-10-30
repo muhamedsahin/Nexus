@@ -1,0 +1,11 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\.bench-venv-cuda\\Scripts\\python.exe",
+    "C:\\Users\\muham\\Desktop\\Nexus\\python\\src\\nexus_bench\\cli.py",
+    "_worker",
+    "torch"
+  ],
+  "returncode": 0,
+  "stdout": "{\"rows\": [{\"case\": \"gemm-2048\", \"device\": \"cpu\", \"dtype\": \"f32\", \"shape\": [2048, 2048, 2048], \"samples_ms\": [44.73399999551475, 45.250299997860566, 48.42400000052294, 48.98680000042077, 49.81930000212742, 50.7041000018944, 48.802000004798174], \"max_abs\": 0.0, \"warmup\": 2, \"seed\": 1337, \"timing\": \"host_synchronized\", \"cpu_threads\": 8}, {\"case\": \"gemm-2048\", \"device\": \"cuda\", \"dtype\": \"bf16\", \"shape\": [2048, 2048, 2048], \"samples_ms\": [0.7256000026245601, 0.6661000006715767, 0.6611999997403473, 0.712199995177798, 0.7060999996610917, 0.6858999986434355, 0.6656999976257794], \"max_abs\": 0.0, \"warmup\": 2, \"seed\": 1337, \"timing\": \"host_synchronized\", \"cpu_threads\": null, \"peak_allocated_bytes\": 33685504, \"peak_reserved_bytes\": 77594624, \"driver_free_bytes\": 7356809216, \"driver_total_bytes\": 8589410304, \"cuda_build\": 13020}], \"unavailable\": [{\"case\": \"flash-fwd-bwd\", \"framework\": \"torch\", \"reason\": \"installed Windows PyTorch wheel has no FlashAttention kernel\"}], \"version\": \"2.14.1+cu132\", \"cuda\": \"13.2\"}\n",
+  "stderr": ""
+}

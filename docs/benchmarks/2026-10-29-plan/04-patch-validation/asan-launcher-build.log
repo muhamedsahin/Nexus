@@ -1,0 +1,14 @@
+[0/1] Re-running CMake...
+-- Nexus: AddressSanitizer acik
+-- MatrixFlash-Pro: cuDNN backend disabled by option
+-- MatrixFlash-Pro 1.0.0: tests=OFF benchmarks=OFF examples=OFF cudnn=FALSE
+-- Nexus: nexus::nexus MatrixFlash-Pro ile baglandi (CUDA=OFF)
+-- Nexus: FAZ19 Vulkan compute etkin (C:/VulkanSDK/1.4.363.0/Include)
+-- Nexus: FAZ19 DirectML (DirectX 12) etkin
+-- Configuring done (2.5s)
+-- Generating done (1.5s)
+-- Build files have been written to: C:/Users/muham/Desktop/Nexus/build-asan
+[1/5] Building CXX object tools\nexus_run\CMakeFiles\nexus_run.dir\main.cpp.obj
+[2/5] Linking CXX executable tools\nexus_run\nexus-run.exe
+[3/5] Building CXX object tests\parity\CMakeFiles\test_phase10_dist.dir\test_phase10_dist.cpp.obj
+[4/5] Linking CXX executable tests\parity\test_phase10_dist.exe

@@ -6,6 +6,8 @@ zero_grad(set_to_none=True), get_lr (warmup + cosine), istege bagli torch.compil
 Farklar (Nexus ile ayni modeli kurmak icin, raporda yazili): vocab 50257 (nanoGPT 50304'e
 yuvarlar), bias=True (GPT-2), GELU tanh yaklasimi (Nexus cekirdegi; nanoGPT nn.GELU() erf kullanir),
 kayip olarak tum mikro adimlarin ortalamasi (train.py yalniz sonuncuyu yazar).
+--deterministic 1: parity icin sabit cuBLAS workspace + zorunlu deterministik islemler.
+Varsayilan 0, hiz referansinin eski en hizli kipini korur; secim JSON'a kaydedilir.
 
 Modlar:
   bench  --nanogpt DIR --micro B --seq T --accum A --steps N [--compile 0|1] [--vocab 50257]
@@ -92,6 +94,24 @@ def get_lr(it, lr, warmup, decay_iters, min_lr):  # train.py get_lr
     return min_lr + coeff * (lr - min_lr)
 
 
+def configure_determinism(enabled):
+    """Opt-in parity policy; keep the fastest-reference default unchanged."""
+    if enabled:
+        workspace = ':4096:8'
+        if torch.cuda.is_initialized() and os.environ.get('CUBLAS_WORKSPACE_CONFIG') != workspace:
+            raise RuntimeError('deterministic reference requires workspace configuration before CUDA initialization')
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = workspace
+        torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(bool(enabled))
+    torch.backends.cudnn.deterministic = bool(enabled)
+    availability = getattr(torch.backends.cuda,'is_flash_attention_available',None)
+    return dict(deterministic_algorithms=torch.are_deterministic_algorithms_enabled(),
+                cublas_workspace_config=os.environ.get('CUBLAS_WORKSPACE_CONFIG'),
+                cudnn_deterministic=torch.backends.cudnn.deterministic,
+                cudnn_benchmark=torch.backends.cudnn.benchmark,
+                sdpa_flash_available=availability() if availability else None)
+
+
 def train(args, model, batches, device, steps):
     optimizer = model.configure_optimizers(args.wd, args.lr, (0.9, 0.95), "cuda")
     # FAZ 13: --compile-mode max-autotune (Triton GEMM/cekirdek ayari); varsayilan torch.compile "default".
@@ -143,6 +163,8 @@ def main():
     ap.add_argument("--compile", type=int, default=0)
     ap.add_argument("--precision", choices=["bf16", "f32"], default="bf16")
     ap.add_argument("--compile-mode", default="default")
+    ap.add_argument("--deterministic",type=int,choices=[0,1],default=0,
+                    help="strict reproducibility for parity; benchmark default remains 0")
     ap.add_argument("--vocab", type=int, default=50257)
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--wd", type=float, default=0.1)
@@ -155,6 +177,7 @@ def main():
     ap.add_argument("--out")
     args = ap.parse_args()
 
+    numerics = configure_determinism(bool(args.deterministic))
     torch.manual_seed(1337)
     torch.backends.cuda.matmul.allow_tf32 = args.precision != "f32"
     torch.backends.cudnn.allow_tf32 = args.precision != "f32"
@@ -184,6 +207,7 @@ def main():
                "mfu": fpt * tps / (args.peak_tflops * 1e12), "peak_allocated_gb": pa / 1e9,
                "peak_reserved_gb": pr / 1e9, "first_step_ms": times[0], "flops_per_token": fpt,
                "sdpa_flash": torch.backends.cuda.flash_sdp_enabled(), "last_loss": losses[-1]}
+        out.update(numerics)
         print(json.dumps(out))
         return 0
 
@@ -211,6 +235,7 @@ def main():
            "lr": args.lr, "warmup": args.warmup, "target_tokens_per_step": B * (T - 1) * A,
            "gelu": "tanh (explicit Nexus compatibility adaptation)",
            "nanogpt_model_sha256": hashlib.sha256(open(nanogpt.__file__, "rb").read()).hexdigest()}
+    out.update(numerics)
     if args.out:
         json.dump(out, open(args.out, "w"))
     print(json.dumps({k: v for k, v in out.items() if k not in ("losses", "ms")} |

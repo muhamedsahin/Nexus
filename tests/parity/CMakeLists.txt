@@ -7,6 +7,7 @@ set_tests_properties(test_phase0_prof PROPERTIES TIMEOUT 180)
 
 add_executable(test_estimate_parity test_estimate_parity.cpp)
 target_link_libraries(test_estimate_parity PRIVATE nexus_estimate_core nexus_test_support)
+add_dependencies(test_estimate_parity nexus_estimate)
 target_compile_definitions(test_estimate_parity PRIVATE
     NEXUS_ESTIMATE_EXE="$<TARGET_FILE:nexus_estimate>"
     NEXUS_ESTIMATE_PY="${CMAKE_SOURCE_DIR}/benchmarks/runner/estimate.py")
@@ -75,6 +76,10 @@ if(NOT NEXUS_PARITY_PYTHON)
 else()
     set(_nexus_parity_python "${NEXUS_PARITY_PYTHON}")
 endif()
+# The estimate test must use the same interpreter instead of a PATH launcher
+# that can trigger interactive provisioning on Windows.
+target_compile_definitions(test_estimate_parity PRIVATE
+    NEXUS_PARITY_PYTHON="${_nexus_parity_python}")
 add_executable(test_parity_nano test_parity_nano.cpp)
 target_link_libraries(test_parity_nano PRIVATE nexus::nexus nexus_estimate_core)
 target_compile_definitions(test_parity_nano PRIVATE
@@ -101,7 +106,13 @@ add_test(NAME test_tied_embeddings_single_copy COMMAND test_phase6_lm tied)
 add_test(NAME test_build_param_counts COMMAND test_phase6_lm counts)
 add_test(NAME test_lm_nxs_roundtrip COMMAND test_phase6_lm nxs)
 add_test(NAME test_lm_mup_multipliers COMMAND test_phase6_lm mup)
-add_test(NAME test_deep_stack_stability COMMAND test_phase6_lm deep 500)
+# ASan + Debug'da 500 adim 3600 s'yi asiyor (2026-10-30 Dalga 0): ASan'da 120 adim, yalniz bellek + NaN denetimi
+# (ogrenme olcutu SKIP yazilir; 300 adimda bile L=48 lr=3e-3 olcutu tutmuyor). Kararlilik olcutu Release'te 500 adim.
+if(NEXUS_ENABLE_ASAN)
+    add_test(NAME test_deep_stack_stability COMMAND test_phase6_lm deep 120 asan)
+else()
+    add_test(NAME test_deep_stack_stability COMMAND test_phase6_lm deep 500)
+endif()
 set_tests_properties(test_rope_vs_reference test_swiglu_gradcheck test_decoder_block_parity
     test_tied_embeddings_single_copy test_build_param_counts test_lm_nxs_roundtrip test_lm_mup_multipliers
     PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)
@@ -158,6 +169,7 @@ set_tests_properties(test_old_api_still_works test_accum_equivalence test_schedu
 # FAZ 10: ProcessGroup (thread + tcp), dogrulama, rank olumu.
 add_executable(test_phase10_dist test_phase10_dist.cpp)
 target_link_libraries(test_phase10_dist PRIVATE nexus::nexus nexus_test_support)
+add_dependencies(test_phase10_dist nexus_run)
 nexus_configure_target(test_phase10_dist)
 add_test(NAME test_collectives_thread COMMAND test_phase10_dist collectives_thread)
 foreach(_n 2 3 4 8)
@@ -239,6 +251,9 @@ set_tests_properties(test_compile_numerics test_fusion_kernel_count test_dynamic
 add_executable(test_phase14_moe test_phase14_moe.cpp)
 target_link_libraries(test_phase14_moe PRIVATE nexus::nexus nexus_test_support)
 nexus_configure_target(test_phase14_moe)
+if(NEXUS_ENABLE_ASAN)
+    target_compile_definitions(test_phase14_moe PRIVATE NEXUS_TEST_WITH_ASAN=1)
+endif()
 add_test(NAME test_moe_router_deterministic COMMAND test_phase14_moe router)
 add_test(NAME test_moe_k1_equals_dense COMMAND test_phase14_moe k1)
 add_test(NAME test_moe_grad_numerics COMMAND test_phase14_moe grad)

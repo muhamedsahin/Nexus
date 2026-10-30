@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "returncode": 0,
+  "binary_sha256": "57346330f5aca516be1968c279b98723c284520ffa78e606ee87fb006747d6da",
+  "purpose": "correctness_only_not_timing_benchmark",
+  "previous_attempt": "06-cuda-sanitizers/racecheck-execution.json",
+  "timeout_s": 600,
+  "coverage": "unchanged: full GEMM and FlashAttention forward/backward"
+}

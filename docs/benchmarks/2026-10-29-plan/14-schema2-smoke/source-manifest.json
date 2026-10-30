@@ -1,0 +1,10 @@
+{
+  "python/src/nexus_bench/cli.py": "7694aa42d021e799e7fc2d813f216ea134fbd24df4b8ec2a5cb54f3b124a27a5",
+  "python/src/nexus_bench/evidence.py": "eef516cc3ab9f026554b87761ead081fedd9a7623e7674f3543f44d3a7e70250",
+  "python/src/nexus_bench/workers.py": "d8aba662968f93151a88d940d3815a1b36eecd6832307024ef56381b898b6410",
+  "python/src/nexus_bench/windows_job.py": "ab5586089cef525790e2eb034569eadf3c18b4c152597aa2759d0702ffa5ec4e",
+  "benchmarks/runner/bench_phase21.cpp": "564e4051ab0c1ee131968289b858598cfc1e3e37c6e8f04c83fe7eac1f025a24",
+  "benchmarks/runner/bench_cuda_phase20.cpp": "21b2a6ea9500e8060ec3b02be7bc858ef4447fe678e008b9796ad44c00203a3c",
+  "benchmarks/runner/faz9_nanogpt.py": "3af13fbcb4b6cd8f2f8770c25dee4addae76c7f8ed35b36fae0d65f3644b035f",
+  "benchmarks/competitors/protocol.json": "8542e4483162173c55a5bfea02c33f18e2484e0aa581725374f5839bf8522c55"
+}

@@ -1,0 +1,14 @@
+{
+  "bench": "bench_phase3_fused",
+  "phase": 3,
+  "results": {
+    "fused_linear_ns_per_op": 15738061.6,
+    "unfused_linear_ns_per_op": 15127016.300000001,
+    "fused_layernorm_ns_per_op": 1856639.2,
+    "fused_softmax_ns_per_op": 1033124.25
+  },
+  "notes": {
+    "fusion": "ileri+geri tek dugumde; ara aktivasyon ayri tensor dolasmaz",
+    "flash_attention": "sonraki faz; fused_softmax onun yapi tasidir"
+  }
+}

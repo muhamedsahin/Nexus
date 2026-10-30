@@ -1,0 +1,95 @@
+{
+  "observed": [
+    {
+      "step": 0,
+      "nexus_loss": 11.000905990600586,
+      "torch_loss": 11.001116752624512,
+      "abs_diff": 0.00021076202392578125
+    },
+    {
+      "step": 1,
+      "nexus_loss": 9.797124862670898,
+      "torch_loss": 9.797054290771484,
+      "abs_diff": 7.05718994140625e-05
+    },
+    {
+      "step": 2,
+      "nexus_loss": 9.400418281555176,
+      "torch_loss": 9.401104927062988,
+      "abs_diff": 0.0006866455078125
+    },
+    {
+      "step": 3,
+      "nexus_loss": 9.203954696655273,
+      "torch_loss": 9.203642845153809,
+      "abs_diff": 0.00031185150146484375
+    },
+    {
+      "step": 4,
+      "nexus_loss": 9.038851737976074,
+      "torch_loss": 9.038965225219727,
+      "abs_diff": 0.00011348724365234375
+    },
+    {
+      "step": 5,
+      "nexus_loss": 9.075852394104004,
+      "torch_loss": 9.077082633972168,
+      "abs_diff": 0.0012302398681640625
+    },
+    {
+      "step": 6,
+      "nexus_loss": 8.789654731750488,
+      "torch_loss": 8.791735649108887,
+      "abs_diff": 0.0020809173583984375
+    },
+    {
+      "step": 7,
+      "nexus_loss": 8.761731147766113,
+      "torch_loss": 8.762791633605957,
+      "abs_diff": 0.00106048583984375
+    },
+    {
+      "step": 8,
+      "nexus_loss": 8.775590896606445,
+      "torch_loss": 8.77649974822998,
+      "abs_diff": 0.0009088516235351562
+    },
+    {
+      "step": 9,
+      "nexus_loss": 8.515731811523438,
+      "torch_loss": 8.515142440795898,
+      "abs_diff": 0.0005893707275390625
+    },
+    {
+      "step": 10,
+      "nexus_loss": 8.463462829589844,
+      "torch_loss": 8.462321281433105,
+      "abs_diff": 0.0011415481567382812
+    },
+    {
+      "step": 11,
+      "nexus_loss": 8.21123218536377,
+      "torch_loss": 8.209919929504395,
+      "abs_diff": 0.001312255859375
+    },
+    {
+      "step": 12,
+      "nexus_loss": 8.412089347839355,
+      "torch_loss": 8.412324905395508,
+      "abs_diff": 0.00023555755615234375
+    },
+    {
+      "step": 13,
+      "nexus_loss": 8.530162811279297,
+      "torch_loss": 8.53137493133545,
+      "abs_diff": 0.0012121200561523438
+    },
+    {
+      "step": 14,
+      "nexus_loss": 8.121903419494629,
+      "torch_loss": 8.121150016784668,
+      "abs_diff": 0.0007534027099609375
+    }
+  ],
+  "inference": "Nonzero step-0 difference precedes optimizer updates; forward precision/recipe must be isolated before blaming learning rate. Not a root-cause proof."
+}

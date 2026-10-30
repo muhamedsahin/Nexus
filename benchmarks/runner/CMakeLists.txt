@@ -116,3 +116,13 @@ if(TARGET nexus_cuda)
     set_tests_properties(bench_cuda_phase7 PROPERTIES TIMEOUT 7200 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 
 endif()
+
+# 2026-10-31 Dalga 0: ASan + Debug altinda benchmark sureleri anlamsiz ve bench_attention_cpu 600 s'yi asiyor;
+# ayrica bench'ler docs/benchmarks altindaki rapor JSON'larinin uzerine yazar. ASan derlemesinde ctest'te
+# DISABLED (ctest "Not Run (Disabled)" gosterir); calistirilabilir dosyalar yine derlenir (ASan altinda elle kosulabilir).
+if(NEXUS_ENABLE_ASAN)
+    get_property(_nexus_bench_tests DIRECTORY PROPERTY TESTS)
+    if(_nexus_bench_tests)
+        set_tests_properties(${_nexus_bench_tests} PROPERTIES DISABLED TRUE)
+    endif()
+endif()

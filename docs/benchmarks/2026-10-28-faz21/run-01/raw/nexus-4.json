@@ -1,0 +1,8 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\benchmarks\\runner\\bench_phase21.exe"
+  ],
+  "returncode": 0,
+  "stdout": "{\"case\":\"gemm-2048\",\"device\":\"cpu\",\"dtype\":\"f32\",\"shape\":[2048,2048,2048],\"warmup\":2,\"seed\":1337,\"timing\":\"host_synchronized\",\"max_abs\":0,\"samples_ms\":[81.601900000000001,122.4689,79.801699999999997,94.067700000000002,124.785,104.5694,131.25739999999999]}\n{\"case\":\"gemm-2048\",\"device\":\"cuda\",\"dtype\":\"bf16\",\"shape\":[2048,2048,2048],\"warmup\":2,\"seed\":1337,\"timing\":\"host_synchronized\",\"max_abs\":0,\"samples_ms\":[2.5396000000000001,4.6871999999999998,5.6464999999999996,1.8431999999999999,10.9816,12.0586,23.843499999999999]}\n{\"case\":\"flash-fwd-bwd\",\"device\":\"cuda\",\"dtype\":\"bf16\",\"shape\":[1,8,2048,64],\"warmup\":2,\"seed\":1337,\"timing\":\"host_synchronized\",\"max_abs\":0.00052097588069641154,\"samples_ms\":[4.4808000000000003,5.3887,6.5674999999999999,5.1497999999999999,5.1741000000000001,3.6263000000000001,8.3597000000000001]}\n",
+  "stderr": ""
+}

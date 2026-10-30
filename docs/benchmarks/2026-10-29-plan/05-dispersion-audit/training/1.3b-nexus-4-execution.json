@@ -1,0 +1,26 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\benchmarks\\runner\\bench_cuda_phase20.exe",
+    "--model",
+    "1.3b",
+    "--tokens",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\faz20\\tokens.bin",
+    "--out",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-28-faz21\\run-03\\training\\1.3b-nexus-4.jsonl",
+    "--steps",
+    "15",
+    "--warmup",
+    "2",
+    "--lr",
+    "0.0001",
+    "--seq",
+    "1024",
+    "--precision",
+    "bf16",
+    "--optimizer",
+    "fused8"
+  ],
+  "returncode": 0,
+  "stdout": "step 0 loss 11.1651 ms 1005.02\nstep 10 loss 8.3181 ms 895.318\n",
+  "stderr": ""
+}

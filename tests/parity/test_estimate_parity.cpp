@@ -86,6 +86,17 @@ using nexus::estimate::Plan;
   const char* candidates[] = {"python3", "python"};
   const std::string silencer = " >/dev/null 2>&1";
 #endif
+  const std::string configured = NEXUS_PARITY_PYTHON;
+  if (!configured.empty()) {
+    if (!std::filesystem::is_regular_file(configured)) {
+      nexus_test::expect(false, "yapilandirilmis Python yorumlayicisi mevcut");
+      return {};
+    }
+    const std::string command = "\"" + configured + "\"";
+    if (run_command(command + " --version" + silencer)) return command;
+    nexus_test::expect(false, "yapilandirilmis Python yorumlayicisi calisiyor");
+    return {};
+  }
   for (const char* candidate : candidates) {
     if (run_command(std::string(candidate) + " --version" + silencer)) {
       return candidate;

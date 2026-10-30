@@ -1,0 +1,14 @@
+{
+  "release": {
+    "passed": true,
+    "successful": 20,
+    "repeats": 20,
+    "elastic_passed": true
+  },
+  "asan": {
+    "passed": true,
+    "successful": 20,
+    "repeats": 20,
+    "elastic_passed": true
+  }
+}

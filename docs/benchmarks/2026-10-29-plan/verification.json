@@ -1,0 +1,82 @@
+{
+  "generated_utc": "2026-10-29T22:12:21.437625+00:00",
+  "base_commit": "261cc06f04c8144322846020217698c97b1551fb",
+  "full_suites": {
+    "release": {
+      "registered": 213,
+      "passed": 211,
+      "failed": [],
+      "skipped": [
+        "test_hip_parity",
+        "test_pjrt_vendor"
+      ],
+      "note": "Baseline full run; selected changed targets separately rebuilt and validated. Not a final full rerun."
+    },
+    "asan-o1": {
+      "registered": 164,
+      "passed": 158,
+      "failed": [
+        "test_deep_stack_stability",
+        "test_rank_failure_clean_exit",
+        "test_grouped_gemm_vs_loop",
+        "bench_attention_cpu"
+      ],
+      "skipped": [
+        "test_hip_parity",
+        "test_pjrt_vendor"
+      ],
+      "note": "Baseline full run; selected changed targets separately rebuilt and validated. Not a final full rerun."
+    }
+  },
+  "final_unit_tests": {
+    "python314": {
+      "command": [
+        "C:\\Users\\muham\\Desktop\\Nexus\\.bench-venv-py314\\Scripts\\python.exe",
+        "tests/parity/test_phase21_bench.py"
+      ],
+      "returncode": 0
+    },
+    "python312": {
+      "command": [
+        "C:\\Users\\muham\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+        "tests/parity/test_phase21_bench.py"
+      ],
+      "returncode": 0
+    }
+  },
+  "py_compile_passed": true,
+  "source_diff_check_passed": true,
+  "source_sha256": {
+    ".github/workflows/benchmark.yml": "3d7c545e1b36b0ff7a5bc16b608fb75a711fc2c05b1024e59913c2b400d67ad0",
+    "CMakeLists.txt": "9cbd24c0715db70e145ec7f1413b13638f370be108668ebff3d7e932e57723d9",
+    "benchmarks/runner/bench_cuda_phase5.cpp": "fa5909ea81b7f7ac61b7e2adaf3e3f063b1b03918c313d4530e8027f08a5f20d",
+    "benchmarks/runner/faz20_parity.py": "64ecd018b31c938487015e0544b386c734ae75672c47be5dcb85dbceb0785d35",
+    "benchmarks/runner/faz9_nanogpt.py": "3af13fbcb4b6cd8f2f8770c25dee4addae76c7f8ed35b36fae0d65f3644b035f",
+    "python/src/nexus_bench/cli.py": "7694aa42d021e799e7fc2d813f216ea134fbd24df4b8ec2a5cb54f3b124a27a5",
+    "python/src/nexus_bench/evidence.py": "eef516cc3ab9f026554b87761ead081fedd9a7623e7674f3543f44d3a7e70250",
+    "tests/parity/CMakeLists.txt": "a03d486c2fe6d3d7efae45dd8b0db2c9ce39c14348c7503a7cf36b0798da3653",
+    "tests/parity/test_estimate_parity.cpp": "5dea42f6c3657f7027c9f2a68eb0f353b397a561ea04b62da020b3f50945664e",
+    "tests/parity/test_phase10_dist.cpp": "f925846dde61f2143034cdfe0669b7716841bc4766c63cf4df8fd0a4cd2a2d4d",
+    "tests/parity/test_phase14_moe.cpp": "2ce683f3ab3ee5e1e6d92ca807a8a69d4eff34b5824e4360af6ec93d060088ad",
+    "tests/parity/test_phase21_bench.py": "57e4e9d48a95c86e9352e1dfb4d1d8c273df46fa226c46273b9d0b1f8ba13574",
+    "tools/nexus_run/main.cpp": "db774879e1237e21258eb6854051983d1ae1684d85a94793ca2194bda041cc7b"
+  },
+  "previous_evidence": {
+    "checked": 404,
+    "changed": []
+  },
+  "open_conditions": [
+    "ASan deep-stack stability full test timed out; no full pass",
+    "ASan CPU attention benchmark timed out; no full pass",
+    "LR=6e-4 cross-framework FP32 parity still fails after deterministic reference",
+    "BF16 124M parity, matched CUDA SDK and remaining plan stages remain open"
+  ],
+  "commit_or_push_performed": false,
+  "schema2_smoke": {
+    "schema": 2,
+    "independent_processes": 15,
+    "summary_rows": 6,
+    "worker_failures": [],
+    "purpose": "infrastructure validation; no speed superiority claim"
+  }
+}

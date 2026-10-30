@@ -281,7 +281,13 @@ void test_grouped() {
               E, static_cast<long long>(M), d, F, tl, flops / tl / 1e6, tg, flops / tg / 1e6, tl / tg, tt,
               static_cast<long long>(probe), diff);
   nexus_test::expect(y1 == yn, "paralel gruplu GEMM == sirali uzman dongusu (bit bit)");
+#if defined(NEXUS_TEST_WITH_ASAN)
+  // Instrumentation changes thread and memory costs. Keep all numerical checks,
+  // but do not turn an ASan timing into a production performance acceptance gate.
+  std::printf("  info  performance_status=no_data (ASan instrumentation; use a stable Release benchmark)\n");
+#else
   nexus_test::expect(tg < tl, "paralel gruplu GEMM sirali donguden hizli");
+#endif
   nexus_test::expect(diff == 0.0, "token basina dongu ile ayni sonuc (satir bagimsiz)");
 }
 

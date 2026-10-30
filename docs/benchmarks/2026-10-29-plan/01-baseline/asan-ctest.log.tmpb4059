@@ -1,0 +1,83 @@
+[OUTPUT] 
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+
+[HANDLER_OUTPUT] 
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+
+        Start   1: test_phase1_bridge
+  1/164 Test   #1: test_phase1_bridge ........................   Passed    0.14 sec
+        Start   2: test_phase1_loss_families
+  2/164 Test   #2: test_phase1_loss_families .................   Passed    0.21 sec
+        Start   3: test_phase1_mirrored_tensor
+  3/164 Test   #3: test_phase1_mirrored_tensor ...............   Passed    0.11 sec
+        Start   4: test_phase1_thread_pool
+  4/164 Test   #4: test_phase1_thread_pool ...................   Passed    1.39 sec
+        Start   5: test_phase2_hardware
+  5/164 Test   #5: test_phase2_hardware ......................   Passed    0.35 sec
+        Start   6: test_phase3_fusion
+  6/164 Test   #6: test_phase3_fusion ........................   Passed    0.14 sec
+        Start   7: test_phase4_custom_extensions
+  7/164 Test   #7: test_phase4_custom_extensions .............   Passed    0.12 sec
+        Start   8: test_phase5_rl_and_marl
+  8/164 Test   #8: test_phase5_rl_and_marl ...................   Passed    3.33 sec
+        Start   9: test_phase6_trainer
+  9/164 Test   #9: test_phase6_trainer .......................   Passed    0.16 sec
+        Start  10: test_phase8_sequence_vision
+ 10/164 Test  #10: test_phase8_sequence_vision ...............   Passed    0.15 sec
+        Start  11: test_phase9_blocks
+ 11/164 Test  #11: test_phase9_blocks ........................   Passed    0.14 sec
+        Start  12: test_phase10_structure
+ 12/164 Test  #12: test_phase10_structure ....................   Passed    0.13 sec
+        Start  13: test_phase11_sequence
+ 13/164 Test  #13: test_phase11_sequence .....................   Passed    0.15 sec
+        Start  14: test_phase12_catalog
+ 14/164 Test  #14: test_phase12_catalog ......................   Passed    0.12 sec
+        Start  15: test_phase13_isa
+ 15/164 Test  #15: test_phase13_isa ..........................   Passed    0.79 sec
+        Start  16: test_nxs
+ 16/164 Test  #16: test_nxs ..................................   Passed    0.23 sec
+        Start  17: test_phase0_prof
+ 17/164 Test  #17: test_phase0_prof ..........................   Passed    0.12 sec
+        Start  18: test_estimate_parity
+ 18/164 Test  #18: test_estimate_parity ......................   Passed    2.10 sec
+        Start  19: test_phase1_allocator
+ 19/164 Test  #19: test_phase1_allocator .....................   Passed    0.11 sec
+        Start  20: test_phase2_autograd
+ 20/164 Test  #20: test_phase2_autograd ......................   Passed    2.97 sec
+        Start  21: test_phase3_fused
+ 21/164 Test  #21: test_phase3_fused .........................   Passed    0.20 sec
+        Start  22: test_phase2_engine
+ 22/164 Test  #22: test_phase2_engine ........................   Passed    0.32 sec
+        Start  23: test_phase1_dtype
+ 23/164 Test  #23: test_phase1_dtype .........................   Passed   13.92 sec
+        Start  24: test_phase3_training
+ 24/164 Test  #24: test_phase3_training ......................   Passed    0.66 sec
+        Start  25: test_autocast_policy
+ 25/164 Test  #25: test_autocast_policy ......................   Passed    0.17 sec
+        Start  26: test_phase4_host_fp8
+ 26/164 Test  #26: test_phase4_host_fp8 ......................   Passed    0.11 sec
+        Start  27: test_phase4_loss_scale_policy
+ 27/164 Test  #27: test_phase4_loss_scale_policy .............   Passed    0.07 sec
+        Start  28: test_parity_nano
+ 28/164 Test  #28: test_parity_nano ..........................   Passed   12.40 sec
+        Start  29: test_parity_tiny
+ 29/164 Test  #29: test_parity_tiny ..........................   Passed   89.39 sec
+        Start  30: test_rope_vs_reference
+ 30/164 Test  #30: test_rope_vs_reference ....................   Passed   14.04 sec
+        Start  31: test_swiglu_gradcheck
+ 31/164 Test  #31: test_swiglu_gradcheck .....................   Passed    0.20 sec
+        Start  32: test_decoder_block_parity
+ 32/164 Test  #32: test_decoder_block_parity .................   Passed   34.77 sec
+        Start  33: test_tied_embeddings_single_copy
+ 33/164 Test  #33: test_tied_embeddings_single_copy ..........   Passed    0.36 sec
+        Start  34: test_build_param_counts
+ 34/164 Test  #34: test_build_param_counts ...................   Passed    9.10 sec
+        Start  35: test_lm_nxs_roundtrip
+ 35/164 Test  #35: test_lm_nxs_roundtrip .....................   Passed    0.22 sec
+        Start  36: test_lm_mup_multipliers
+ 36/164 Test  #36: test_lm_mup_multipliers ...................   Passed    0.09 sec
+        Start  37: test_deep_stack_stability
+ 37/164 Test  #37: test_deep_stack_stability .................***Failed  391.13 sec
+test_deep_stack_stability: 32/48 katman, on-norm vs son-norm, Markov (taban 1.208)
+
+        Start  38: test_checkpoint_grad_equal

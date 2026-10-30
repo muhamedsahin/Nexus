@@ -9,7 +9,7 @@
  * MASTER_PORT, NEXUS_RUN=1. Store sunucusunu RANK 0 kendi icinde calistirir (init_process_group).
  * Hata: bir surec sifir disi kodla cikarsa digerlerine --grace-s saniye taninir (iletisim hatasi
  * ya da zaman asimiyla kendileri cikmalari beklenir); hala calisanlar sonlandirilir. Sonunda
- * rank basina cikis kodu tablosu yazilir; donus kodu ilk basarisiz rank'in kodudur.
+ * rank basina cikis kodu tablosu yazilir; donus kodu ilk gozlenen hata grubunun kodudur.
  * FAZ 15 elastik yeniden baslatma (temiz yeniden baslatma, torchrun --max-restarts esdegeri):
  *   [--max-restarts K] [--restart-nproc M]: bir surec sifir disi cikarsa (ve hak varsa) digerleri HEMEN
  *   sonlandirilir ve grup M surecle (varsayilan: ayni sayi) yeniden baslatilir. Her denemede NEXUS_RESTART_COUNT
@@ -145,10 +145,10 @@ int run_once(const Options& o, int attempt, bool can_restart) {
   std::vector<int> codes(static_cast<std::size_t>(n), -1);
   std::vector<bool> running(static_cast<std::size_t>(n), true);
   std::vector<bool> killed(static_cast<std::size_t>(n), false);
-  // Isletim sisteminin cikis zamani: ayni yoklamada biten sureclerden ilk oleni (kok neden) secmek icin.
+  // Cikis zamani yalniz ilk gozlenen hata grubundaki surecleri siralar.
+  // Bu zaman damgasi nedensel kok hatayi tek basina kanitlamaz.
   // POSIX'te waitpid yoklama sirasi kullanilir.
   std::vector<std::uint64_t> exit_time(static_cast<std::size_t>(n), ~std::uint64_t{0});
-  std::uint64_t poll_order = 0;
   const auto t0 = std::chrono::steady_clock::now();
 #if defined(_WIN32)
   std::string cmdline;
@@ -180,6 +180,7 @@ int run_once(const Options& o, int attempt, bool can_restart) {
   };
   auto kill = [&](int r) { TerminateProcess(procs[static_cast<std::size_t>(r)].hProcess, 137); };
 #else
+  std::uint64_t poll_order = 0;
   std::vector<pid_t> pids(static_cast<std::size_t>(n));
   for (int r = 0; r < n; ++r) {
     const pid_t pid = fork();
@@ -207,23 +208,26 @@ int run_once(const Options& o, int attempt, bool can_restart) {
   std::chrono::steady_clock::time_point fail_time{};
   for (;;) {
     int alive = 0;
+    // Later cleanup exits must not replace a failure already observed by the
+    // launcher. OS exit-completion timestamps do not establish causal order.
+    const bool selecting_first_failure = first_fail < 0;
     for (int r = 0; r < n; ++r) {
       if (!running[static_cast<std::size_t>(r)]) continue;
       if (poll(r)) {
         running[static_cast<std::size_t>(r)] = false;
-        if (codes[static_cast<std::size_t>(r)] != 0) {
-          if (first_fail < 0) {
-            fail_time = std::chrono::steady_clock::now();
-            std::fprintf(stderr, "nexus-run: rank %d kod %d ile cikti; digerlerine %d s taninir\n", r,
-                         codes[static_cast<std::size_t>(r)], can_restart ? 0 : o.grace_s);
-          }
+        if (selecting_first_failure && codes[static_cast<std::size_t>(r)] != 0) {
           if (first_fail < 0 || exit_time[static_cast<std::size_t>(r)] < exit_time[static_cast<std::size_t>(first_fail)]) {
-            first_fail = r;  // ilk olen
+            first_fail = r;
           }
         }
       } else {
         ++alive;
       }
+    }
+    if (selecting_first_failure && first_fail >= 0) {
+      fail_time = std::chrono::steady_clock::now();
+      std::fprintf(stderr, "nexus-run: rank %d kod %d ile cikti; digerlerine %d s taninir\n", first_fail,
+                   codes[static_cast<std::size_t>(first_fail)], can_restart ? 0 : o.grace_s);
     }
     if (alive == 0) break;
     if (first_fail >= 0 && std::chrono::steady_clock::now() - fail_time > std::chrono::seconds(can_restart ? 0 : o.grace_s)) {

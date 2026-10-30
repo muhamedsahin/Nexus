@@ -1,0 +1,35 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+    Start  51: test_nan_policy
+1/5 Test  #51: test_nan_policy ..................   Passed    0.24 sec
+    Start  53: test_trainer_resume
+2/5 Test  #53: test_trainer_resume ..............   Passed    0.19 sec
+    Start 103: test_save_load_exact
+3/5 Test #103: test_save_load_exact .............   Passed    1.91 sec
+    Start 141: test_phase21_bench
+4/5 Test #141: test_phase21_bench ...............***Failed    4.54 sec
+......F
+======================================================================
+FAIL: test_timeout_kills_owned_tree (__main__.BenchTests.test_timeout_kills_owned_tree)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\muham\Desktop\Nexus\tests\parity\test_phase21_bench.py", line 63, in test_timeout_kills_owned_tree
+    self.assertFalse(target.exists())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.780s
+
+FAILED (failures=1)
+
+    Start 142: test_phase20_evidence
+5/5 Test #142: test_phase20_evidence ............   Passed    1.67 sec
+
+80% tests passed, 1 tests failed out of 5
+
+Total Test time (real) =   8.69 sec
+
+The following tests FAILED:
+	141 - test_phase21_bench (Failed)
+Errors while running CTest

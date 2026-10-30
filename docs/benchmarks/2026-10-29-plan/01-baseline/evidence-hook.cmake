@@ -1,0 +1,21 @@
+# Validation-only output redirection. Product sources remain unchanged.
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  function(nexus_validation_redirect)
+    foreach(target bench_phase0 bench_phase1 bench_phase2 bench_phase3_fused
+        bench_phase3_training bench_attention_cpu bench_cuda_phase3
+        bench_cuda_phase4 bench_cuda_phase5 bench_cuda_phase6 bench_cuda_phase7)
+      if(TARGET ${target})
+        get_target_property(definitions ${target} COMPILE_DEFINITIONS)
+        set(redirected)
+        foreach(definition IN LISTS definitions)
+          if(definition MATCHES "^(NEXUS_FAZ[0-9]+_DOCS_DIR)=")
+            set(definition "${CMAKE_MATCH_1}=\"${NEXUS_VALIDATION_OUTPUT_DIR}/${target}\"")
+          endif()
+          list(APPEND redirected "${definition}")
+        endforeach()
+        set_target_properties(${target} PROPERTIES COMPILE_DEFINITIONS "${redirected}")
+      endif()
+    endforeach()
+  endfunction()
+  cmake_language(DEFER CALL nexus_validation_redirect)
+endif()

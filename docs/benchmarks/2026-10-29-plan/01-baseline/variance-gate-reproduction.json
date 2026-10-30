@@ -1,0 +1,85 @@
+{
+  "within_process_cv": 2.2877309861842887,
+  "reported_claim": {
+    "case": "gemm-2048",
+    "device": "cpu",
+    "dtype": "f32",
+    "status": "passed",
+    "reason": "same shape/dtype/timing",
+    "torch_over_nexus": 2.0
+  },
+  "rows": [
+    {
+      "framework": "nexus",
+      "case": "gemm-2048",
+      "device": "cpu",
+      "dtype": "f32",
+      "shape": [
+        2048,
+        2048,
+        2048
+      ],
+      "process_medians_ms": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "summary": {
+        "median_ms": 1,
+        "mean_ms": 1,
+        "min_ms": 1,
+        "max_ms": 1,
+        "std_ms": 0.0,
+        "variance_ms2": 0,
+        "cv": 0.0
+      },
+      "max_abs": 0,
+      "timing": "host_synchronized",
+      "cuda_build": null,
+      "cpu_threads": null,
+      "framework_version": null,
+      "memory": {
+        "peak_allocated_bytes": null,
+        "peak_reserved_bytes": null
+      }
+    },
+    {
+      "framework": "torch",
+      "case": "gemm-2048",
+      "device": "cpu",
+      "dtype": "f32",
+      "shape": [
+        2048,
+        2048,
+        2048
+      ],
+      "process_medians_ms": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "summary": {
+        "median_ms": 2,
+        "mean_ms": 2,
+        "min_ms": 2,
+        "max_ms": 2,
+        "std_ms": 0.0,
+        "variance_ms2": 0,
+        "cv": 0.0
+      },
+      "max_abs": 0,
+      "timing": "host_synchronized",
+      "cuda_build": null,
+      "cpu_threads": null,
+      "framework_version": null,
+      "memory": {
+        "peak_allocated_bytes": null,
+        "peak_reserved_bytes": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+[
+  {
+    "case": "flash-fwd-bwd",
+    "device": "cuda",
+    "dtype": "bf16",
+    "status": "no_data",
+    "torch_over_nexus": null
+  },
+  {
+    "case": "gemm-2048",
+    "device": "cpu",
+    "dtype": "f32",
+    "status": "no_data",
+    "torch_over_nexus": null
+  },
+  {
+    "case": "gemm-2048",
+    "device": "cuda",
+    "dtype": "bf16",
+    "status": "no_data",
+    "torch_over_nexus": null
+  },
+  {
+    "case": "train-124m",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "train-1.3b",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "time-to-validation-loss",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "inference-7b-int4",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  },
+  {
+    "case": "cluster-7b-mfu",
+    "status": "no_data",
+    "reason": "requires matched measured reference and correctness evidence"
+  }
+]

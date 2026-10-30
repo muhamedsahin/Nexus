@@ -1,0 +1,10 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-asan\\tests\\parity\\test_phase15_durability.exe",
+    "elastic",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-asan\\tools\\nexus_run\\nexus-run.exe"
+  ],
+  "returncode": 0,
+  "stdout": "elastik yeniden baslatma: 4 surec, rank 3 olur -> 2 surecle devam\n  info  cokme adim 5'te, devam adim 4 (kayit araligi 2 -> kaybedilen 1 adim); MTTR 183 ms (olumden ilk devam adimina: surec baslatma + tcp grup + yukleme + 4->2 yeniden parcalama); toplam 0.8 s\n  info  devam kaybi kesintisiz 4 rank egrisine goreli 6.0e-08\n{\"mode\": \"bench_elastic\", \"crash_step\": 5, \"resume_step\": 4, \"interval\": 2, \"mttr_ms\": 183, \"loss_rel_vs_uninterrupted\": 5.98e-08}\n  PASS  kurtarma kayit araligindan fazla adim kaybettirmez; devam kaybi kesintisiz egriyi izler (<= 1e-5)\ntest_phase15_durability: 1 gecti, 0 basarisiz\n",
+  "stderr": "elastic_child: deneme 0 rank 0/4, devam adim 0\nelastic_child: deneme 0 rank 1/4, devam adim 0\nelastic_child: deneme 0 rank 2/4, devam adim 0\nelastic_child: deneme 0 rank 3/4, devam adim 0\nelastic_child: rank 3 adim 5'te olduruluyor\nnexus-run: rank 3 kod 9 ile cikti; digerlerine 0 s taninir\nnexus-run: deneme 0, 4 surec, 0.4 s\n  rank 0: sonlandirildi 137\n  rank 1: sonlandirildi 137\n  rank 2: sonlandirildi 137\n  rank 3: cikis 9\nnexus-run: ilk basarisiz: rank 3 (kod 9)\nnexus-run: yeniden baslatma 1 / 1, 2 surec\nelastic_child: deneme 1 rank 1/2, devam adim 4\nelastic_child: deneme 1 rank 0/2, devam adim 4\nnexus-run: deneme 1, 2 surec, 0.3 s\n  rank 0: cikis 0\n  rank 1: cikis 0\n"
+}

@@ -636,7 +636,8 @@ DeepResult train_deep(int layers, bool prenorm, int steps, double lr) {
   return r;
 }
 
-void test_deep(int steps) {
+// learn_gate = false: ASan kosusu (kisa, yalniz bellek + NaN denetimi); ogrenme olcutu acikca SKIP yazilir.
+void test_deep(int steps, bool learn_gate) {
   nexus_test::section("test_deep_stack_stability: 32/48 katman, on-norm vs son-norm, Markov (taban 1.208)");
   for (const double lr : {1e-3, 3e-3}) {
     for (const int layers : {32, 48}) {
@@ -669,7 +670,11 @@ void test_deep(int steps) {
         if (pre) {
           const std::string tag = " (lr=" + std::to_string(lr) + ", L=" + std::to_string(layers) + ")";
           nexus_test::expect(r.finite && static_cast<int>(r.loss.size()) == steps, "on-norm NaN'siz" + tag);
-          nexus_test::expect(mean(steps) < 0.6 * r.loss[0], "on-norm ogreniyor" + tag);
+          if (learn_gate) {
+            nexus_test::expect(mean(steps) < 0.6 * r.loss[0], "on-norm ogreniyor" + tag);
+          } else {
+            std::printf("  SKIP  on-norm ogreniyor%s: ASan kosusu %d adim; olcut Release'te 500 adimla\n", tag.c_str(), steps);
+          }
         }
       }
     }
@@ -695,7 +700,7 @@ int main(int argc, char** argv) {
     if (mode == "all" || mode == "nxs") test_nxs();
     if (mode == "all" || mode == "mup") test_mup();
     g_profile = argc > 3 && std::string(argv[3]) == "prof";
-    if (mode == "deep") test_deep(argc > 2 ? std::atoi(argv[2]) : 500);
+    if (mode == "deep") test_deep(argc > 2 ? std::atoi(argv[2]) : 500, !(argc > 3 && std::string(argv[3]) == "asan"));
   } catch (const std::exception& e) {
     std::printf("  FAIL  %s\n", e.what());
     return 1;

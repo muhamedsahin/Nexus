@@ -16,10 +16,10 @@ import sys
 import time
 
 if __package__:
-    from .evidence import SCHEMA, aggregate, claims, key, regression, report, sha, stats, validate, write
+    from .evidence import SCHEMA, aggregate, claims, key, regression, report, sha, stats, validate, validate_document, write
     from .workers import worker
 else:
-    from evidence import SCHEMA, aggregate, claims, key, regression, report, sha, stats, validate, write
+    from evidence import SCHEMA, aggregate, claims, key, regression, report, sha, stats, validate, validate_document, write
     from workers import worker
 
 def capture(command, env=None, timeout=30):
@@ -69,12 +69,14 @@ def training(args, out, env):
     from faz20_validate import summarize, read_run
     directory = out/'training'; directory.mkdir()
     token_path = str(Path(args.tokens).resolve())
-    result = dict(tokens_sha256=sha(token_path), native_sha256=sha(native), runs=[], status='measured')
+    scheduler_warmup_steps, timing_discard_steps = 2, 5
+    result = dict(tokens_sha256=sha(token_path), native_sha256=sha(native), runs=[], status='measured',
+                  scheduler_warmup_steps=scheduler_warmup_steps,timing_discard_steps=timing_discard_steps)
     for model in ['124m','1.3b']:
         for i in range(args.repeats):
             raw = directory/f'{model}-nexus-{i}.jsonl'
             command = [str(native),'--model',model,'--tokens',token_path,'--out',str(raw),
-                       '--steps','15','--warmup','2','--lr','0.0001','--seq','1024','--precision','bf16',
+                       '--steps','15','--warmup',str(scheduler_warmup_steps),'--lr','0.0001','--seq','1024','--precision','bf16',
                        '--optimizer','adamw' if model == '124m' else 'fused8']
             init = directory/'initial.bin'
             if model == '124m' and i == 0: command += ['--dump-init',str(init)]
@@ -84,14 +86,14 @@ def training(args, out, env):
             write(directory/f'{model}-nexus-{i}-execution.json',execution)
             if execution['returncode']:
                 result['status'] = 'failed'; result['reason'] = f'{model} native training failed'; return result
-            summary = summarize(raw)
+            summary = summarize(raw,warmup=timing_discard_steps)
             result['runs'].append(dict(model=model, framework='nexus',repeat=i, summary=summary,
                                        wall_s=time.perf_counter()-t0, first_step_ms=read_run(raw)[1][0]['ms']))
             if model != '124m': continue
             ref = directory/f'124m-torch-{i}.json'
             command = [str(Path(args.reference_python).resolve()), str(repo/'benchmarks/runner/faz9_nanogpt.py'),
                        'curve','--nanogpt',str(Path(args.nanogpt).resolve()),'--init',str(init),'--batches',token_path,
-                       '--micro','1','--seq','1024','--accum','1','--steps','15','--warmup','2','--lr','0.0001',
+                       '--micro','1','--seq','1024','--accum','1','--steps','15','--warmup',str(scheduler_warmup_steps),'--lr','0.0001',
                        '--precision','bf16','--compile','1','--compile-mode','max-autotune','--out',str(ref)]
             t0 = time.perf_counter(); execution = capture(command,env,timeout=args.compile_timeout)
             write(directory/f'124m-torch-{i}-execution.json',execution)
@@ -102,7 +104,7 @@ def training(args, out, env):
             if len(reference['losses']) != 15 or any(not math.isfinite(x) for x in reference['losses']):
                 raise ValueError('invalid reference loss trajectory')
             maximum = max(abs(a['loss']-b) for a,b in zip(native_steps,reference['losses'],strict=True))
-            ref_summary=stats(reference['ms'][5:])
+            ref_summary=stats(reference['ms'][timing_discard_steps:])
             ref_summary['target_tokens_per_s']=1023*1000/ref_summary['median_ms']
             peak=summary['config']['peak_flops']
             flops=1023*(6*(reference['parameter_count']-1024*768)+12*12*768*1023)
@@ -185,6 +187,7 @@ def run(args):
                     machine=dict(host=platform.node(),processor=platform.processor(),logical_cpus=os.cpu_count()),
                     git=capture(['git','rev-parse','HEAD']), dirty=capture(['git','status','--porcelain']),
                     hardware=capture(['nvidia-smi','--query-gpu=name,uuid,driver_version,memory.total,clocks.max.sm','--format=csv']),
+                    power=power_status(),
                     source_sha256=sha(__file__), native_sha256=sha(args.native) if Path(args.native).is_file() else None)
     write(out/'metadata.json', metadata)
     source_root=Path(args.repo).resolve()
@@ -196,7 +199,7 @@ def run(args):
     for framework in ['nexus','torch','tensorflow','jax']:
         for repeat in range(args.repeats):
             command = ([str(Path(args.native).resolve())] if framework == 'nexus' else
-                       [str(Path(args.jax_python if framework == 'jax' and args.jax_python else args.reference_python).resolve()), str(Path(__file__).resolve()), '_worker', framework])
+                       [str(Path(framework_python(args, framework)).resolve()), str(Path(__file__).resolve()), '_worker', framework])
             result = capture(command, env, timeout=args.timeout)
             write(out/'raw'/f'{framework}-{repeat}.json', result)
             if result['returncode'] == 77:
@@ -233,6 +236,7 @@ def run(args):
     if args.baseline:
         baseline = Path(args.baseline)
         previous = json.loads((baseline/'results.json').read_text(encoding='utf-8'))
+        validate_document(previous)
         previous_meta = json.loads((baseline/'metadata.json').read_text(encoding='utf-8'))
         document['regression'] = regression(document['rows'],previous['rows'],
             [metadata['machine'],metadata['hardware']['stdout']],[previous_meta['machine'],previous_meta['hardware']['stdout']])
@@ -245,13 +249,29 @@ def run(args):
     freeze=capture([args.reference_python,'-m','pip','freeze'],env)
     write(out/'environment-lock.json',freeze)
     if freeze['returncode']==0: (out/'reference-requirements.lock').write_text(freeze['stdout'],encoding='utf-8')
-    if args.jax_python:
-        freeze=capture([args.jax_python,'-m','pip','freeze'],env)
-        write(out/'jax-environment-lock.json',freeze)
-        if freeze['returncode']==0: (out/'jax-requirements.lock').write_text(freeze['stdout'],encoding='utf-8')
+    for name, extra in (('jax', args.jax_python), ('tensorflow', args.tensorflow_python)):
+        if not extra: continue
+        freeze=capture([extra,'-m','pip','freeze'],env)
+        write(out/f'{name}-environment-lock.json',freeze)
+        if freeze['returncode']==0: (out/f'{name}-requirements.lock').write_text(freeze['stdout'],encoding='utf-8')
     write(out/'telemetry-end.json', capture(['nvidia-smi','--query-gpu=temperature.gpu,power.draw,clocks.sm,clocks.mem,memory.used','--format=csv']))
     print('Report:',out/'REPORT.md',flush=True)
     return 1 if failures or any(document.get(k,{}).get('status')=='failed' for k in ['legacy_cpu','training','inference']) or any(r['status']=='failed' for r in document.get('regression',[])) else 0
+
+
+def framework_python(args, framework):
+    """Her referans kendi yorumlayicisinda: TensorFlow Windows'ta Python 3.14 tekerlegi sunmuyor (3.12 venv)."""
+    if framework == 'jax' and args.jax_python: return args.jax_python
+    if framework == 'tensorflow' and args.tensorflow_python: return args.tensorflow_python
+    return args.reference_python
+
+
+def power_status():
+    """Zaman olcumu fiste yapilmali (KURAL K5): Win32_Battery.BatteryStatus 2 = AC, 1 = pil; pilsiz makine None."""
+    if os.name != 'nt': return dict(status=None, reason='non-Windows: not recorded')
+    result = capture(['powershell','-NoProfile','-c','(Get-CimInstance Win32_Battery).BatteryStatus'])
+    value = result['stdout'].strip()
+    return dict(status=int(value) if value.isdigit() else None, on_ac=value == '2', raw=result)
 
 
 def main(argv=None):
@@ -263,9 +283,12 @@ def main(argv=None):
     bench = commands.add_parser('bench')
     bench.add_argument('--matrix',choices=['all','kernels'],default='all')
     bench.add_argument('--native',default='build-phase1/benchmarks/runner/bench_phase21.exe' if os.name == 'nt' else 'build-phase1/benchmarks/runner/bench_phase21')
-    ref_python=Path.cwd()/'.bench-venv-cuda'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    # Nexus ile ayni CUDA toolkit'li torch (Dalga 0: 2.15.0+cu134) varsa o; yoksa eski cu132 venv.
+    venv_python=lambda name: Path.cwd()/name/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    ref_python=next((p for p in (venv_python('.bench-venv-cu134'), venv_python('.bench-venv-cuda')) if p.is_file()), Path(sys.executable))
     bench.add_argument('--reference-python',default=str(ref_python) if ref_python.is_file() else sys.executable)
     bench.add_argument('--jax-python')
+    bench.add_argument('--tensorflow-python')
     bench.add_argument('--repo',default=str(Path.cwd()))
     bench.add_argument('--tokens')
     bench.add_argument('--nanogpt')
@@ -288,6 +311,9 @@ def main(argv=None):
     if not args.inference_weights and (Path.home()/'nexus-data/gpt2/gpt2.nxg').is_file(): args.inference_weights=str(Path.home()/'nexus-data/gpt2/gpt2.nxg')
     jax_python=repo/'build-phase1/faz19-xla-venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     if not args.jax_python and jax_python.is_file(): args.jax_python=str(jax_python)
+    for attr, venv in (('jax_python', '.bench-venv-jax'), ('tensorflow_python', '.bench-venv-tf')):
+        candidate=repo/venv/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+        if not getattr(args, attr) and candidate.is_file(): setattr(args, attr, str(candidate))
     return run(args)
 
 
