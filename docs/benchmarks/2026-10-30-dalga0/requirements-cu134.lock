@@ -8,4 +8,5 @@ numpy==2.5.4
 setuptools==84.2.1
 sympy==1.14.0
 torch==2.15.0+cu134
+triton-windows==3.9.0.post30
 typing_extensions==4.16.0

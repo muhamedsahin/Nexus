@@ -120,6 +120,74 @@ def compare(nexus_path, reference_path, count=100, tolerance=1e-3):
             "model": config["model"], "precision": config["precision"]}
 
 
+def f32_ulp(x):
+    """FP32 kayip degerinin bir ULP'si (kayip FP32 olarak yazilir; daha kucuk fark temsil edilemez)."""
+    x = abs(x)
+    return 2.0 ** (math.frexp(x)[1] - 24) if x > 0 else 2.0 ** -149
+
+
+def ensemble_compare(nexus_path, reference_paths, count=100, early_steps=10, early_tolerance=1e-5, z_limit=3.0,
+                     tail=20, ulp_floor=2):
+    """Dalga 1: kaotik (yuksek LR) egitimde noktasal <=1e-3 referansin kendine karsi bile saglanamaz
+    (124M FP32 LR=6e-4: 1 ULP bozulmus 13 PyTorch kosusunun 78 ciftinin hicbiri gecmez). Bu kapi
+    referansin KENDI yuvarlama toplulugunu olcut alir; noktasal compare() yerine gecmez, yanina eklenir.
+
+    reference_paths[0] bozmasiz referans, digerleri ayni tarifin 1 ULP bozulmus tekrarlari (>= 4).
+    Nexus topluluga bir uye daha gibi sinanir. Gecme sartlarinin HEPSI:
+      1. ilk early_steps adim: |nexus - ref0| <= early_tolerance (kaos baslamadan once yuvarlama duzeyi);
+      2. uye skoru: max_t max_k |nexus - ref_k| <= referans uyelerinin en buyuk skoru
+         (uye j: max_t max_{k!=j} |ref_j - ref_k|), taban ulp_floor x FP32 ULP;
+      3. son tail adimin ortalama kaybi: |z| <= z_limit; sd tabani ulp_floor x FP32 ULP.
+    v1 tasarimi (adim adim zarf, tabansiz) reddedildi: LR=1e-4'te 1 ULP'lik kayip farkini ve 14. uyenin
+    dogal asimini hata sayiyordu (docs/benchmarks/2026-10-31-dalga1). steps_outside_envelope bilgi icindir.
+    """
+    if len(reference_paths) < 5:
+        raise ValueError("ensemble parity needs the unperturbed reference and at least four perturbed repeats")
+    if count < early_steps or count < tail or tail < 2 or early_steps < 1 or ulp_floor < 0:
+        raise ValueError("invalid ensemble parity requirements")
+    config, steps = read_run(nexus_path)
+    if len(steps) != count or steps[0]["step"] != 0:
+        raise ValueError("ensemble parity requires exactly the requested steps from zero")
+    nexus = [row["loss"] for row in steps]
+    curves = []
+    for path in reference_paths:
+        losses = json.loads(Path(path).read_text(encoding="utf-8"))["losses"]
+        if len(losses) != count or any(not math.isfinite(v) for v in losses):
+            raise ValueError(f"reference curve invalid: {path}")
+        curves.append(losses)
+    if any(not math.isfinite(v) for v in nexus):
+        raise ValueError("nonfinite Nexus loss")
+    early = max(abs(nexus[t] - curves[0][t]) for t in range(early_steps))
+    floor = ulp_floor * max(f32_ulp(v) for c in curves for v in c)
+    pairs = [(a, b) for i, a in enumerate(curves) for b in curves[i + 1:]]
+    envelope = [max(abs(a[t] - b[t]) for a, b in pairs) for t in range(count)]
+    nexus_spread = [max(abs(nexus[t] - c[t]) for c in curves) for t in range(count)]
+    outside = [t for t in range(count) if nexus_spread[t] > max(envelope[t], floor)]
+    member_scores = [max(abs(curves[j][t] - curves[k][t]) for t in range(count) for k in range(len(curves)) if k != j)
+                     for j in range(len(curves))]
+    nexus_score = max(nexus_spread)
+    score_limit = max(max(member_scores), floor)
+    tails = [statistics.mean(c[-tail:]) for c in curves]
+    mean, sd = statistics.mean(tails), statistics.stdev(tails)
+    nexus_tail = statistics.mean(nexus[-tail:])
+    sd_eff = max(sd, ulp_floor * f32_ulp(mean))
+    z = (nexus_tail - mean) / sd_eff
+    pointwise_pairs_passing = sum(max(abs(a[t] - b[t]) for t in range(count)) <= 1e-3 for a, b in pairs)
+    checks = dict(early=early <= early_tolerance, member_score=nexus_score <= score_limit, tail=abs(z) <= z_limit)
+    return {"passed": all(checks.values()), "design": "v2", "checks": checks, "steps": count, "references": len(curves),
+            "early_steps": early_steps, "early_tolerance": early_tolerance, "early_max_abs": early,
+            "ulp_floor": ulp_floor, "floor_abs": floor,
+            "nexus_score": nexus_score, "reference_member_scores": member_scores, "score_limit": score_limit,
+            "nexus_score_rank": sum(s < nexus_score for s in member_scores),
+            "envelope_max": max(envelope), "steps_outside_envelope": outside,
+            "tail_steps": tail, "tail_nexus": nexus_tail, "tail_reference_mean": mean, "tail_reference_sd": sd,
+            "tail_sd_effective": sd_eff, "tail_z": z, "z_limit": z_limit,
+            "reference_pairs": len(pairs), "reference_pairs_passing_pointwise_1e-3": pointwise_pairs_passing,
+            "envelope": envelope, "nexus_spread": nexus_spread,
+            "nexus_sha256": digest(nexus_path), "reference_sha256": [digest(p) for p in reference_paths],
+            "model": config["model"], "precision": config["precision"]}
+
+
 def summarize(path, warmup=5):
     config, steps = read_run(path)
     if warmup < 0 or len(steps) - warmup < 5:

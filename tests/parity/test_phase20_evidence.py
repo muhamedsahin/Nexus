@@ -56,6 +56,63 @@ class EvidenceTests(unittest.TestCase):
             self.save()
             with self.assertRaises(ValueError): phase20.compare(self.run, self.ref, 10)
 
+    def ensemble_files(self, nexus, refs):
+        rows = [dict(r, loss=v) for r, v in zip(self.rows, nexus)]
+        self.run.write_text("\n".join(json.dumps(r) for r in [self.config] + rows))
+        paths = []
+        for i, curve in enumerate(refs):
+            p = self.root / f"ref{i}.json"
+            p.write_text(json.dumps({"losses": curve}))
+            paths.append(p)
+        return paths
+
+    def chaotic_refs(self):
+        # 5 referans: ilk 4 adim ayni, sonra buyuyen yayilma (kaotik egitim taklidi)
+        base = [2.0 - i / 100 for i in range(10)]
+        return [[v + (0 if i < 4 else k * 0.01 * (i - 3)) for i, v in enumerate(base)] for k in (0, 1, -1, 2, -2)]
+
+    def test_ensemble_passes_inside_reference_noise(self):
+        refs = self.chaotic_refs()
+        nexus = [v + (0 if i < 4 else 0.005 * (i - 3)) for i, v in enumerate(refs[0])]
+        result = phase20.ensemble_compare(self.run, self.ensemble_files(nexus, refs), 10, early_steps=4, tail=3)
+        self.assertTrue(result["passed"], result["checks"])
+        self.assertFalse(phase20.compare(self.run, self.root / "ref0.json", 10)["passed"])  # noktasal kapi ayri kalir
+
+    def test_ensemble_rejects_early_drift_envelope_and_tail(self):
+        refs = self.chaotic_refs()
+        early = [v + (1e-4 if i == 1 else 0) for i, v in enumerate(refs[0])]
+        self.assertFalse(phase20.ensemble_compare(self.run, self.ensemble_files(early, refs), 10, early_steps=4,
+                                                  tail=3)["checks"]["early"])
+        outside = [v + (0.5 if i == 6 else 0) for i, v in enumerate(refs[0])]
+        result = phase20.ensemble_compare(self.run, self.ensemble_files(outside, refs), 10, early_steps=4, tail=3)
+        self.assertFalse(result["checks"]["member_score"])
+        self.assertFalse(result["passed"])
+        biased = [v + (0 if i < 4 else 0.3) for i, v in enumerate(refs[0])]  # topluluk sd 0.079 -> z ~ 3.8
+        self.assertFalse(phase20.ensemble_compare(self.run, self.ensemble_files(biased, refs), 10, early_steps=4,
+                                                  tail=3)["checks"]["tail"])
+
+    def test_ensemble_ulp_floor_non_chaotic(self):
+        # dusuk LR: referanslar bit bit ayni, Nexus 1 FP32 ULP farkli -> v1 tasarimi reddediyordu, v2 gecmeli
+        base = [2.0 - i / 100 for i in range(10)]
+        refs = [list(base) for _ in range(5)]
+        nexus = [v + (phase20.f32_ulp(v) if i % 3 == 0 else 0.0) for i, v in enumerate(base)]
+        result = phase20.ensemble_compare(self.run, self.ensemble_files(nexus, refs), 10, early_steps=4, tail=3)
+        self.assertTrue(result["passed"], result["checks"])
+        far = [v + (8 * phase20.f32_ulp(v) if i == 7 else 0.0) for i, v in enumerate(base)]
+        self.assertFalse(phase20.ensemble_compare(self.run, self.ensemble_files(far, refs), 10, early_steps=4,
+                                                  tail=3)["checks"]["member_score"])
+
+    def test_ensemble_fails_closed(self):
+        refs = self.chaotic_refs()
+        with self.assertRaises(ValueError):
+            phase20.ensemble_compare(self.run, self.ensemble_files(refs[0], refs[:4]), 10, early_steps=4, tail=3)
+        bad = [list(r) for r in refs]
+        bad[2][5] = float("nan")
+        with self.assertRaises(ValueError):
+            phase20.ensemble_compare(self.run, self.ensemble_files(refs[0], bad), 10, early_steps=4, tail=3)
+        with self.assertRaises(ValueError):
+            phase20.ensemble_compare(self.run, self.ensemble_files(refs[0], [r[:9] for r in refs]), 10, early_steps=4, tail=3)
+
     def test_metrics_denominators(self):
         result = phase20.summarize(self.run)
         self.assertEqual(result["median_ms"], 17)

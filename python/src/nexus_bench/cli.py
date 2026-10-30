@@ -104,6 +104,24 @@ def training(args, out, env):
             if len(reference['losses']) != 15 or any(not math.isfinite(x) for x in reference['losses']):
                 raise ValueError('invalid reference loss trajectory')
             maximum = max(abs(a['loss']-b) for a,b in zip(native_steps,reference['losses'],strict=True))
+            # Dalga 1 (docs/benchmarks/2026-10-31-dalga1): BF16'yi BF16'ya karsi olcmek PyTorch'un kendi BF16 hatasini
+            # Nexus'a yukluyordu (torch.compile BF16 FP32'den 1.8e-3, Nexus BF16 4.4e-4). Kapi: her iki BF16 egrisi
+            # ayni agirlikli deterministik FP32 PyTorch egrisine karsi; Nexus BF16 <= 1e-3 gecer.
+            if i == 0:
+                truth_path = directory/'124m-torch-f32-truth.json'
+                command = [str(Path(args.reference_python).resolve()), str(repo/'benchmarks/runner/faz9_nanogpt.py'),
+                           'curve','--nanogpt',str(Path(args.nanogpt).resolve()),'--init',str(init),'--batches',token_path,
+                           '--micro','1','--seq','1024','--accum','1','--steps','15','--warmup',str(scheduler_warmup_steps),
+                           '--lr','0.0001','--precision','f32','--deterministic','1','--out',str(truth_path)]
+                execution = capture(command, dict(env, CUBLAS_WORKSPACE_CONFIG=':4096:8'), timeout=args.compile_timeout)
+                write(directory/'124m-torch-f32-truth-execution.json',execution)
+                if execution['returncode']:
+                    result['status']='failed'; result['reason']='FP32 truth reference failed; see raw execution log'; return result
+                truth = json.loads(truth_path.read_text())['losses']
+                if len(truth) != 15 or any(not math.isfinite(x) for x in truth):
+                    raise ValueError('invalid FP32 truth trajectory')
+            nexus_vs_truth = max(abs(a['loss']-b) for a,b in zip(native_steps,truth,strict=True))
+            torch_vs_truth = max(abs(a-b) for a,b in zip(reference['losses'],truth,strict=True))
             ref_summary=stats(reference['ms'][timing_discard_steps:])
             ref_summary['target_tokens_per_s']=1023*1000/ref_summary['median_ms']
             peak=summary['config']['peak_flops']
@@ -112,15 +130,17 @@ def training(args, out, env):
             result['runs'].append(dict(model=model,framework='torch.compile-max-autotune',repeat=i,
                 summary=ref_summary,first_step_ms=reference['ms'][0],wall_s=time.perf_counter()-t0,
                 peak_reserved_gb=reference['peak_reserved_gb'],max_loss_abs=maximum,
+                nexus_bf16_vs_fp32_truth=nexus_vs_truth,torch_bf16_vs_fp32_truth=torch_vs_truth,
+                parity_reference='deterministic PyTorch FP32, same initial weights and tokens',
                 cuda_build=reference.get('cuda_build'),
-                parity_passed=maximum <= 1e-3))
+                parity_passed=nexus_vs_truth <= 1e-3))
             print('training',model,i,'measured',flush=True)
     torch_runs = [r for r in result['runs'] if r['framework'].startswith('torch')]
     native_runs = [r for r in result['runs'] if r['framework']=='nexus' and r['model']=='124m']
     native_ms = statistics.median(r['summary']['median_ms'] for r in native_runs)
     ref_ms = statistics.median(r['summary']['median_ms'] for r in torch_runs)
     result['124m_claim'] = dict(status='passed' if all(r['parity_passed'] for r in torch_runs) and native_ms<=ref_ms else 'failed',
-                               nexus_median_ms=native_ms,torch_median_ms=ref_ms,reason='speed AND <=1e-3 loss-trajectory gate')
+                               nexus_median_ms=native_ms,torch_median_ms=ref_ms,reason='speed AND Nexus BF16 within 1e-3 of deterministic PyTorch FP32 truth')
     memory_passed=max(r['summary']['peak_reserved_bytes'] for r in native_runs)<=max(r['peak_reserved_gb'] for r in torch_runs)*1e9
     result['124m_claim']['memory_passed']=memory_passed
     if not memory_passed: result['124m_claim']['status']='failed'

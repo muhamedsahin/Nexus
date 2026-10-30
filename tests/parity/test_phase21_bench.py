@@ -151,6 +151,14 @@ class BenchTests(unittest.TestCase):
             self.assertEqual(before,(path/'REPORT.md').read_bytes())
             ET.parse(path/'timings.svg')
             self.assertTrue(json.loads((path/'claims.json').read_text())[0]['status']=='no_data')
+            self.assertNotIn('Nexus BF16↔FP32',text)  # eski kayit: eski bicim
+            document['training']['runs'].append(dict(model='124m',framework='torch.compile-max-autotune',repeat=0,
+                summary=dict(median_ms=11,target_tokens_per_s=93000),first_step_ms=900,wall_s=9,peak_reserved_gb=2.5,
+                max_loss_abs=0.0021,nexus_bf16_vs_fp32_truth=0.00044,torch_bf16_vs_fp32_truth=0.0018,parity_passed=True))
+            report(path,document)
+            text = (path/'REPORT.md').read_text(encoding='utf-8')
+            for metric in ['Nexus BF16↔FP32','Referans BF16↔FP32','0.000440','0.001800','0.002100','deterministik PyTorch FP32']:
+                self.assertIn(metric,text)
             document['rows'][0]['summary']['median_ms']=1
             with self.assertRaises(ValueError): report(path,document)
 

@@ -251,8 +251,11 @@ def report(directory, document):
                   '| Model | Framework | Tekrar | Medyan ms | İlk adım ms | Süre s |', '|---|---|---:|---:|---:|---:|']
         for r in training_result.get('runs',[]):
             lines.append(f"| {r['model']} | {r['framework']} | {r['repeat']} | {r['summary']['median_ms']:.3f} | {r['first_step_ms']:.3f} | {r['wall_s']:.1f} |")
-        lines += ['', '| Model | Framework | Tekrar | Hedef token/s | Tepe ayrılmış GB | MFU tahmini | HFU tahmini | Kayıp farkı | Parity |',
-                  '|---|---|---:|---:|---:|---:|---:|---:|---|']
+        # Dalga 1 FP32-gercek kapisi: yalniz yeni alanli kayitlarda ek sutunlar (eski raporlar bayt bayt ayni uretilir)
+        truth = any('nexus_bf16_vs_fp32_truth' in r for r in training_result.get('runs',[]))
+        lines += ['', '| Model | Framework | Tekrar | Hedef token/s | Tepe ayrılmış GB | MFU tahmini | HFU tahmini | '
+                  + ('Nexus↔referans BF16 | Nexus BF16↔FP32 | Referans BF16↔FP32 | Parity |' if truth else 'Kayıp farkı | Parity |'),
+                  '|---|---|---:|---:|---:|---:|---:|---:|' + ('---:|---:|---|' if truth else '---|')]
         for r in training_result.get('runs',[]):
             s = r['summary']
             reserved = s.get('peak_reserved_bytes')
@@ -262,12 +265,17 @@ def report(directory, document):
             lines.append(f"| {r['model']} | {r['framework']} | {r['repeat']} | "
                          f"{formatted(s.get('target_tokens_per_s'))} | {formatted(reserved)} | "
                          f"{formatted(s.get('mfu_estimate'))} | {formatted(s.get('hfu_full_recompute_estimate'))} | "
-                         f"{formatted(r.get('max_loss_abs'))} | {r.get('parity_passed', 'referans değil')} |")
+                         f"{formatted(r.get('max_loss_abs'))} | "
+                         + (f"{formatted(r.get('nexus_bf16_vs_fp32_truth'))} | {formatted(r.get('torch_bf16_vs_fp32_truth'))} | " if truth else '')
+                         + f"{r.get('parity_passed', 'referans değil')} |")
         lines += ['', 'GB ondalıktır (10^9 bayt); ayrılmış bellek allocator rezervidir, sürücü toplamı değildir.',
                   'MFU/HFU donanım sayacı değil FLOP modeli tahminidir; ham kayıttaki flops_method kullanılır.',
                   'İlk adım derleme/capture ve hesaplamayı birlikte içerir; saf derleme süresi ölçülmedi.',
                   'Kaynak satırı 1024 token, geçerli hedef 1023: hedef token/s buna göre hesaplanır.',
                   'Doğrulama kaybına erişme süresi ölçülmedi; eğitim kaybı bu hedefin yerine geçmez.',
+
+                  *(['Parity: Nexus BF16 eğrisi aynı ağırlıklı deterministik PyTorch FP32 eğrisine karşı ≤1e-3 (Dalga 1). '
+                     'BF16↔BF16 farkı bilgi içindir: iki tarafın BF16 yuvarlama hatalarının toplamıdır.'] if truth else []),
                   '',str(training_result.get('124m_claim','')),str(training_result.get('1.3b_claim','')),'']
         if 'scheduler_warmup_steps' in training_result:
             lines += [f"LR scheduler ısınması: {training_result['scheduler_warmup_steps']} adım; "

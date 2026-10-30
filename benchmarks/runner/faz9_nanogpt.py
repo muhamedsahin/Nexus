@@ -84,6 +84,17 @@ def load_nexus_init(model, path, block):
         assert torch.equal(model.lm_head.weight, model.transformer.wte.weight)  # bagli kafa
 
 
+def perturb_one_ulp(model, seed):
+    """Her FP32 parametreyi +-1 ULP oynatir (np.nextafter; 0 -> +-en kucuk alt normal). Bagli wte/lm_head bir kez."""
+    rng = np.random.default_rng(seed)
+    with torch.no_grad():
+        for p in model.parameters():  # parameters() bagli tensoru tekrar vermez
+            a = p.detach().cpu().numpy()
+            up = rng.random(a.shape) < 0.5
+            b = np.where(up, np.nextafter(a, np.float32(np.inf)), np.nextafter(a, np.float32(-np.inf))).astype(np.float32)
+            p.copy_(torch.from_numpy(b))
+
+
 def get_lr(it, lr, warmup, decay_iters, min_lr):  # train.py get_lr
     if it < warmup:
         return lr * (it + 1) / (warmup + 1)
@@ -173,6 +184,9 @@ def main():
     ap.add_argument("--min-lr-ratio", type=float, default=0.1)
     ap.add_argument("--peak-tflops", type=float, default=43.0)
     ap.add_argument("--init")
+    ap.add_argument("--perturb-ulp", type=int, default=0,
+                    help="curve: >0 ise her parametre bu tohumla rastgele isaretli 1 ULP oynatilir "
+                         "(Dalga 1 gurultu zarfi: referansin kendi yuvarlama hassasiyeti)")
     ap.add_argument("--batches")
     ap.add_argument("--out")
     args = ap.parse_args()
@@ -217,6 +231,8 @@ def main():
     block = json.load(open(args.init + ".json"))["max_seq"]
     model = build(nanogpt, block, args.vocab, device)
     load_nexus_init(model, args.init, block)
+    if args.perturb_ulp:
+        perturb_one_ulp(model, args.perturb_ulp)
     flat = np.memmap(args.batches, dtype=np.int32, mode="r")
     per_step = A * B * T
     if flat.size < per_step * args.steps:
@@ -232,7 +248,7 @@ def main():
            "ms": times, "peak_allocated_gb": pa / 1e9, "peak_reserved_gb": pr / 1e9,
            "parameter_count": sum(p.numel() for p in model.parameters()),
            "cuda_build": int(torch.version.cuda.split('.')[0])*1000+int(torch.version.cuda.split('.')[1])*10,
-           "lr": args.lr, "warmup": args.warmup, "target_tokens_per_step": B * (T - 1) * A,
+           "lr": args.lr, "warmup": args.warmup, "perturb_ulp_seed": args.perturb_ulp, "target_tokens_per_step": B * (T - 1) * A,
            "gelu": "tanh (explicit Nexus compatibility adaptation)",
            "nanogpt_model_sha256": hashlib.sha256(open(nanogpt.__file__, "rb").read()).hexdigest()}
     out.update(numerics)

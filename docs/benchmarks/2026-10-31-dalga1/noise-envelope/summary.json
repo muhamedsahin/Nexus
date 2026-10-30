@@ -1,0 +1,20 @@
+{
+  "0.0006": {
+    "lr": 0.0006,
+    "steps": 100,
+    "perturbations": 12,
+    "torch_version": "nanoGPT/PyTorch 2.15.0+cu134",
+    "deterministic": true,
+    "initial_sha256": "8b9a7bb0d768045ed22429fab78d4e0e193f7ca7eed4398ecfdc6b7c3ff97f0c",
+    "tokens_sha256": "0ccef04d8043317378f9bd93f912241b1591fc271ee79a165f00e1bb47e2e443",
+    "executable_sha256": "51dd5959a83971847559976ace0ff3f8cf3cfbe5e9dcae3137453189b88bbdf4",
+    "reference_script_sha256": "c52b832a46ff25aef91ddad8f13c18cedde7ea12b2df2755bfcba9974d8c9e42",
+    "envelope_max": 0.041658878326416016,
+    "envelope_worst_step": 50,
+    "nexus_max": 0.04372406005859375,
+    "nexus_worst_step": 46,
+    "nexus_first10_max": 9.5367431640625e-07,
+    "envelope_first10_max": 9.5367431640625e-07,
+    "steps_nexus_exceeds_envelope": 33
+  }
+}

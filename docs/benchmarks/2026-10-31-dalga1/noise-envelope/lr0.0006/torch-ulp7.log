@@ -1,0 +1,5 @@
+number of parameters: 123.65M
+num decayed parameter tensors: 50, with 124,318,464 parameters
+num non-decayed parameter tensors: 98, with 121,344 parameters
+using fused AdamW: True
+{"framework": "nanoGPT/PyTorch 2.15.0+cu134", "compile": false, "precision": "f32", "peak_allocated_gb": 2.931255808, "peak_reserved_gb": 3.118465024, "parameter_count": 124439808, "cuda_build": 13040, "lr": 0.0006, "warmup": 10, "perturb_ulp_seed": 7, "target_tokens_per_step": 1023, "gelu": "tanh (explicit Nexus compatibility adaptation)", "nanogpt_model_sha256": "7c01703240dbec5d554527dc666e35b3df8391d0b117fddc07afcf325a21d11c", "deterministic_algorithms": true, "cublas_workspace_config": ":4096:8", "cudnn_deterministic": true, "cudnn_benchmark": false, "sdpa_flash_available": true, "first": [11.000935554504395, 9.68124008178711, 9.3447847366333], "last": [5.027714252471924, 5.047284126281738, 5.040367603302002], "mean_ms": 187.5763084210025}

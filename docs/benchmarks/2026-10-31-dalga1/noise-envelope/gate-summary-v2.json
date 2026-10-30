@@ -1,0 +1,44 @@
+{
+  "0.0006": {
+    "pointwise_passed": false,
+    "pointwise_max_abs": 0.04372406005859375,
+    "ensemble_v2_passed": true,
+    "checks": {
+      "early": true,
+      "member_score": true,
+      "tail": true
+    },
+    "early_max_abs": 9.5367431640625e-07,
+    "nexus_score": 0.06771278381347656,
+    "score_limit": 0.06819343566894531,
+    "member_scores_min": 0.041658878326416016,
+    "nexus_rank": "11/13",
+    "tail_nexus": 5.069063138961792,
+    "tail_mean": 5.0736964757625875,
+    "tail_sd": 0.004474951843306112,
+    "tail_z": -1.0353936674706727,
+    "ref_pairs": 78,
+    "ref_pairs_pointwise_pass": 0
+  },
+  "0.0001": {
+    "pointwise_passed": true,
+    "pointwise_max_abs": 9.5367431640625e-07,
+    "ensemble_v2_passed": true,
+    "checks": {
+      "early": true,
+      "member_score": true,
+      "tail": true
+    },
+    "early_max_abs": 9.5367431640625e-07,
+    "nexus_score": 9.5367431640625e-07,
+    "score_limit": 1.9073486328125e-06,
+    "member_scores_min": 9.5367431640625e-07,
+    "nexus_rank": "0/5",
+    "tail_nexus": 5.231738567352295,
+    "tail_mean": 5.231738481521607,
+    "tail_sd": 2.718390045449613e-08,
+    "tail_z": 0.08999999985098839,
+    "ref_pairs": 10,
+    "ref_pairs_pointwise_pass": 10
+  }
+}
