@@ -11,6 +11,7 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/autograd/autograd.hpp"
 #include "nexus/core/tensor.hpp"
 #include "nexus/core/tensor_ops.hpp"
 #include "nexus/cuda/gemm.hpp"
@@ -169,6 +170,54 @@ void test_ops() {
   nexus_test::expect(w16 <= 1e-2, "cihaz matmul BF16/F16 (FP32 biriktirme, cikti yuvarlamasi) <= 1e-2");
 }
 
+namespace ag = nexus::autograd;
+
+std::vector<double> gvals(const ag::Variable& v) {
+  return v.grad().is_tensor_backed() ? host(v.grad().tensor()).to(DType::F64).to_double_vector()
+                                     : std::vector<double>(v.grad().values().begin(), v.grad().values().end());
+}
+
+void test_autograd() {
+  nexus_test::section("autograd: cihazda Tensor yolu");
+  nexus::cuda::set_float32_matmul_precision(nexus::cuda::MatmulPrecision::Highest);
+  const std::size_t M = 64, K = 48, N = 32;
+  const auto av = randv(M * K, 21), bv = randv(K * N, 22), cv = randv(M * N, 23);
+  auto leaf = [](const std::vector<double>& v, std::size_t r, std::size_t c, DType t, bool on_gpu) {
+    Tensor h = Tensor::from_values(Shape{r, c}, v, t);
+    return ag::Variable::wrap(on_gpu ? gpu(h) : h, true);
+  };
+  auto graph = [](const ag::Variable& A, const ag::Variable& B, const ag::Variable& C) {
+    return ag::sum(ag::add(ag::mul(ag::matmul(A, B), C), C));
+  };
+  double worst32 = 0, worst16 = 0;
+  for (const DType t : {DType::F32, DType::BF16}) {
+    ag::Variable A = leaf(av, M, K, t, true), B = leaf(bv, K, N, t, true), C = leaf(cv, M, N, t, true);
+    ag::Variable Ah = leaf(av, M, K, DType::F32, false), Bh = leaf(bv, K, N, DType::F32, false), Ch = leaf(cv, M, N, DType::F32, false);
+    graph(A, B, C).backward();
+    graph(Ah, Bh, Ch).backward();
+    const bool on = A.grad().on_device() && B.grad().on_device() && A.grad().dtype() == t;
+    nexus_test::expect(on, std::string("cihaz gradyanlari cihazda, dtype ") + std::string(nexus::to_string(t)));
+    const double e = std::max({max_rel(gvals(A), gvals(Ah)), max_rel(gvals(B), gvals(Bh)), max_rel(gvals(C), gvals(Ch))});
+    (t == DType::F32 ? worst32 : worst16) = e;
+  }
+  std::printf("  info  cihaz autograd vs host Tensor yolu: F32 %.2e, BF16 %.2e\n", worst32, worst16);
+  nexus_test::expect(worst32 <= 1e-5, "cihaz F32 autograd gradyanlari host'a <= 1e-5");
+  nexus_test::expect(worst16 <= 3e-2, "cihaz BF16 autograd gradyanlari host F32'ye <= 3e-2");
+  // host FAZ 2 vector yapragi -> to(GPU) -> cihazda islem -> gradyan host vector olarak geri
+  ag::Variable x = ag::Variable::make(std::vector<float>(av.begin(), av.end()), ag::Shape{{static_cast<std::int64_t>(M), static_cast<std::int64_t>(K)}}, true);
+  ag::Variable w = leaf(bv, K, N, DType::F32, true);
+  ag::Variable y = ag::sum(ag::matmul(ag::to(x, MemorySpace::Device, kGpu), w));
+  y.backward();
+  bool ok = !x.grad().is_tensor_backed() && x.grad().values().size() == M * K;
+  // dx = 1 * W^T: satir i'nin elemani k = sum_j W[k,j]
+  for (std::size_t k = 0; k < K && ok; ++k) {
+    double rs = 0;
+    for (std::size_t j = 0; j < N; ++j) rs += static_cast<float>(bv[k * N + j]);
+    ok = std::fabs(x.grad().values()[k] - rs) <= 1e-4 * std::max(1.0, std::fabs(rs));
+  }
+  nexus_test::expect(ok, "host vector yaprak -> to(GPU) -> matmul: gradyan host F32 vector olarak doner, dogru");
+}
+
 void test_errors() {
   nexus_test::section("errors: acik hatalar");
   const Tensor d = gpu(Tensor::from_values(Shape{4}, randv(4, 9), DType::F32));
@@ -200,6 +249,7 @@ int main(int argc, char** argv) {
     if (mode == "copy") test_copy();
     else if (mode == "ops") test_ops();
     else if (mode == "errors") test_errors();
+    else if (mode == "autograd") test_autograd();
     else {
       std::printf("bilinmeyen mod: %s\n", mode.c_str());
       return 2;

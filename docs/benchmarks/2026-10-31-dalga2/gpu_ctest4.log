@@ -1,0 +1,466 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+        Start   1: test_phase1_bridge
+  1/223 Test   #1: test_phase1_bridge ........................   Passed    0.38 sec
+        Start   2: test_phase1_loss_families
+  2/223 Test   #2: test_phase1_loss_families .................   Passed    0.08 sec
+        Start   3: test_phase1_mirrored_tensor
+  3/223 Test   #3: test_phase1_mirrored_tensor ...............   Passed    0.38 sec
+        Start   4: test_phase1_thread_pool
+  4/223 Test   #4: test_phase1_thread_pool ...................   Passed    0.16 sec
+        Start   5: test_phase2_hardware
+  5/223 Test   #5: test_phase2_hardware ......................   Passed    0.62 sec
+        Start   6: test_phase3_fusion
+  6/223 Test   #6: test_phase3_fusion ........................   Passed    0.43 sec
+        Start   7: test_phase4_custom_extensions
+  7/223 Test   #7: test_phase4_custom_extensions .............   Passed    0.06 sec
+        Start   8: test_phase5_rl_and_marl
+  8/223 Test   #8: test_phase5_rl_and_marl ...................   Passed    0.19 sec
+        Start   9: test_phase6_trainer
+  9/223 Test   #9: test_phase6_trainer .......................   Passed    0.19 sec
+        Start  10: test_phase8_sequence_vision
+ 10/223 Test  #10: test_phase8_sequence_vision ...............   Passed    0.07 sec
+        Start  11: test_phase9_blocks
+ 11/223 Test  #11: test_phase9_blocks ........................   Passed    0.11 sec
+        Start  12: test_phase10_structure
+ 12/223 Test  #12: test_phase10_structure ....................   Passed    0.06 sec
+        Start  13: test_phase11_sequence
+ 13/223 Test  #13: test_phase11_sequence .....................   Passed    0.06 sec
+        Start  14: test_phase12_catalog
+ 14/223 Test  #14: test_phase12_catalog ......................   Passed    0.07 sec
+        Start  15: test_phase13_isa
+ 15/223 Test  #15: test_phase13_isa ..........................   Passed    0.07 sec
+        Start  16: test_nxs
+ 16/223 Test  #16: test_nxs ..................................   Passed    0.10 sec
+        Start  17: test_phase0_prof
+ 17/223 Test  #17: test_phase0_prof ..........................   Passed    0.22 sec
+        Start  18: test_estimate_parity
+ 18/223 Test  #18: test_estimate_parity ......................   Passed    1.59 sec
+        Start  19: test_phase1_allocator
+ 19/223 Test  #19: test_phase1_allocator .....................   Passed    0.06 sec
+        Start  20: test_phase2_autograd
+ 20/223 Test  #20: test_phase2_autograd ......................   Passed    0.07 sec
+        Start  21: test_phase3_fused
+ 21/223 Test  #21: test_phase3_fused .........................   Passed    0.05 sec
+        Start  22: test_phase2_engine
+ 22/223 Test  #22: test_phase2_engine ........................   Passed    0.06 sec
+        Start  23: test_phase1_dtype
+ 23/223 Test  #23: test_phase1_dtype .........................   Passed    2.23 sec
+        Start  24: test_phase3_training
+ 24/223 Test  #24: test_phase3_training ......................   Passed    0.12 sec
+        Start  25: test_autocast_policy
+ 25/223 Test  #25: test_autocast_policy ......................   Passed    0.07 sec
+        Start  26: test_phase4_host_fp8
+ 26/223 Test  #26: test_phase4_host_fp8 ......................   Passed    0.02 sec
+        Start  27: test_phase4_loss_scale_policy
+ 27/223 Test  #27: test_phase4_loss_scale_policy .............   Passed    0.02 sec
+        Start  28: test_parity_nano
+ 28/223 Test  #28: test_parity_nano ..........................   Passed    7.62 sec
+        Start  29: test_parity_tiny
+ 29/223 Test  #29: test_parity_tiny ..........................   Passed   15.35 sec
+        Start  30: test_rope_vs_reference
+ 30/223 Test  #30: test_rope_vs_reference ....................   Passed   13.14 sec
+        Start  31: test_swiglu_gradcheck
+ 31/223 Test  #31: test_swiglu_gradcheck .....................   Passed    0.03 sec
+        Start  32: test_decoder_block_parity
+ 32/223 Test  #32: test_decoder_block_parity .................   Passed   34.00 sec
+        Start  33: test_tied_embeddings_single_copy
+ 33/223 Test  #33: test_tied_embeddings_single_copy ..........   Passed    0.08 sec
+        Start  34: test_build_param_counts
+ 34/223 Test  #34: test_build_param_counts ...................   Passed    3.73 sec
+        Start  35: test_lm_nxs_roundtrip
+ 35/223 Test  #35: test_lm_nxs_roundtrip .....................   Passed    0.04 sec
+        Start  36: test_lm_mup_multipliers
+ 36/223 Test  #36: test_lm_mup_multipliers ...................   Passed    0.03 sec
+        Start  37: test_deep_stack_stability
+ 37/223 Test  #37: test_deep_stack_stability .................   Passed  236.14 sec
+        Start  38: test_checkpoint_grad_equal
+ 38/223 Test  #38: test_checkpoint_grad_equal ................   Passed    0.09 sec
+        Start  39: test_planner_no_overlap
+ 39/223 Test  #39: test_planner_no_overlap ...................   Passed    0.03 sec
+        Start  40: test_bpe_encode_matches_tiktoken
+ 40/223 Test  #40: test_bpe_encode_matches_tiktoken ..........   Passed    8.14 sec
+        Start  41: test_decode_roundtrip
+ 41/223 Test  #41: test_decode_roundtrip .....................   Passed    0.27 sec
+        Start  42: test_bpe_train_matches_hf
+ 42/223 Test  #42: test_bpe_train_matches_hf .................   Passed    0.91 sec
+        Start  43: test_shard_roundtrip
+ 43/223 Test  #43: test_shard_roundtrip ......................   Passed    0.46 sec
+        Start  44: test_sampler_resume_exact
+ 44/223 Test  #44: test_sampler_resume_exact .................   Passed    0.21 sec
+        Start  45: test_pack_mask
+ 45/223 Test  #45: test_pack_mask ............................   Passed    0.14 sec
+        Start  46: test_no_overlap_across_ranks
+ 46/223 Test  #46: test_no_overlap_across_ranks ..............   Passed    0.34 sec
+        Start  47: test_old_api_still_works
+ 47/223 Test  #47: test_old_api_still_works ..................   Passed    0.22 sec
+        Start  48: test_accum_equivalence
+ 48/223 Test  #48: test_accum_equivalence ....................   Passed    0.15 sec
+        Start  49: test_schedule_values
+ 49/223 Test  #49: test_schedule_values ......................   Passed    0.16 sec
+        Start  50: test_param_groups_wd
+ 50/223 Test  #50: test_param_groups_wd ......................   Passed    0.16 sec
+        Start  51: test_nan_policy
+ 51/223 Test  #51: test_nan_policy ...........................   Passed    0.16 sec
+        Start  52: test_loss_spike
+ 52/223 Test  #52: test_loss_spike ...........................   Passed    0.16 sec
+        Start  53: test_trainer_resume
+ 53/223 Test  #53: test_trainer_resume .......................   Passed    0.17 sec
+        Start  54: test_eval_fixed_set
+ 54/223 Test  #54: test_eval_fixed_set .......................   Passed    0.15 sec
+        Start  55: test_trainer_loggers
+ 55/223 Test  #55: test_trainer_loggers ......................   Passed    0.17 sec
+        Start  56: test_classifier_shared_infra
+ 56/223 Test  #56: test_classifier_shared_infra ..............   Passed    0.15 sec
+        Start  57: test_collectives_thread
+ 57/223 Test  #57: test_collectives_thread ...................   Passed    0.26 sec
+        Start  58: test_collectives_tcp_2
+ 58/223 Test  #58: test_collectives_tcp_2 ....................   Passed    0.32 sec
+        Start  59: test_collectives_tcp_3
+ 59/223 Test  #59: test_collectives_tcp_3 ....................   Passed    0.29 sec
+        Start  60: test_collectives_tcp_4
+ 60/223 Test  #60: test_collectives_tcp_4 ....................   Passed    0.29 sec
+        Start  61: test_collectives_tcp_8
+ 61/223 Test  #61: test_collectives_tcp_8 ....................   Passed    0.33 sec
+        Start  62: test_mismatched_collective_detected
+ 62/223 Test  #62: test_mismatched_collective_detected .......   Passed    0.02 sec
+        Start  63: test_mismatched_collective_detected_tcp
+ 63/223 Test  #63: test_mismatched_collective_detected_tcp ...   Passed    0.29 sec
+        Start  64: test_rank_failure_clean_exit
+ 64/223 Test  #64: test_rank_failure_clean_exit ..............   Passed    0.13 sec
+        Start  65: test_collectives_nccl
+ 65/223 Test  #65: test_collectives_nccl .....................   Passed    0.02 sec
+        Start  66: test_topology_and_lr_scaling
+ 66/223 Test  #66: test_topology_and_lr_scaling ..............   Passed    0.06 sec
+        Start  67: test_ddp_equivalence
+ 67/223 Test  #67: test_ddp_equivalence ......................   Passed    0.07 sec
+        Start  68: test_ddp_equivalence_tcp
+ 68/223 Test  #68: test_ddp_equivalence_tcp ..................   Passed    0.30 sec
+        Start  69: test_overlap_occurs
+ 69/223 Test  #69: test_overlap_occurs .......................   Passed    0.07 sec
+        Start  70: test_zero_stages_equivalence
+ 70/223 Test  #70: test_zero_stages_equivalence ..............   Passed    0.29 sec
+        Start  71: test_zero_stages_equivalence_tcp
+ 71/223 Test  #71: test_zero_stages_equivalence_tcp ..........   Passed    0.49 sec
+        Start  72: test_fsdp_memory_scaling
+ 72/223 Test  #72: test_fsdp_memory_scaling ..................   Passed    0.31 sec
+        Start  73: test_fsdp_prefetch_order
+ 73/223 Test  #73: test_fsdp_prefetch_order ..................   Passed    0.02 sec
+        Start  74: test_nvme_offload_roundtrip
+ 74/223 Test  #74: test_nvme_offload_roundtrip ...............   Passed    0.83 sec
+        Start  75: test_sharded_checkpoint_reshard
+ 75/223 Test  #75: test_sharded_checkpoint_reshard ...........   Passed    0.04 sec
+        Start  76: test_hsdp_and_bf16_comm
+ 76/223 Test  #76: test_hsdp_and_bf16_comm ...................   Passed    0.10 sec
+        Start  77: test_dtensor_redistribute_all_pairs
+ 77/223 Test  #77: test_dtensor_redistribute_all_pairs .......   Passed    0.14 sec
+        Start  78: test_tp_equivalence
+ 78/223 Test  #78: test_tp_equivalence .......................   Passed    0.17 sec
+        Start  79: test_vocab_parallel_ce_equals_full
+ 79/223 Test  #79: test_vocab_parallel_ce_equals_full ........   Passed    0.04 sec
+        Start  80: test_pp_schedules_equivalence
+ 80/223 Test  #80: test_pp_schedules_equivalence .............   Passed    0.10 sec
+        Start  81: test_ring_attention_equals_flash
+ 81/223 Test  #81: test_ring_attention_equals_flash ..........   Passed    0.03 sec
+        Start  82: test_parallel_zero1_equivalence
+ 82/223 Test  #82: test_parallel_zero1_equivalence ...........   Passed    0.07 sec
+        Start  83: test_3d_equivalence
+ 83/223 Test  #83: test_3d_equivalence .......................   Passed    0.15 sec
+        Start  84: test_4d_equivalence
+ 84/223 Test  #84: test_4d_equivalence .......................   Passed    0.24 sec
+        Start  85: test_parallel_trainer_api
+ 85/223 Test  #85: test_parallel_trainer_api .................   Passed    0.05 sec
+        Start  86: test_tp_equivalence_tcp
+ 86/223 Test  #86: test_tp_equivalence_tcp ...................   Passed    0.30 sec
+        Start  87: test_auto_parallel_config
+ 87/223 Test  #87: test_auto_parallel_config .................   Passed    0.08 sec
+        Start  88: test_compile_numerics
+ 88/223 Test  #88: test_compile_numerics .....................   Passed    6.36 sec
+        Start  89: test_fusion_kernel_count
+ 89/223 Test  #89: test_fusion_kernel_count ..................   Passed    3.67 sec
+        Start  90: test_dynamic_shape_no_recompile
+ 90/223 Test  #90: test_dynamic_shape_no_recompile ...........   Passed    4.57 sec
+        Start  91: test_cache_hit_zero_compile
+ 91/223 Test  #91: test_cache_hit_zero_compile ...............   Passed    4.52 sec
+        Start  92: test_compile_min_cut_memory
+ 92/223 Test  #92: test_compile_min_cut_memory ...............   Passed    0.07 sec
+        Start  93: test_compile_comm_reorder
+ 93/223 Test  #93: test_compile_comm_reorder .................   Passed    0.02 sec
+        Start  94: test_compile_export_stablehlo
+ 94/223 Test  #94: test_compile_export_stablehlo .............   Passed    0.07 sec
+        Start  95: test_moe_router_deterministic
+ 95/223 Test  #95: test_moe_router_deterministic .............   Passed    0.06 sec
+        Start  96: test_moe_k1_equals_dense
+ 96/223 Test  #96: test_moe_k1_equals_dense ..................   Passed    0.02 sec
+        Start  97: test_moe_grad_numerics
+ 97/223 Test  #97: test_moe_grad_numerics ....................   Passed    0.02 sec
+        Start  98: test_grouped_gemm_vs_loop
+ 98/223 Test  #98: test_grouped_gemm_vs_loop .................***Failed    2.86 sec
+  info  gruplu GEMM (E=8, 8192 satir, d=256, F=512): sirali uzman dongusu 447.8 ms (14.4 GFLOP/s), paralel gruplu 449.9 ms (14.3 GFLOP/s, 1.00x), token basina dongu ~174 ms (tahmini, 256 satirdan); token dongusu farki 0.0e+00
+  PASS  paralel gruplu GEMM == sirali uzman dongusu (bit bit)
+  FAIL  paralel gruplu GEMM sirali donguden hizli
+  PASS  token basina dongu ile ayni sonuc (satir bagimsiz)
+test_phase14_moe: 2 gecti, 1 basarisiz
+
+        Start  99: test_load_balance_in_range
+ 99/223 Test  #99: test_load_balance_in_range ................   Passed   21.37 sec
+        Start 100: test_ep_equivalence
+100/223 Test #100: test_ep_equivalence .......................   Passed    0.04 sec
+        Start 101: test_moe_quantized_experts
+101/223 Test #101: test_moe_quantized_experts ................   Passed    0.59 sec
+        Start 102: test_moe_config_roundtrip
+102/223 Test #102: test_moe_config_roundtrip .................   Passed    0.04 sec
+        Start 103: test_save_load_exact
+103/223 Test #103: test_save_load_exact ......................   Passed    0.45 sec
+        Start 104: test_rng_restore
+104/223 Test #104: test_rng_restore ..........................   Passed    0.09 sec
+        Start 105: test_sharded_save_load
+105/223 Test #105: test_sharded_save_load ....................   Passed    0.32 sec
+        Start 106: test_reshard_2_to_4
+106/223 Test #106: test_reshard_2_to_4 .......................   Passed    0.22 sec
+        Start 107: test_crash_injection
+107/223 Test #107: test_crash_injection ......................   Passed    0.37 sec
+        Start 108: test_watchdog_timeout
+108/223 Test #108: test_watchdog_timeout .....................   Passed    6.45 sec
+        Start 109: test_elastic_restart
+109/223 Test #109: test_elastic_restart ......................   Passed    0.55 sec
+        Start 110: test_kv_cache_matches_full_cpu
+110/223 Test #110: test_kv_cache_matches_full_cpu ............   Passed    0.10 sec
+        Start 111: test_kv_cache_generate_cpu
+111/223 Test #111: test_kv_cache_generate_cpu ................   Passed    0.18 sec
+        Start 112: test_safetensors_roundtrip
+112/223 Test #112: test_safetensors_roundtrip ................   Passed    0.09 sec
+        Start 113: test_hf_templates
+113/223 Test #113: test_hf_templates .........................   Passed   44.85 sec
+        Start 114: test_hf_import_logits
+114/223 Test #114: test_hf_import_logits .....................   Passed   32.11 sec
+        Start 115: test_gguf_roundtrip
+115/223 Test #115: test_gguf_roundtrip .......................   Passed   96.77 sec
+        Start 116: test_onnx_roundtrip
+116/223 Test #116: test_onnx_roundtrip .......................   Passed  116.82 sec
+        Start 117: test_dlpack_torch
+117/223 Test #117: test_dlpack_torch .........................   Passed    9.12 sec
+        Start 118: test_cpu_features
+118/223 Test #118: test_cpu_features .........................   Passed    0.07 sec
+        Start 119: test_cpu_gemm_vs_ref
+119/223 Test #119: test_cpu_gemm_vs_ref ......................   Passed    1.46 sec
+        Start 120: test_cpu_gemm_avx2_vs_ref
+120/223 Test #120: test_cpu_gemm_avx2_vs_ref .................   Passed    1.51 sec
+        Start 121: test_cpu_gemm_avx512_vs_ref
+121/223 Test #121: test_cpu_gemm_avx512_vs_ref ...............   Passed    0.02 sec
+        Start 122: test_numa_affinity
+122/223 Test #122: test_numa_affinity ........................   Passed    0.03 sec
+        Start 123: test_cpu_numa_and_pinning
+123/223 Test #123: test_cpu_numa_and_pinning .................   Passed    0.03 sec
+        Start 124: test_offload_adam_bitwise
+124/223 Test #124: test_offload_adam_bitwise .................   Passed    0.55 sec
+        Start 125: test_cpu_adam_step
+125/223 Test #125: test_cpu_adam_step ........................   Passed    0.57 sec
+        Start 126: test_zero_offload_step
+126/223 Test #126: test_zero_offload_step ....................   Passed    0.55 sec
+        Start 127: test_cpu_flash_vs_math
+127/223 Test #127: test_cpu_flash_vs_math ....................   Passed    0.23 sec
+        Start 128: test_cpu_flash_attn_vs_ref
+128/223 Test #128: test_cpu_flash_attn_vs_ref ................   Passed    0.21 sec
+        Start 129: test_cpu_train_parity
+129/223 Test #129: test_cpu_train_parity .....................   Passed   41.29 sec
+        Start 130: test_cpu_quantized_inference
+130/223 Test #130: test_cpu_quantized_inference ..............   Passed    0.24 sec
+        Start 131: test_cpu_compile_fusion
+131/223 Test #131: test_cpu_compile_fusion ...................   Passed    0.13 sec
+        Start 132: test_backend_detection
+132/223 Test #132: test_backend_detection ....................   Passed    1.20 sec
+        Start 133: test_hip_parity
+133/223 Test #133: test_hip_parity ...........................***Skipped   0.02 sec
+        Start 134: test_hip_source_compat
+134/223 Test #134: test_hip_source_compat ....................   Passed    0.02 sec
+        Start 135: test_vulkan_parity
+135/223 Test #135: test_vulkan_parity ........................   Passed    1.21 sec
+        Start 136: test_directml_parity
+136/223 Test #136: test_directml_parity ......................   Passed    1.58 sec
+        Start 137: test_pjrt_export
+137/223 Test #137: test_pjrt_export ..........................   Passed    1.10 sec
+        Start 138: test_backend_fallback
+138/223 Test #138: test_backend_fallback .....................   Passed    1.07 sec
+        Start 139: test_pjrt_plugin_abi
+139/223 Test #139: test_pjrt_plugin_abi ......................   Passed    0.07 sec
+        Start 140: test_pjrt_vendor
+140/223 Test #140: test_pjrt_vendor ..........................***Skipped   0.02 sec
+        Start 141: test_phase21_bench
+141/223 Test #141: test_phase21_bench ........................   Passed    2.46 sec
+        Start 142: test_phase20_evidence
+142/223 Test #142: test_phase20_evidence .....................   Passed    0.91 sec
+        Start 143: test_pjrt_xla_cpu
+143/223 Test #143: test_pjrt_xla_cpu .........................   Passed    5.19 sec
+        Start 144: test_tensor_views
+144/223 Test #144: test_tensor_views .........................   Passed    0.06 sec
+        Start 145: test_tensor_dtype_cast
+145/223 Test #145: test_tensor_dtype_cast ....................   Passed    0.02 sec
+        Start 146: test_tensor_ops_dispatch
+146/223 Test #146: test_tensor_ops_dispatch ..................   Passed    0.33 sec
+        Start 147: test_tensor_legacy_api
+147/223 Test #147: test_tensor_legacy_api ....................   Passed    0.02 sec
+        Start 148: test_tensor_autograd_bridge
+148/223 Test #148: test_tensor_autograd_bridge ...............   Passed    0.02 sec
+        Start 149: test_tensor_autograd
+149/223 Test #149: test_tensor_autograd ......................   Passed    0.02 sec
+        Start 150: test_cuda_allocator
+150/223 Test #150: test_cuda_allocator .......................   Passed    1.03 sec
+        Start 151: test_cuda_kernels
+151/223 Test #151: test_cuda_kernels .........................   Passed    2.78 sec
+        Start 152: test_phase4_narrow_gemm
+152/223 Test #152: test_phase4_narrow_gemm ...................   Passed    0.98 sec
+        Start 153: test_phase4_cast_cache
+153/223 Test #153: test_phase4_cast_cache ....................   Passed    0.30 sec
+        Start 154: test_fp8_emulation
+154/223 Test #154: test_fp8_emulation ........................   Passed    0.47 sec
+        Start 155: test_fp16_loss_scale
+155/223 Test #155: test_fp16_loss_scale ......................   Passed    0.62 sec
+        Start 156: test_master_weight_modes
+156/223 Test #156: test_master_weight_modes ..................   Passed   17.57 sec
+        Start 157: test_bf16_training_converges
+157/223 Test #157: test_bf16_training_converges ..............   Passed  101.46 sec
+        Start 158: test_gpt_flash_vs_math
+158/223 Test #158: test_gpt_flash_vs_math ....................   Passed    8.91 sec
+        Start 159: test_cuda_gpt_small
+159/223 Test #159: test_cuda_gpt_small .......................   Passed   12.41 sec
+        Start 160: test_gpt2s_parity_fp32
+160/223 Test #160: test_gpt2s_parity_fp32 ....................   Passed  239.28 sec
+        Start 161: test_flash_vs_math
+161/223 Test #161: test_flash_vs_math ........................   Passed    0.43 sec
+        Start 162: test_flash_tq1_decode
+162/223 Test #162: test_flash_tq1_decode .....................   Passed    0.28 sec
+        Start 163: test_flash_varlen_equals_separate
+163/223 Test #163: test_flash_varlen_equals_separate .........   Passed    0.21 sec
+        Start 164: test_flash_dropout_stats
+164/223 Test #164: test_flash_dropout_stats ..................   Passed    0.23 sec
+        Start 165: test_flash_determinism
+165/223 Test #165: test_flash_determinism ....................   Passed    0.28 sec
+        Start 166: test_causal_future_invariance
+166/223 Test #166: test_causal_future_invariance .............   Passed    0.18 sec
+        Start 167: test_rope_swiglu_cuda
+167/223 Test #167: test_rope_swiglu_cuda .....................   Passed    0.27 sec
+        Start 168: test_checkpoint_grad_equal_cuda
+168/223 Test #168: test_checkpoint_grad_equal_cuda ...........   Passed    1.22 sec
+        Start 169: test_chunked_ce_equals_full
+169/223 Test #169: test_chunked_ce_equals_full ...............   Passed    0.86 sec
+        Start 170: test_zero_offload_equals_gpu_adam
+170/223 Test #170: test_zero_offload_equals_gpu_adam .........   Passed    7.96 sec
+        Start 171: test_8bit_adam_converges
+171/223 Test #171: test_8bit_adam_converges ..................   Passed   36.61 sec
+        Start 172: test_fused_8bit_update
+172/223 Test #172: test_fused_8bit_update ....................   Passed    2.32 sec
+        Start 173: test_loader_order
+173/223 Test #173: test_loader_order .........................   Passed    6.60 sec
+        Start 174: test_loader_error
+174/223 Test #174: test_loader_error .........................   Passed    0.32 sec
+        Start 175: test_accum_equivalence_cuda
+175/223 Test #175: test_accum_equivalence_cuda ...............   Passed    0.57 sec
+        Start 176: test_param_groups_wd_cuda
+176/223 Test #176: test_param_groups_wd_cuda .................   Passed    0.43 sec
+        Start 177: test_nan_policy_cuda
+177/223 Test #177: test_nan_policy_cuda ......................   Passed    0.72 sec
+        Start 178: test_eval_no_grad_memory
+178/223 Test #178: test_eval_no_grad_memory ..................   Passed    0.58 sec
+        Start 179: test_trainer_resume_cuda
+179/223 Test #179: test_trainer_resume_cuda ..................   Passed    0.70 sec
+        Start 180: test_ddp_equivalence_cuda
+180/223 Test #180: test_ddp_equivalence_cuda .................   Passed    1.56 sec
+        Start 181: test_overlap_occurs_cuda
+181/223 Test #181: test_overlap_occurs_cuda ..................   Passed    2.19 sec
+        Start 182: test_cuda_graph_replay_equal
+182/223 Test #182: test_cuda_graph_replay_equal ..............   Passed    0.93 sec
+        Start 183: test_nvrtc_fusion_kernels
+183/223 Test #183: test_nvrtc_fusion_kernels .................   Passed    5.44 sec
+        Start 184: test_moe_grouped_gemm_cuda
+184/223 Test #184: test_moe_grouped_gemm_cuda ................   Passed    3.74 sec
+        Start 185: test_kv_cache_matches_full
+185/223 Test #185: test_kv_cache_matches_full ................   Passed   12.06 sec
+        Start 186: test_paged_cache_equivalence
+186/223 Test #186: test_paged_cache_equivalence ..............   Passed    3.00 sec
+        Start 187: test_sampling_distribution
+187/223 Test #187: test_sampling_distribution ................   Passed   66.97 sec
+        Start 188: test_speculative_exact
+188/223 Test #188: test_speculative_exact ....................   Passed    7.65 sec
+        Start 189: test_quant_ppl
+189/223 Test #189: test_quant_ppl ............................   Passed   50.47 sec
+        Start 190: test_decode_cuda_graph
+190/223 Test #190: test_decode_cuda_graph ....................   Passed    5.17 sec
+        Start 191: test_continuous_batching
+191/223 Test #191: test_continuous_batching ..................   Passed    6.56 sec
+        Start 192: test_tensor_cuda_copy
+192/223 Test #192: test_tensor_cuda_copy .....................   Passed    0.35 sec
+        Start 193: test_tensor_cuda_ops
+193/223 Test #193: test_tensor_cuda_ops ......................   Passed    0.86 sec
+        Start 194: test_tensor_cuda_errors
+194/223 Test #194: test_tensor_cuda_errors ...................   Passed    0.30 sec
+        Start 195: test_tensor_cuda_autograd
+195/223 Test #195: test_tensor_cuda_autograd .................   Passed    0.51 sec
+        Start 196: bench_phase1_bridge
+196/223 Test #196: bench_phase1_bridge .......................   Passed    4.47 sec
+        Start 197: bench_phase2_heterogeneous
+197/223 Test #197: bench_phase2_heterogeneous ................   Passed    0.45 sec
+        Start 198: bench_phase3_optim_model
+198/223 Test #198: bench_phase3_optim_model ..................   Passed    0.51 sec
+        Start 199: bench_phase4_custom
+199/223 Test #199: bench_phase4_custom .......................   Passed    0.11 sec
+        Start 200: bench_phase5_rl_throughput
+200/223 Test #200: bench_phase5_rl_throughput ................   Passed    0.13 sec
+        Start 201: bench_phase8_layers
+201/223 Test #201: bench_phase8_layers .......................   Passed    0.35 sec
+        Start 202: bench_phase9_blocks
+202/223 Test #202: bench_phase9_blocks .......................   Passed    0.29 sec
+        Start 203: bench_phase10_structure
+203/223 Test #203: bench_phase10_structure ...................   Passed    0.14 sec
+        Start 204: bench_phase11_sequence
+204/223 Test #204: bench_phase11_sequence ....................   Passed    0.07 sec
+        Start 205: bench_phase12_catalog
+205/223 Test #205: bench_phase12_catalog .....................   Passed    0.23 sec
+        Start 206: bench_phase13_baseline
+206/223 Test #206: bench_phase13_baseline ....................   Passed    0.30 sec
+        Start 207: bench_phase24_close
+207/223 Test #207: bench_phase24_close .......................   Passed    0.30 sec
+        Start 208: bench_phase30_close
+208/223 Test #208: bench_phase30_close .......................   Passed    0.32 sec
+        Start 209: nexus_master_benchmark
+209/223 Test #209: nexus_master_benchmark ....................   Passed    0.54 sec
+        Start 210: bench_competitor_protocol
+210/223 Test #210: bench_competitor_protocol .................   Passed    0.47 sec
+        Start 211: conv_gate
+211/223 Test #211: conv_gate .................................   Passed    0.39 sec
+        Start 212: bench_phase0
+212/223 Test #212: bench_phase0 ..............................   Passed    0.20 sec
+        Start 213: bench_phase1
+213/223 Test #213: bench_phase1 ..............................   Passed    0.20 sec
+        Start 214: bench_phase2
+214/223 Test #214: bench_phase2 ..............................   Passed    7.52 sec
+        Start 215: bench_phase3_fused
+215/223 Test #215: bench_phase3_fused ........................   Passed    7.28 sec
+        Start 216: bench_phase3_training
+216/223 Test #216: bench_phase3_training .....................   Passed   34.03 sec
+        Start 217: bench_attention_cpu
+217/223 Test #217: bench_attention_cpu .......................   Passed    6.12 sec
+        Start 218: test_phase20_resume_short
+218/223 Test #218: test_phase20_resume_short .................   Passed    3.42 sec
+        Start 219: bench_cuda_phase3
+219/223 Test #219: bench_cuda_phase3 .........................   Passed   22.56 sec
+        Start 220: bench_cuda_phase4
+220/223 Test #220: bench_cuda_phase4 .........................   Passed   21.20 sec
+        Start 221: bench_cuda_phase5
+221/223 Test #221: bench_cuda_phase5 .........................   Passed  107.65 sec
+        Start 222: bench_cuda_phase6
+222/223 Test #222: bench_cuda_phase6 .........................   Passed    7.60 sec
+        Start 223: bench_cuda_phase7
+223/223 Test #223: bench_cuda_phase7 .........................   Passed  322.78 sec
+
+99% tests passed, 1 tests failed out of 223
+
+Total Test time (real) = 1915.33 sec
+
+The following tests did not run:
+	133 - test_hip_parity (Skipped)
+	140 - test_pjrt_vendor (Skipped)
+
+The following tests FAILED:
+	 98 - test_grouped_gemm_vs_loop (Failed)
+Errors while running CTest

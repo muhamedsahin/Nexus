@@ -1,0 +1,10 @@
+========= COMPUTE-SANITIZER
+autograd: cihazda Tensor yolu
+  PASS  cihaz gradyanlari cihazda, dtype float32
+  PASS  cihaz gradyanlari cihazda, dtype bfloat16
+  info  cihaz autograd vs host Tensor yolu: F32 3.07e-07, BF16 3.61e-03
+  PASS  cihaz F32 autograd gradyanlari host'a <= 1e-5
+  PASS  cihaz BF16 autograd gradyanlari host F32'ye <= 3e-2
+  PASS  host vector yaprak -> to(GPU) -> matmul: gradyan host F32 vector olarak doner, dogru
+test_tensor_cuda: 5 gecti, 0 basarisiz
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

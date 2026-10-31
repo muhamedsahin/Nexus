@@ -39,7 +39,7 @@ namespace {
 bool throws(const std::function<void()>& f, const char* needle = nullptr) {
   try {
     f();
-  } catch (const nexus::TensorError& e) {
+  } catch (const std::exception& e) {  // TensorError ve autograd runtime_error
     return needle == nullptr || std::string(e.what()).find(needle) != std::string::npos;
   }
   return false;
@@ -304,6 +304,114 @@ void test_bridge() {
   nexus_test::expect(e <= 1e-5, "Tensor matmul == autograd matmul (ayni veri, <= 1e-5)");
 }
 
+// ---- Dalga 2: autograd Tensor yolu ------------------------------------------------------------
+namespace ag = nexus::autograd;
+
+// y = sum( (A @ B) * C + C ), Tensor ya da vector yolu
+ag::Variable graph(const ag::Variable& A, const ag::Variable& B, const ag::Variable& C) {
+  return ag::sum(ag::add(ag::mul(ag::matmul(A, B), C), C));
+}
+
+std::vector<double> grad_values(const ag::Variable& v) {
+  return v.grad().is_tensor_backed() ? v.grad().tensor().to(DType::F64).to_double_vector()
+                                     : std::vector<double>(v.grad().values().begin(), v.grad().values().end());
+}
+
+void test_autograd() {
+  nexus_test::section("autograd: Tensor yolu");
+  const std::size_t M = 6, K = 5, N = 4;
+  const auto av = randv(M * K, 11), bv = randv(K * N, 12), cv = randv(M * N, 13);
+  auto vec = [](const std::vector<double>& v, std::int64_t r, std::int64_t c, bool rg) {
+    return ag::Variable::make(std::vector<float>(v.begin(), v.end()), ag::Shape{{r, c}}, rg);
+  };
+  auto ten = [](const std::vector<double>& v, std::size_t r, std::size_t c, DType t, bool rg) {
+    return ag::Variable::wrap(Tensor::from_values(Shape{r, c}, v, t), rg);
+  };
+  // 1) F64 sonlu fark gradcheck (Tensor yolu)
+  {
+    ag::Variable A = ten(av, M, K, DType::F64, true), B = ten(bv, K, N, DType::F64, true), C = ten(cv, M, N, DType::F64, true);
+    graph(A, B, C).backward();
+    double worst = 0;
+    for (ag::Variable* p : {&A, &B, &C}) {
+      const auto g = grad_values(*p);
+      Tensor base = p->tensor();
+      for (std::size_t i = 0; i < base.numel(); i += 3) {
+        double* x = base.data_as<double>() + i;
+        const double keep = *x, eps = 1e-6;
+        *x = keep + eps;
+        const double fp = ag::sum(ag::add(ag::mul(ag::matmul(A.detach(), B.detach()), C.detach()), C.detach())).tensor().data_as<double>()[0];
+        *x = keep - eps;
+        const double fm = ag::sum(ag::add(ag::mul(ag::matmul(A.detach(), B.detach()), C.detach()), C.detach())).tensor().data_as<double>()[0];
+        *x = keep;
+        worst = std::max(worst, std::fabs((fp - fm) / (2 * eps) - g[i]) / std::max(1.0, std::fabs(g[i])));
+      }
+    }
+    std::printf("  info  F64 sonlu fark gradcheck (matmul/mul/add/sum) en kotu %.2e\n", worst);
+    nexus_test::expect(worst <= 1e-6, "Tensor yolu F64 gradcheck <= 1e-6");
+    nexus_test::expect(A.grad().is_tensor_backed() && A.grad().dtype() == DType::F64, "Tensor yapragin gradyani Tensor, ayni dtype");
+  }
+  // 2) vector yolu == Tensor yolu (F32)
+  {
+    ag::Variable A = vec(av, M, K, true), B = vec(bv, K, N, true), C = vec(cv, M, N, true);
+    ag::Variable At = ten(av, M, K, DType::F32, true), Bt = ten(bv, K, N, DType::F32, true), Ct = ten(cv, M, N, DType::F32, true);
+    const ag::Variable y = graph(A, B, C), yt = graph(At, Bt, Ct);
+    y.backward();
+    yt.backward();
+    double e = std::fabs(y.values()[0] - yt.tensor()[0]) / std::fabs(y.values()[0]);
+    e = std::max({e, max_rel(grad_values(At), grad_values(A)), max_rel(grad_values(Bt), grad_values(B)), max_rel(grad_values(Ct), grad_values(C))});
+    std::printf("  info  FAZ 2 vector yolu vs Tensor yolu (F32) kayip + gradyanlar en kotu %.2e\n", e);
+    nexus_test::expect(e <= 1e-6, "vector yolu == Tensor yolu (F32, <= 1e-6)");
+  }
+  // 3) BF16 autograd: gradyanlar BF16, F32 sonuca BF16 hassasiyetinde yakin
+  {
+    ag::Variable A = ten(av, M, K, DType::BF16, true), B = ten(bv, K, N, DType::BF16, true), C = ten(cv, M, N, DType::BF16, true);
+    ag::Variable Af = ten(av, M, K, DType::F32, true), Bf = ten(bv, K, N, DType::F32, true), Cf = ten(cv, M, N, DType::F32, true);
+    graph(A, B, C).backward();
+    graph(Af, Bf, Cf).backward();
+    const double e = std::max({max_rel(grad_values(A), grad_values(Af)), max_rel(grad_values(B), grad_values(Bf)),
+                               max_rel(grad_values(C), grad_values(Cf))});
+    std::printf("  info  BF16 autograd gradyanlari F32'ye gore en kotu %.2e\n", e);
+    nexus_test::expect(A.grad().dtype() == DType::BF16 && B.grad().dtype() == DType::BF16 && e <= 3e-2,
+                       "BF16 autograd: gradyan dtype BF16, F32'ye <= 3e-2");
+  }
+  // 4) karisik grafik: FAZ 2 relu (vector) + Tensor add -> vector yapraga vector gradyan
+  {
+    ag::Variable x = vec(av, M, K, true);
+    ag::Variable t = ten(randv(M * K, 14), M, K, DType::F32, true);
+    ag::Variable y = ag::sum(ag::add(ag::relu(x), t));
+    y.backward();
+    bool ok = !x.grad().is_tensor_backed() && t.grad().is_tensor_backed();
+    for (std::size_t i = 0; i < M * K; ++i) ok = ok && x.grad().values()[i] == (av[i] > 0 ? 1.0f : 0.0f) && t.grad().tensor()[i] == 1.0f;
+    nexus_test::expect(ok, "karisik grafik: vector yapraga F32 vector gradyan, Tensor yapraga Tensor gradyan");
+    nexus_test::expect(throws([&] { (void)ag::relu(t); }, "values"), "FAZ 2 vector op'u Tensor depolamada acik hata");
+  }
+  // 5) surum denetimi: kaydedilmis Tensor yerinde degisince geri gecis hata
+  {
+    ag::Variable a = ten(av, M, K, DType::F32, true), b = ten(randv(M * K, 15), M, K, DType::F32, true);
+    ag::Variable y = ag::sum(ag::mul(a, b));
+    Tensor bt = b.tensor();
+    ops::fill_(bt, 0.0);  // b, mul icin kaydedildi
+    nexus_test::expect(throws([&] { y.backward(); }), "kaydedilmis Tensor yerinde degisti -> backward acik hata (surum)");
+  }
+  // 6) to(dtype) geri gecisi kaynak dtype'a; birikim
+  {
+    ag::Variable a = ten(av, M, K, DType::F32, true);
+    ag::Variable y = ag::sum(ag::to(a, DType::BF16));
+    y.backward();
+    y = ag::sum(ag::to(a, DType::BF16));
+    y.backward();
+    bool ok = a.grad().dtype() == DType::F32;
+    for (std::size_t i = 0; i < M * K; ++i) ok = ok && a.grad().tensor()[i] == 2.0f;
+    nexus_test::expect(ok, "to(BF16) geri gecisi F32 gradyan; iki backward birikir (2)");
+  }
+  nexus_test::expect(throws([] {
+                       ag::Variable a = ag::Variable::wrap(Tensor::zeros(Shape{2, 2}, DType::F32), true);
+                       ag::Variable b = ag::Variable::wrap(Tensor::zeros(Shape{2, 2}, DType::F64), true);
+                       (void)ag::add(a, b);
+                     }, "ayni dtype"),
+                     "Tensor yolunda dtype uyusmazligi acik hata");
+}
+
 int bench() {
   // Kucuk tensörde islem basina ek yuk (ayirma + dagitim + cekirdek). PyTorch referansi:
   // benchmarks/runner/dalga2_eager_overhead.py (ayni sekiller).
@@ -341,6 +449,7 @@ int main(int argc, char** argv) {
     else if (mode == "ops") test_ops();
     else if (mode == "legacy") test_legacy();
     else if (mode == "bridge") test_bridge();
+    else if (mode == "autograd") test_autograd();
     else if (mode == "bench") return bench();
     else {
       std::printf("bilinmeyen mod: %s\n", mode.c_str());

@@ -28,6 +28,9 @@
  * olarak gelistirilmistir.
  */
 
+#include "nexus/core/device.hpp"
+#include "nexus/core/dtype.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -145,6 +148,9 @@ struct AutogradMeta {
   std::vector<std::function<void()>> post_accumulate_hooks;
   std::uint64_t next_hook_id = 1;
   std::string name;
+  /// Dalga 2: Variable dtype'li Tensor depolamali (wrap). Gradyan da Tensor olarak ayni dtype/cihazda biriktirilir;
+  /// false ise FAZ 2 yolu: F32 host vector (gelen Tensor gradyani F32 host vektore cevrilir).
+  bool tensor_backed = false;
 };
 
 /// Yaprak tensörün gradyan biriktiricisi: grad += gelen gradyan.
@@ -227,13 +233,25 @@ class Variable {
 
   /// Dalga 2 koprusu: herhangi bir dtype / cihaz / adimli Tensor'dan F32 host kopya (rank 0 yok: {n} sekli korunur).
   static Variable from_tensor(const nexus::Tensor& tensor, bool requires_grad = false);
+  /// Dalga 2: Tensor depolamali Variable (KOPYASIZ; her dtype, CUDA dahil). Tensor yolu op'lari (add, mul, matmul,
+  /// sum, to) bu Variable'larla calisir; FAZ 2 vector op'lari (relu, softmax, ...) `values()` ister -> acik hata.
+  static Variable wrap(nexus::Tensor tensor, bool requires_grad = false);
+  /// Op ciktisi icin (surum artirmadan): Tensor depolama + ust-veri.
+  static Variable from_tensor_data(std::shared_ptr<nexus::Tensor> tensor, Shape shape, std::shared_ptr<AutogradMeta> meta);
 
-  [[nodiscard]] bool has_data() const noexcept { return static_cast<bool>(data_); }
+  [[nodiscard]] bool has_data() const noexcept { return static_cast<bool>(data_) || static_cast<bool>(tensor_); }
+  /// Tensor depolamali mi (wrap / Tensor yolu op ciktisi)? false: FAZ 2 F32 host vector.
+  [[nodiscard]] bool is_tensor_backed() const noexcept { return static_cast<bool>(tensor_); }
+  [[nodiscard]] nexus::DType dtype() const noexcept;
+  [[nodiscard]] bool on_device() const noexcept;
+  /// Her iki depolamada calisir: Tensor depolamada sig kopya (ayni depolama), vector'de kopyasiz F32 gorunum.
+  [[nodiscard]] nexus::Tensor tensor() const;
   /// Dalga 2 koprusu: verinin KOPYASIZ F32 host Tensor gorunumu (yasam: Variable'in verisi). SALT OKUNUR kullanin:
   /// gorunum uzerinden yazi Variable surumunu artirmaz (autograd kayitlari bayatlar); yazmak icin mutable_values().
   /// Skaler (rank 0) Variable {1} sekliyle gorunur.
   [[nodiscard]] nexus::Tensor tensor_view() const;
-  [[nodiscard]] const std::vector<float>& values() const noexcept;
+  /// FAZ 2 F32 host vector (Tensor depolamali Variable'da acik hata; tensor() kullanin).
+  [[nodiscard]] const std::vector<float>& values() const;
   [[nodiscard]] std::vector<float>& mutable_values();  // sürümü artirir
   [[nodiscard]] const Shape& shape() const noexcept;
   [[nodiscard]] std::int64_t numel() const noexcept;
@@ -273,6 +291,7 @@ class Variable {
                        bool create_graph);
 
   std::shared_ptr<std::vector<float>> data_;
+  std::shared_ptr<nexus::Tensor> tensor_;  // Dalga 2: data_ ile ayni anda dolu olmaz
   Shape shape_;
   std::shared_ptr<AutogradMeta> meta_;
 };
@@ -280,6 +299,9 @@ class Variable {
 /// Op ciktisini kurar: dugume kenarlari, sira numarasini, cikti ust-verisini
 /// (ara kancalar/retain_grad) ve anomali modunda ileri geçis baglamini baglar.
 /// Ozel dugumler (CustomFunction, fused) bu tek yoldan cikti uretir.
+/// Dalga 2: Tensor ciktili op icin make_op_output karsiligi.
+[[nodiscard]] Variable make_op_output_tensor(nexus::Tensor value, std::shared_ptr<Node> node, std::vector<Edge> edges);
+
 [[nodiscard]] Variable make_op_output(std::vector<float> values, const Shape& shape, std::shared_ptr<Node> node,
                                       std::vector<Edge> edges);
 
@@ -305,6 +327,10 @@ Variable mean(const Variable& a);
 Variable reshape(const Variable& a, Shape shape);
 Variable transpose(const Variable& a);  // 2D
 Variable matmul(const Variable& a, const Variable& b);  // 2D [m,k] x [k,n]
+/// Dalga 2 (Tensor yolu): dtype donusumu; geri gecis gradyani kaynak dtype'a cevirir. Cikti Tensor depolamali.
+Variable to(const Variable& a, nexus::DType dtype);
+/// Dalga 2 (Tensor yolu): bellek alani / cihaz degisimi (geri gecis geri tasir). Cikti Tensor depolamali.
+Variable to(const Variable& a, nexus::MemorySpace space, nexus::DeviceRef device);
 Variable softmax(const Variable& a);  // son boyut ([N,C])
 Variable cross_entropy(const Variable& logits, const std::vector<std::int64_t>& targets);
 Variable dropout(const Variable& a, float p, bool training, std::uint64_t seed);

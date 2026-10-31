@@ -10,6 +10,7 @@
 #include "nexus/autograd/autograd.hpp"
 
 #include "nexus/core/tensor.hpp"
+#include "nexus/core/tensor_ops.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -44,6 +45,9 @@ constexpr float kPi = 3.14159265358979323846f;
 
 // Grafik uretmeyen eleman-eleman toplama (motor icinde gradyan birikimi).
 [[nodiscard]] Variable add_plain(const Variable& a, const Variable& b) {
+  if (a.is_tensor_backed() || b.is_tensor_backed()) {
+    return Variable::wrap(nexus::ops::add(a.tensor(), b.tensor()), false);  // dtype / cihaz ayni olmali (acik hata)
+  }
   const auto& av = a.values();
   const auto& bv = b.values();
   std::vector<float> out(av.size());
@@ -215,14 +219,59 @@ Variable Variable::from_data(std::shared_ptr<std::vector<float>> data, Shape sha
   return out;
 }
 
-const std::vector<float>& Variable::values() const noexcept { return *data_; }
+const std::vector<float>& Variable::values() const {
+  if (!data_) {
+    throw std::runtime_error(tensor_ ? "Nexus autograd: Tensor depolamali Variable'da values() yok (tensor() kullanin; "
+                                       "bu op FAZ 2 F32 vector yolunda)"
+                                     : "Nexus autograd: verisiz Variable");
+  }
+  return *data_;
+}
+
+namespace {
+nexus::Shape to_nexus_shape(const Shape& s) {
+  std::vector<std::size_t> dims;
+  for (const std::int64_t d : s.dims) dims.push_back(static_cast<std::size_t>(d));
+  if (dims.empty()) dims.push_back(1);  // autograd skaleri: nexus::Shape rank 0 = 0 eleman
+  return nexus::Shape(dims);
+}
+Shape from_nexus_shape(const nexus::Shape& s) {
+  Shape out;
+  for (std::size_t a = 0; a < s.rank(); ++a) out.dims.push_back(static_cast<std::int64_t>(s[a]));
+  return out;
+}
+}  // namespace
+
+Variable Variable::wrap(nexus::Tensor tensor, bool requires_grad) {
+  Variable out;
+  out.shape_ = from_nexus_shape(tensor.shape());
+  out.tensor_ = std::make_shared<nexus::Tensor>(std::move(tensor));
+  out.meta_ = make_meta(requires_grad, /*is_leaf=*/true);
+  out.meta_->tensor_backed = true;
+  return out;
+}
+
+Variable Variable::from_tensor_data(std::shared_ptr<nexus::Tensor> tensor, Shape shape, std::shared_ptr<AutogradMeta> meta) {
+  Variable out;
+  out.tensor_ = std::move(tensor);
+  out.shape_ = std::move(shape);
+  out.meta_ = std::move(meta);
+  if (out.meta_) out.meta_->tensor_backed = true;
+  return out;
+}
+
+nexus::DType Variable::dtype() const noexcept { return tensor_ ? tensor_->dtype() : nexus::DType::F32; }
+bool Variable::on_device() const noexcept { return tensor_ && tensor_->space() == nexus::MemorySpace::Device; }
+
+nexus::Tensor Variable::tensor() const {
+  if (tensor_) return tensor_->shallow();
+  return tensor_view();
+}
 
 nexus::Tensor Variable::tensor_view() const {
+  if (tensor_) return tensor_->shallow();
   if (!data_) throw std::runtime_error("Nexus autograd: tensor_view verisiz Variable");
-  std::vector<std::size_t> dims;
-  for (const std::int64_t d : shape_.dims) dims.push_back(static_cast<std::size_t>(d));
-  if (dims.empty()) dims.push_back(1);  // autograd skaleri: nexus::Shape rank 0 = 0 eleman
-  return nexus::Tensor::adopt_shared(data_->data(), nexus::Shape(dims), nexus::MemorySpace::Host, nexus::DeviceRef::cpu(),
+  return nexus::Tensor::adopt_shared(data_->data(), to_nexus_shape(shape_), nexus::MemorySpace::Host, nexus::DeviceRef::cpu(),
                                      std::shared_ptr<void>(data_));
 }
 
@@ -238,6 +287,7 @@ Variable Variable::from_tensor(const nexus::Tensor& tensor, bool requires_grad) 
 }
 
 std::vector<float>& Variable::mutable_values() {
+  if (!data_) throw std::runtime_error("Nexus autograd: Tensor depolamali Variable'da mutable_values() yok");
   if (meta_ && meta_->requires_grad) {
     meta_->version += 1;
   }
@@ -246,9 +296,10 @@ std::vector<float>& Variable::mutable_values() {
 
 const Shape& Variable::shape() const noexcept { return shape_; }
 std::int64_t Variable::numel() const noexcept { return shape_.numel(); }
-float Variable::operator[](std::size_t index) const { return (*data_)[index]; }
+float Variable::operator[](std::size_t index) const { return values()[index]; }
 
 float& Variable::at(std::size_t index) {
+  if (!data_) throw std::runtime_error("Nexus autograd: Tensor depolamali Variable'da at() yok");
   if (meta_ && meta_->requires_grad) {
     meta_->version += 1;
   }
@@ -257,7 +308,9 @@ float& Variable::at(std::size_t index) {
 
 bool Variable::requires_grad() const noexcept { return meta_ && meta_->requires_grad; }
 bool Variable::is_leaf() const noexcept { return meta_ && meta_->is_leaf; }
-std::uint64_t Variable::version() const noexcept { return meta_ ? meta_->version : 0; }
+std::uint64_t Variable::version() const noexcept {
+  return (meta_ ? meta_->version : 0) + (tensor_ ? tensor_->version() : 0);
+}
 
 const std::shared_ptr<Node>& Variable::grad_fn() const noexcept {
   static const std::shared_ptr<Node> empty;
@@ -324,6 +377,12 @@ void Variable::backward() const {
   if (!requires_grad()) {
     throw std::runtime_error("Nexus autograd: requires_grad=false tensörde backward");
   }
+  if (tensor_) {
+    nexus::Tensor seed = nexus::Tensor::empty(tensor_->shape(), tensor_->dtype(), tensor_->space(), tensor_->device());
+    nexus::ops::fill_(seed, 1.0);
+    autograd::backward(*this, Variable::wrap(std::move(seed), false));
+    return;
+  }
   autograd::backward(*this, Variable::full(shape_, 1.0f, false));
 }
 
@@ -340,14 +399,21 @@ void Variable::backward(const Variable& gradient, bool retain_graph) const {
 Variable Variable::detach() const {
   Variable out;
   out.data_ = data_;
+  out.tensor_ = tensor_;
   out.shape_ = shape_;
   out.meta_ = make_meta(false, true);
+  out.meta_->tensor_backed = static_cast<bool>(tensor_);
   return out;
 }
 
 void Variable::add_(const Variable& other) {
   if (meta_ && meta_->grad_fn && !meta_->is_leaf) {
     throw std::runtime_error("Nexus autograd: yaprak olmayan tensör yerinde degistirilemez");
+  }
+  if (tensor_) {
+    nexus::Tensor self = tensor_->shallow();
+    nexus::ops::add_out(self, self, other.tensor());  // ayni dtype / cihaz (acik hata); depolama surumu artar
+    return;
   }
   auto& mine = mutable_values();
   const auto& theirs = other.values();
@@ -363,6 +429,13 @@ void Variable::mul_(float scalar) {
   if (meta_ && meta_->grad_fn && !meta_->is_leaf) {
     throw std::runtime_error("Nexus autograd: yaprak olmayan tensör yerinde degistirilemez");
   }
+  if (tensor_) {
+    nexus::Tensor self = tensor_->shallow();
+    nexus::Tensor k = nexus::Tensor::empty(nexus::Shape{1}, self.dtype(), self.space(), self.device());
+    nexus::ops::fill_(k, scalar);
+    nexus::ops::mul_out(self, self, k.expand(self.shape()));
+    return;
+  }
   auto& mine = mutable_values();
   for (float& value : mine) {
     value *= scalar;
@@ -373,8 +446,20 @@ void Variable::fill_(float value) {
   if (meta_ && meta_->grad_fn && !meta_->is_leaf) {
     throw std::runtime_error("Nexus autograd: yaprak olmayan tensör yerinde degistirilemez");
   }
+  if (tensor_) {
+    nexus::Tensor self = tensor_->shallow();
+    nexus::ops::fill_(self, value);
+    self.bump_version();
+    return;
+  }
   auto& mine = mutable_values();
   std::fill(mine.begin(), mine.end(), value);
+}
+
+Variable make_op_output_tensor(nexus::Tensor value, std::shared_ptr<Node> node, std::vector<Edge> edges) {
+  const Shape shape = from_nexus_shape(value.shape());
+  Variable carrier = make_op_output(std::vector<float>{}, Shape{{0}}, std::move(node), std::move(edges));
+  return Variable::from_tensor_data(std::make_shared<nexus::Tensor>(std::move(value)), shape, carrier.meta());
 }
 
 Variable make_op_output(std::vector<float> values, const Shape& shape, std::shared_ptr<Node> node,
@@ -411,6 +496,23 @@ std::vector<Variable> AccumulateGrad::apply(std::vector<Variable>&& grad_outputs
   Variable grad = std::move(grad_outputs[0]);
   for (const auto& entry : meta->grad_hooks) {
     grad = entry.second(grad);
+  }
+  if (meta->tensor_backed) {
+    // Dalga 2: gradyan yapragin dtype / cihazinda Tensor olarak biriktirilir
+    const nexus::Tensor incoming = grad.tensor();
+    if (!meta->grad) {
+      meta->grad = std::make_shared<Variable>(Variable::wrap(nexus::Tensor(incoming), false));  // derin kopya
+    } else {
+      nexus::Tensor acc = meta->grad->tensor();
+      nexus::ops::add_out(acc, acc, incoming);
+    }
+    for (const auto& hook : meta->post_accumulate_hooks) {
+      hook();
+    }
+    return {};
+  }
+  if (grad.is_tensor_backed()) {
+    grad = Variable::from_tensor(grad.tensor(), false);  // FAZ 2 yapragi: F32 host vector gradyan
   }
   if (!meta->grad) {
     meta->grad = std::make_shared<Variable>(Variable::make(std::vector<float>(grad.values()), grad.shape(), false));
@@ -512,8 +614,9 @@ void backward(const std::vector<Variable>& roots, const std::vector<Variable>& g
       }
       if (out_meta->retains_grad) {
         if (!out_meta->grad) {
-          out_meta->grad =
-              std::make_shared<Variable>(Variable::make(std::vector<float>(incoming.values()), incoming.shape(), false));
+          out_meta->grad = std::make_shared<Variable>(
+              incoming.is_tensor_backed() ? Variable::wrap(nexus::Tensor(incoming.tensor()), false)
+                                          : Variable::make(std::vector<float>(incoming.values()), incoming.shape(), false));
         } else {
           *out_meta->grad = add_plain(*out_meta->grad, incoming);
         }
@@ -539,7 +642,11 @@ void backward(const std::vector<Variable>& roots, const std::vector<Variable>& g
     }
     if (anomaly) {
       for (const Variable& g : grad_inputs) {
-        for (const float value : g.values()) {
+        if (!g.has_data()) continue;
+        const std::vector<double> host_values =
+            g.is_tensor_backed() ? g.tensor().to(nexus::MemorySpace::Host, nexus::DeviceRef::cpu()).to_double_vector()
+                                 : std::vector<double>(g.values().begin(), g.values().end());
+        for (const double value : host_values) {
           if (!std::isfinite(value)) {
             std::string message = std::string("Nexus autograd anomali: '") + node->name +
                                   "' geri geçisi NaN/Inf gradyan uretti (sira=" + std::to_string(node->sequence_nr) + ")";

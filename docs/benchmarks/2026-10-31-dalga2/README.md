@@ -100,9 +100,42 @@ CPU çekirdekleri:
 
 Hız ölçülmedi. Bu adım doğruluk ve kapsam içindi; cihaz eager ek yükü ve bant genişliği sonraki dalgada ölçülecek.
 
+## Autograd'ın Tensor'a taşınması (Dalga 2 devamı, 2026-10-31)
+
+**Yaklaşım: uyumlu, iki depolamalı `Variable`.**
+
+- `data_`: FAZ 2 F32 host `vector<float>`. 34 dosya / 318 satır değişmeden çalışıyor.
+- `tensor_`: yeni; herhangi bir dtype ve cihaz (CUDA dahil).
+- İkisi aynı anda dolu olmuyor.
+
+| Parça | Ne |
+|---|---|
+| API | `Variable::wrap(Tensor, requires_grad)` (kopyasız) · `tensor()` (iki depolamada da; vektörde kopyasız görünüm) · `dtype()` · `on_device()` · `is_tensor_backed()`. Tensor depolamada `values()` / `mutable_values()` / `at()` **açık hata** veriyor (sessiz FP32 kopya yok). |
+| Op'lar (Tensor yolu) | `add`, `mul`, `matmul`, `sum`: girdilerden biri Tensor depolamalıysa `nexus::ops` ile çalışıyor (her kayıtlı dtype, CUDA dahil). Yeni: `to(a, dtype)` ve `to(a, alan, cihaz)`, geri geçiş kaynak dtype / cihaza dönüyor. `matmul` geri geçişinde `dA = g Bᵀ`, `dB = Aᵀ g`, devrik görünümler kopyasız. Tensor yolunda yayın yok (eksen indirgemesi yok) → şekil farkı açık hata. |
+| Gradyan biriktirme | `AutogradMeta::tensor_backed`: Tensor yaprak gradyanı **aynı dtype / cihazda** Tensor olarak biriktiriyor (`ops::add_out`). FAZ 2 yaprağına gelen Tensor gradyanı F32 host vektöre çevriliyor; eski optimizer'lar ve `grad().values()` aynen çalışıyor. |
+| Karışık grafik | Tensor yolu op'u gradyanı her girdiye **kendi depolama türünde** döndürüyor. FAZ 2 düğümü (relu, softmax, …) vektör gradyanı alıyor; Tensor girdisine giren FAZ 2 op'u açık hata veriyor. |
+| Motor | Çok kenarlı birikim ve `retain_grad` Tensor'da `ops::add` kullanıyor. Kök tohumu çıktının dtype / cihazında 1. Anomali modu Tensor gradyanını host'a kopyalayıp NaN / Inf denetliyor. `detach` / `add_` / `mul_` / `fill_` Tensor depolamada çalışıyor. |
+| Sürüm denetimi | Tensor depolamalı `Variable::version()` = meta sürümü + depolama sürümü. Tensor işlemleriyle (`ops::fill_`, `copy_from`, `add_out`) yapılan yerinde yazılar kaydedilmiş tensör denetimine takılıyor. |
+
+### Testler
+
+| Test | Sonuç |
+|---|---|
+| `test_tensor_autograd` (CPU) | ✅ 9/9:<br>• **F64 sonlu fark gradcheck** (matmul / mul / add / sum) en kötü **1.2e-9**;<br>• Tensor yaprağın gradyanı Tensor, aynı dtype;<br>• FAZ 2 vektör yolu ile Tensor yolu (F32) kayıp + gradyanlar **9.4e-8**;<br>• **BF16 autograd** gradyanları BF16, F32'ye **2.5e-3**;<br>• karışık grafik (FAZ 2 relu + Tensor add) doğru türlerde gradyan;<br>• Tensor girdide FAZ 2 op'u açık hata;<br>• kaydedilmiş Tensor yerinde değişince `backward` hata (sürüm);<br>• `to(BF16)` geri geçişi F32, iki backward birikiyor;<br>• dtype uyuşmazlığı hata. |
+| `test_tensor_cuda_autograd` (GPU) | ✅ 5/5:<br>• cihaz gradyanları cihazda, F32 ve BF16 dtype'ında;<br>• cihaz autograd host Tensor yoluna göre F32 **3.1e-7**, BF16 **3.6e-3**;<br>• host FAZ 2 yaprak → `to(GPU)` → matmul: gradyan host F32 vektör olarak dönüyor ve doğru. |
+| compute-sanitizer (autograd) | ✅ memcheck / initcheck / racecheck / synccheck: **0 hata, 0 yarış**; sanitizer altında 5/5 (`cuda-sanitizer/*-autograd.log`). |
+| Regresyon | ✅ CPU **169 / 169** (`cpu_ctest3`) · **tam GPU 222 / 223** (`gpu_ctest4`; tek hata yine kararsız `test_grouped_gemm_vs_loop` hız ölçütü, yukarıdaki A/B ile Dalga 2'den bağımsız, bu turda CPU koşusunda geçti) · ASan **25 / 25** (autograd / Tensor / LM / checkpoint). |
+
+### Kapsam dışı (açık)
+
+- **Tensor yolu yalnız 5 op:** add, mul, matmul, sum, to. Diğer FAZ 2 op'ları (sub, div, relu, gelu, softmax, cross_entropy, layernorm, embedding, …) hâlâ yalnız F32 vektör yolunda. Yani **BF16 / GPU uçtan uca bir model henüz Variable üzerinden eğitilemiyor**. Bu op'ların taşınması sıradaki iş.
+- Optimizer'lar (AdamW vb.) Tensor depolamalı parametreleri güncellemiyor.
+- Tensor yolunda yayın ve eksenli indirgeme yok.
+- Hız ölçülmedi.
+
 ## Açık kalanlar
 
-- **Variable köprüsü:** autograd `Variable`'ın verisi hâlâ `vector<float>`. Köprü eklendi: `Variable::tensor_view()` (kopyasız F32 görünüm, yaşam tutucu; salt okunur: görünümden yazı Variable sürümünü artırmaz) ve `Variable::from_tensor()` (her dtype / cihaz / adım → F32). `test_tensor_autograd_bridge` 6/6, Tensor matmul ↔ autograd matmul 4.8e-7. Autograd'ın dtype'lı Tensor üzerine taşınması (BF16 / F16 autograd) yapılmadı. Bu, en büyük kalan iş.
+- **Variable köprüsü (artık kısmen taşındı, bkz. yukarı):** FAZ 2 op'ları hâlâ `vector<float>`. Köprü eklendi: `Variable::tensor_view()` (kopyasız F32 görünüm, yaşam tutucu; salt okunur: görünümden yazı Variable sürümünü artırmaz) ve `Variable::from_tensor()` (her dtype / cihaz / adım → F32). `test_tensor_autograd_bridge` 6/6, Tensor matmul ↔ autograd matmul 4.8e-7. Autograd'ın dtype'lı Tensor üzerine taşınması (BF16 / F16 autograd) yapılmadı. Bu, en büyük kalan iş.
 - **CUDA:** akış farkındalığı (geçerli akış), FP8 cihaz dönüşümü, cihaz eager ek yükü ölçümü.
 - **Diğer:**
   - Otomatik dtype yükseltme yok.

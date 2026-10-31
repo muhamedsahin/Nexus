@@ -14,6 +14,9 @@
 
 #include "nexus/autograd/autograd.hpp"
 
+#include "nexus/core/tensor.hpp"
+#include "nexus/core/tensor_ops.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -44,10 +47,139 @@ void require_same_shape(const Variable& a, const Variable& b, const char* op) {
   return make_op_output(std::move(values), shape, std::move(node), std::move(edges));
 }
 
+// ---- Dalga 2: Tensor yolu ---------------------------------------------------------------
+// Girdilerden biri Tensor depolamaliysa (Variable::wrap / Tensor op ciktisi) islem nexus::ops ile yapilir:
+// her dtype (dagiticidaki cekirdekler), CUDA dahil. Gradyan her girdiye KENDI depolama turunde doner
+// (FAZ 2 vector girdisine F32 host vector), boylece karisik grafiklerde FAZ 2 dugumleri values() ile calisir.
+[[nodiscard]] bool tensor_path(const Variable& a) { return a.is_tensor_backed(); }
+
+[[nodiscard]] Variable grad_as(bool vector_input, nexus::Tensor g) {
+  return vector_input ? Variable::from_tensor(g, false) : Variable::wrap(std::move(g), false);
+}
+
+[[nodiscard]] Variable tensor_binary(const Variable& a, const Variable& b, bool is_mul) {
+  require_same_shape(a, b, is_mul ? "mul" : "add");  // Tensor yolunda yayin yok (eksen indirgemesi yok)
+  const nexus::Tensor ta = a.tensor(), tb = b.tensor();
+  nexus::Tensor out = is_mul ? nexus::ops::mul(ta, tb) : nexus::ops::add(ta, tb);
+  const bool needs = grad_enabled() && (a.requires_grad() || b.requires_grad());
+  if (!needs) {
+    return Variable::wrap(std::move(out), false);
+  }
+  auto node = std::make_shared<LambdaNode>();
+  node->name = is_mul ? "MulBackward(Tensor)" : "AddBackward(Tensor)";
+  std::vector<Edge> edges;
+  const bool a_req = a.requires_grad(), b_req = b.requires_grad();
+  const bool a_vec = !a.is_tensor_backed(), b_vec = !b.is_tensor_backed();
+  if (a_req) edges.push_back(edge_of(a));
+  if (b_req) edges.push_back(edge_of(b));
+  SavedTensor sa, sb;
+  if (is_mul) {
+    if (b_req) sa = save_variable(a);
+    if (a_req) sb = save_variable(b);
+  }
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    const nexus::Tensor g = grads[0].tensor();
+    std::vector<Variable> result;
+    if (a_req) result.push_back(grad_as(a_vec, is_mul ? nexus::ops::mul(g, sb.unpack("mul").tensor()) : g.shallow()));
+    if (b_req) result.push_back(grad_as(b_vec, is_mul ? nexus::ops::mul(g, sa.unpack("mul").tensor()) : g.shallow()));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::move(edges));
+}
+
+[[nodiscard]] Variable tensor_matmul(const Variable& a, const Variable& b) {
+  const nexus::Tensor ta = a.tensor(), tb = b.tensor();
+  nexus::Tensor out = nexus::ops::matmul(ta, tb);
+  const bool needs = grad_enabled() && (a.requires_grad() || b.requires_grad());
+  if (!needs) {
+    return Variable::wrap(std::move(out), false);
+  }
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "MatmulBackward(Tensor)";
+  std::vector<Edge> edges;
+  const bool a_req = a.requires_grad(), b_req = b.requires_grad();
+  const bool a_vec = !a.is_tensor_backed(), b_vec = !b.is_tensor_backed();
+  if (a_req) edges.push_back(edge_of(a));
+  if (b_req) edges.push_back(edge_of(b));
+  const SavedTensor sa = b_req ? save_variable(a) : SavedTensor{};
+  const SavedTensor sb = a_req ? save_variable(b) : SavedTensor{};
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    const nexus::Tensor g = grads[0].tensor();
+    std::vector<Variable> result;
+    // dA = g B^T, dB = A^T g; devrik gorunumler kopyasiz (gemm trans bayragi)
+    if (a_req) result.push_back(grad_as(a_vec, nexus::ops::matmul(g, sb.unpack("matmul").tensor().transpose(0, 1))));
+    if (b_req) result.push_back(grad_as(b_vec, nexus::ops::matmul(sa.unpack("matmul").tensor().transpose(0, 1), g)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::move(edges));
+}
+
+[[nodiscard]] Variable tensor_sum(const Variable& a) {
+  const nexus::Tensor ta = a.tensor();
+  nexus::Tensor out = nexus::ops::sum(ta);  // sekil {1}
+  if (!(grad_enabled() && a.requires_grad())) {
+    return Variable::wrap(std::move(out), false);
+  }
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "SumBackward(Tensor)";
+  const nexus::Shape in_shape = ta.shape();
+  const bool a_vec = !a.is_tensor_backed();
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    // {1} -> girdi sekli: adim 0 yayin, sonra bitisik (cihazda kopya cekirdegi)
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, grads[0].tensor().expand(in_shape).contiguous()));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+}  // namespace
+
+// ---- Dalga 2: to (dtype / cihaz) -----------------------------------------------------------
+Variable to(const Variable& a, nexus::DType dtype) {
+  const nexus::Tensor ta = a.tensor();
+  nexus::Tensor out = ta.to(dtype);
+  if (!(grad_enabled() && a.requires_grad())) {
+    return Variable::wrap(std::move(out), false);
+  }
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "ToDtypeBackward(Tensor)";
+  const nexus::DType src = ta.dtype();
+  const bool a_vec = !a.is_tensor_backed();
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, grads[0].tensor().to(src)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+Variable to(const Variable& a, nexus::MemorySpace space, nexus::DeviceRef device) {
+  const nexus::Tensor ta = a.tensor();
+  nexus::Tensor out = ta.to(space, device);
+  if (!(grad_enabled() && a.requires_grad())) {
+    return Variable::wrap(std::move(out), false);
+  }
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "ToDeviceBackward(Tensor)";
+  const nexus::MemorySpace src_space = ta.space();
+  const nexus::DeviceRef src_device = ta.device();
+  const bool a_vec = !a.is_tensor_backed();
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, grads[0].tensor().to(src_space, src_device)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+namespace {
+
 }  // namespace
 
 // ---- add -------------------------------------------------------------------------------
 Variable add(const Variable& a, const Variable& b) {
+  if (tensor_path(a) || tensor_path(b)) return tensor_binary(a, b, false);
   require_same_shape(a, b, "add");
   const auto& av = a.values();
   const auto& bv = b.values();
@@ -127,6 +259,7 @@ Variable sub(const Variable& a, const Variable& b) {
 
 // ---- mul -------------------------------------------------------------------------------
 Variable mul(const Variable& a, const Variable& b) {
+  if (tensor_path(a) || tensor_path(b)) return tensor_binary(a, b, true);
   require_same_shape(a, b, "mul");
   const auto& av = a.values();
   const auto& bv = b.values();
@@ -505,6 +638,7 @@ Variable silu(const Variable& a) {
 
 // ---- sum ---------------------------------------------------------------------------------------
 Variable sum(const Variable& a) {
+  if (tensor_path(a)) return tensor_sum(a);
   const auto& av = a.values();
   float total = 0.0f;
   for (const float value : av) {
@@ -603,6 +737,7 @@ Variable transpose(const Variable& a) {
 
 // ---- matmul (2D) ------------------------------------------------------------------------------
 Variable matmul(const Variable& a, const Variable& b) {
+  if (tensor_path(a) || tensor_path(b)) return tensor_matmul(a, b);
   if (a.shape().rank() != 2 || b.shape().rank() != 2) {
     throw std::invalid_argument("Nexus autograd: matmul yalnizca 2D");
   }

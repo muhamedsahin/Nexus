@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="26"
+	failures="0"
+	disabled="1"
+	skipped="0"
+	hostname="Rabia_Zeynep"
+	time="47"
+	timestamp="2026-10-31T15:27:24"
+	>
+	<testcase name="test_phase2_hardware" classname="test_phase2_hardware" time="0.297367" status="run">
+		<system-out>Nexus Faz 2 donanim testi
+cpu gemm
+  info  max_abs=2.79397e-09
+  PASS  AVX/scalar GEMM &lt; 1e-5
+  PASS  elementwise add
+  PASS  relu non-negative
+collectives
+  PASS  ring sum
+  PASS  ring mean
+  PASS  ring max
+  PASS  tree sum
+  PASS  ring tail
+  PASS  scatter
+hlo and pipeline
+  PASS  HLO dot
+  PASS  pipeline scale then add
+cuda kapali, gpu adimlari atlandi
+  PASS  cpu device
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase4_custom_extensions" classname="test_phase4_custom_extensions" time="0.113721" status="run">
+		<system-out>Nexus Faz 4 ozel genisletme testi
+  PASS  activation name
+  PASS  swish forward
+  PASS  swish backward
+  PASS  finite-difference swish
+  info  avx_max_abs=0
+  PASS  avx2 batch activation
+  PASS  parallel swish
+  PASS  asymmetric huber loss
+  PASS  asymmetric huber grad
+  PASS  numeric mse value
+  PASS  numeric mse grad
+  PASS  tape mse value
+  PASS  tape mse grad
+  PASS  mae metric
+  info  loss 0.950594 -&gt; 2.45074e-07 weight=0.999528
+  PASS  training loss decreases
+  PASS  custom layer weight moves toward target
+  PASS  callback sees every step
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_nxs" classname="test_nxs" time="0.188246" status="run">
+		<system-out>Nexus NXS testi
+  PASS  empty graph roundtrip
+  PASS  NXS1 is not a model archive
+  PASS  truncated nxs file fails
+  PASS  sequential logits survive nxs
+  PASS  python activation without a registered body is rejected
+  PASS  mlp blob restores the forward
+  PASS  ppo greedy action survives nxs
+  PASS  python module without a body is rejected
+  PASS  graph concat width
+  PASS  layer 5 sees layer 4 and layer 2
+  PASS  graph nxs restores both inputs
+  PASS  unknown graph input is rejected
+  PASS  graph add sums both inputs
+  PASS  future token does not change past positions
+  PASS  future token changes its own position
+  PASS  causal block nxs roundtrip
+  PASS  shifted token loss decreases
+  PASS  league nxs
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase2_autograd" classname="test_phase2_autograd" time="2.17889" status="run">
+		<system-out>grad modu
+  PASS  set_grad_enabled(false) gradyan uretmez
+  PASS  NoGradGuard gradyan uretmez
+  PASS  EnableGradGuard gradyan uretir
+temel backward
+  PASS  y = x^2 = 4
+  PASS  dy/dx = 2x = 4
+yaprak gradyan birikimi
+  PASS  grad += birikir (2 + 2)
+sayisal gradyan (sonlu farklar)
+  PASS  mul gradyani
+  PASS  relu gradyani
+  PASS  sigmoid gradyani
+  PASS  tanh gradyani
+  PASS  exp gradyani
+  PASS  log gradyani
+  PASS  gelu gradyani
+  PASS  silu gradyani
+  PASS  pow gradyani
+  PASS  mean gradyani
+  PASS  add gradyani
+  PASS  matmul gradyani
+  PASS  cross_entropy gradyani
+  PASS  add_bias gradyani
+kaydedilmis sürüm denetimi
+  PASS  yerinde degistirilen kaydedilmis tensör hata verir
+grad kancasi
+  PASS  hook gradyani olcekler (2*10)
+yerinde kisit
+  PASS  yaprak olmayan tensör yerinde degistirilemez
+mlp egitimi (motor uctan uca)
+  info  mlp loss 3.5436 -&gt; 0.4160
+  PASS  mlp kaybi dusuyor
+faz2-autograd: 24 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_phase2_engine" classname="test_phase2_engine" time="0.207403" status="run">
+		<system-out>gradcheck: tum op'lar
+  PASS  gradcheck add
+  PASS  gradcheck sub
+  PASS  gradcheck mul
+  PASS  gradcheck div
+  PASS  gradcheck neg
+  PASS  gradcheck add_scalar/mul_scalar
+  PASS  gradcheck add_bias
+  PASS  gradcheck relu
+  PASS  gradcheck gelu
+  PASS  gradcheck silu
+  PASS  gradcheck sigmoid
+  PASS  gradcheck tanh
+  PASS  gradcheck exp
+  PASS  gradcheck log
+  PASS  gradcheck pow
+  PASS  gradcheck mean
+  PASS  gradcheck reshape
+  PASS  gradcheck transpose
+  PASS  gradcheck matmul
+  PASS  gradcheck softmax
+  PASS  gradcheck log_softmax
+  PASS  gradcheck cross_entropy
+  PASS  gradcheck dropout (sabit tohum)
+  PASS  gradcheck embedding
+  PASS  gradcheck narrow dim0/dim1
+  PASS  gradcheck cat dim0/dim1
+embedding padding_idx
+  PASS  satir 0 gradyan alir
+  PASS  padding_idx satiri gradyan almaz
+  PASS  sinir disi indeks hata
+saved_tensors_hooks offload
+  PASS  kancasiz yol paketlemez
+  PASS  mul(2) + matmul(2) kaydi pack'ten gecti
+  PASS  geri geçis her kaydi unpack etti
+  PASS  offload gradyanlari kancasizla bit-...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_swiglu_gradcheck" classname="test_swiglu_gradcheck" time="0.191983" status="run">
+		<system-out>test_swiglu_gradcheck (+ GeGLU, RoPE, GQA dikkat)
+  info  swiglu gradcheck max_rel=0.000e+00
+  PASS  swiglu gradcheck
+  info  geglu gradcheck max_rel=0.000e+00
+  PASS  geglu gradcheck
+  info  rope gradcheck max_rel=0.000e+00
+  PASS  rope gradcheck
+  info  GQA flash dikkat O vs acik dikkat                          hata=7.011e-08 esik=1.0e-06
+  PASS  GQA flash dikkat O vs acik dikkat
+  info  GQA flash dikkat dQ/dK/dV vs acik dikkat                   hata=2.393e-07 esik=1.0e-05
+  PASS  GQA flash dikkat dQ/dK/dV vs acik dikkat
+faz6-lm: 5 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_decoder_block_parity" classname="test_decoder_block_parity" time="31.7952" status="run">
+		<system-out>test_decoder_block_parity: LLaMA/Qwen2/GPT-2/paralel/son-norm vs PyTorch (HF formulleri)
+  info  llama: kayip vs PyTorch                                    hata=0.000e+00 esik=1.0e-05
+  PASS  llama: kayip vs PyTorch
+  info  llama: tum gradyanlar vs PyTorch (en kotu: h1.attn.qkv.weight) hata=9.818e-07 esik=1.0e-04
+  PASS  llama: tum gradyanlar vs PyTorch (en kotu: h1.attn.qkv.weight)
+  info  qwen2: kayip vs PyTorch                                    hata=0.000e+00 esik=1.0e-05
+  PASS  qwen2: kayip vs PyTorch
+  info  qwen2: tum gradyanlar vs PyTorch (en kotu: h1.attn.k_norm.weight) hata=1.441e-06 esik=1.0e-04
+  PASS  qwen2: tum gradyanlar vs PyTorch (en kotu: h1.attn.k_norm.weight)
+  info  gpt2: kayip vs PyTorch                                     hata=0.000e+00 esik=1.0e-05
+  PASS  gpt2: kayip vs PyTorch
+  info  gpt2: tum gradyanlar vs PyTorch (en kotu: h0.attn.qkv.weight) hata=7.097e-07 esik=1.0e-04
+  PASS  gpt2: tum gradyanlar vs PyTorch (en kotu: h0.attn.qkv.weight)
+  info  parallel: kayip vs PyTorch       ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_lm_nxs_roundtrip" classname="test_lm_nxs_roundtrip" time="0.143373" status="run">
+		<system-out>NXS: tur 35 + tur 34, config gomulu, gidis-donus
+  PASS  yuklenen model ayni logitleri verir (bit-bit)
+  PASS  arsiv: kok tur 35, 2 x DecoderBlock tur 34
+faz6-lm: 2 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_lm_mup_multipliers" classname="test_lm_mup_multipliers" time="0.106012" status="run">
+		<system-out>muP: genislik carpanlari
+  info  gizli matris std: m=4'te 1/sqrt(4) = 0.5 kat               hata=6.603e-03 esik=3.0e-02
+  PASS  gizli matris std: m=4'te 1/sqrt(4) = 0.5 kat
+  PASS  Adam LR carpani: gizli 1/m, gomme/norm 1
+faz6-lm: 2 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_checkpoint_grad_equal" classname="test_checkpoint_grad_equal" time="0.474531" status="run">
+		<system-out>test_checkpoint_grad_equal: lm (dropout 0.1 artik + dikkat), none/full/every_k
+  PASS  full: kayip bit-bit ayni
+  PASS  full: tum gradyanlar bit-bit ayni
+  info  full       kaydedilen aktivasyon 86.0 KiB (none: 699.2 KiB, 12.3%)
+  PASS  full: daha az kayit
+  PASS  every_k=2: kayip bit-bit ayni
+  PASS  every_k=2: tum gradyanlar bit-bit ayni
+  info  every_k=2  kaydedilen aktivasyon 392.6 KiB (none: 699.2 KiB, 56.1%)
+  PASS  every_k=2: daha az kayit
+checkpoint: ic ice, kismi backward, retain_graph
+  PASS  ic ice checkpoint + retain_graph: gradyanlar bit-bit ayni
+  PASS  kismi backward: gradyan ayni
+faz7-memory: 8 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_sharded_checkpoint_reshard" classname="test_sharded_checkpoint_reshard" time="0.399146" status="run">
+		<system-out>test_sharded_checkpoint_reshard: dp=4 kayit -&gt; dp=2 yukleme
+  PASS  yeniden parcalama hatasiz
+  PASS  dp=2'de tam parametreler dp=4'tekiyle bit bit ayni
+  PASS  dp=2'de tam m durumu ayni
+  PASS  rank ici denetimler
+test_phase11_fsdp: 4 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_dtensor_redistribute_all_pairs" classname="test_dtensor_redistribute_all_pairs" time="1.5157" status="run">
+		<system-out>  info  1B mesh: 60 op yayilim denetimi
+  info  1B mesh: 16 / 16 redistribute cifti dogru
+  PASS  1B mesh: tum (kaynak, hedef) yerlesim ciftleri dogru
+  info  2B mesh: 630 op yayilim denetimi
+  info  2B mesh: 196 / 196 redistribute cifti dogru
+  PASS  2B mesh: tum (kaynak, hedef) yerlesim ciftleri dogru
+  PASS  matmul S1 x S0 -&gt; Partial (S1 x S0 -&gt; P (daralan eksen))
+  PASS  embedding tablo S0 -&gt; Partial (tablo S0 (sozluk) -&gt; P (maskeli arama))
+  PASS  ic ice parcalama (iki mesh boyutu ayni tensor boyutu) acik hata
+  PASS  rank ici denetimler
+test_phase12_parallel: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_kv_cache_matches_full_cpu" classname="test_kv_cache_matches_full_cpu" time="0.866705" status="run">
+		<system-out>  info  gpt2 tipi                artimli (5 + 7 + 12 x 1) vs tam: goreli 4.3e-07; onbellek 24 token, 18432 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: gpt2 tipi (&lt;= 1e-4)
+  info  llama tipi (GQA 4/2)     artimli (5 + 7 + 12 x 1) vs tam: goreli 7.1e-07; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: llama tipi (GQA 4/2) (&lt;= 1e-4)
+  info  ALiBi + pencere 9        artimli (5 + 7 + 12 x 1) vs tam: goreli 1.0e-06; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: ALiBi + pencere 9 (&lt;= 1e-4)
+  info  qk_norm + paralel blok   artimli (5 + 7 + 12 x 1) vs tam: goreli 1.9e-07; onbellek 24 token, 9216 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: qk_norm + paralel blok (&lt;= 1e-4)
+  info  sinuzoidal               artimli (5 + 7 + 12 x 1) vs tam: goreli 5.5e-07; onbellek 24 token, 18432 bayt (V=101)
+  PASS  test_kv_cache_matches_full_cpu: sinuzoidal (&lt;= 1e-4)
+  info  kismi RoPE + softcap     artimli (5 + 7 + 12 x 1) vs tam: goreli 1.4e-06; onbellek 24 ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_kv_cache_generate_cpu" classname="test_kv_cache_generate_cpu" time="1.35531" status="run">
+		<system-out>  info  48 token greedy: onbellekli 7.46 ms/token, her adimda tam yeniden hesap 18.93 ms/token (2.5x)
+  PASS  onbellekli greedy == tam yeniden hesapli greedy (48 token)
+test_phase16_infer: 1 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_phase21_bench" classname="test_phase21_bench" time="2.22772" status="run">
+		<system-out>..............
+----------------------------------------------------------------------
+Ran 14 tests in 1.551s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_phase20_evidence" classname="test_phase20_evidence" time="0.766642" status="run">
+		<system-out>.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.213s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_views" classname="test_tensor_views" time="0.110982" status="run">
+		<system-out>views: kopyasiz gorunumler
+  PASS  bitisik adimlar 12/4/1
+  PASS  transpose: ayni depolama, bitisik degil, sekil 4x3x2
+  PASS  transpose eleman t[1,2,3] = 23
+  PASS  slice(step 2): sekil, adim 2, eleman
+  PASS  select + fill_: ayni depolamaya yazar, komsuya dokunmaz, surum artar
+  PASS  expand: adim 0 yayin
+  PASS  view bitisik olmayanda acik hata
+  PASS  reshape bitisik degilse kopyalar
+  PASS  reshape bitisikse gorunum
+  PASS  permute
+  PASS  contiguous kopya mantiksal sirayi korur
+  PASS  unsqueeze / squeeze
+  PASS  aralik disi slice / gecersiz expand / tekrarli permute acik hata
+  PASS  kopya kurucusu derin + bitisik
+test_tensor_core: 14 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_dtype_cast" classname="test_tensor_dtype_cast" time="0.0619244" status="run">
+		<system-out>dtype: donusumler
+  PASS  F32 -&gt; BF16 / F16 (RNE, half.hpp ile ayni bit) / F64 tam
+  PASS  BF16 -&gt; F32 gidis-donus
+  PASS  kayan -&gt; tamsayi: sifira dogru kesme
+  PASS  aralik disi (300 -&gt; I8) acik hata
+  PASS  NaN -&gt; tamsayi acik hata
+  PASS  from_values tamsayiya kesirli deger acik hata
+  PASS  I64 kopya tam (2^62+1, double'dan gecmez)
+  PASS  I64 2^62 -&gt; I32 aralik disi acik hata
+  PASS  kayan -&gt; Bool: sifir disi 1
+  PASS  F8E4M3 doygun (1000 -&gt; 448)
+  PASS  BF16 tensörde data() / yanlis boyutlu data_as acik hata
+  PASS  devrik gorunum -&gt; F64 bitisik kopya
+test_tensor_core: 12 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_ops_dispatch" classname="test_tensor_ops_dispatch" time="3.55749" status="run">
+		<system-out>ops: dagitici + cekirdekler
+  PASS  add yayin [2,3] + [3]
+  PASS  mul adimli (devrik) girdi
+  PASS  BF16 add: FP32'de hesap, RNE
+  PASS  I64 add
+  PASS  sum FP64 biriktirir
+  PASS  sum I32 -&gt; I64
+  info  matmul F32 (devrik gorunumler dahil) en kotu goreli 6.83e-07; BF16/F16 (cikti RNE) 2.91e-03
+  PASS  matmul F32 + F64 double referansla &lt;= 1e-5 (F64 x1e6 olcekli)
+  PASS  matmul BF16 / F16: FP32 biriktirme, yalniz cikti yuvarlamasi (&lt;= 1e-2)
+  PASS  dtype uyusmazligi acik hata
+  PASS  yayin uyusmazligi acik hata
+  PASS  kayitsiz cekirdek (F8 add) acik hata
+  PASS  I32 matmul cekirdegi yok -&gt; acik hata
+  PASS  ayni anahtara ikinci kayit acik hata
+  PASS  add_out == add
+test_tensor_core: 14 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_legacy_api" classname="test_tensor_legacy_api" time="0.0544859" status="run">
+		<system-out>legacy: FAZ 1 API
+  PASS  alias: ayni adres, sahip degil
+  PASS  adopt_shared yasam tutucuyu saklar
+  PASS  kopya derin; zeros F32
+  PASS  full + view()
+  PASS  tasima
+  PASS  operator[] adimli tensörde acik hata
+test_tensor_core: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_autograd_bridge" classname="test_tensor_autograd_bridge" time="0.0614761" status="run">
+		<system-out>bridge: autograd Variable &lt;-&gt; Tensor
+  PASS  tensor_view kopyasiz (ayni adres), sekil 2x3, F32
+  PASS  Variable verisi uzerinde adimli gorunum
+  PASS  tensor_view Variable'dan uzun yasar (yasam tutucu)
+  PASS  autograd skaleri {1} gorunur
+  PASS  from_tensor: BF16 devrik gorunum -&gt; F32 bitisik Variable
+  info  ops::matmul(tensor_view) vs autograd::matmul en buyuk fark 4.77e-07
+  PASS  Tensor matmul == autograd matmul (ayni veri, &lt;= 1e-5)
+test_tensor_core: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_autograd" classname="test_tensor_autograd" time="0.104521" status="run">
+		<system-out>autograd: Tensor yolu
+  info  F64 sonlu fark gradcheck (matmul/mul/add/sum) en kotu 1.15e-09
+  PASS  Tensor yolu F64 gradcheck &lt;= 1e-6
+  PASS  Tensor yapragin gradyani Tensor, ayni dtype
+  info  FAZ 2 vector yolu vs Tensor yolu (F32) kayip + gradyanlar en kotu 9.38e-08
+  PASS  vector yolu == Tensor yolu (F32, &lt;= 1e-6)
+  info  BF16 autograd gradyanlari F32'ye gore en kotu 2.52e-03
+  PASS  BF16 autograd: gradyan dtype BF16, F32'ye &lt;= 3e-2
+  PASS  karisik grafik: vector yapraga F32 vector gradyan, Tensor yapraga Tensor gradyan
+  PASS  FAZ 2 vector op'u Tensor depolamada acik hata
+  PASS  kaydedilmis Tensor yerinde degisti -&gt; backward acik hata (surum)
+  PASS  to(BF16) geri gecisi F32 gradyan; iki backward birikir (2)
+  PASS  Tensor yolunda dtype uyusmazligi acik hata
+test_tensor_core: 9 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="bench_phase2_heterogeneous" classname="bench_phase2_heterogeneous" time="0.141013" status="run">
+		<system-out>Nexus Faz 2 benchmark  N=512
+| mod | sure us | GFLOPS | GB/s | not |
+| CPU GEMM | 2063.87 | 130.064 |  | AVX |
+| GPU GEMM | 0 | 0 |  | FP32 pedantic |
+| Hybrid GEMM | 0 | 0 |  | cpu_rows=0 gpu_rows=0 |
+| CPU add | 1705.4 |  | 1.84457 | elementwise |
+sink 0.102401 3
+</system-out>
+	</testcase>
+	<testcase name="bench_phase4_custom" classname="bench_phase4_custom" time="0.293895" status="run">
+		<system-out>Nexus Faz 4 benchmark  N=1048576 sink=-0.261772
+| yol | us | cagri/s | GB/s | hizlanma |
+| skaler olcek | 10933.9 | 91.4588 | 0.767212 | 1 |
+| havuz olcek | 2723.98 | 367.109 | 3.07954 | 4.01393 |
+| AVX2 olcek | 4508.4 | 221.808 | 1.86066 | 2.42522 |
+| skaler swish | 11218.8 | 89.1361 | 0.747728 | 1 |
+| havuz swish | 3258.53 | 306.887 | 2.57435 | 3.4429 |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase24_close" classname="bench_phase24_close" time="0.663299" status="run">
+		<system-out>Nexus Faz 24 kapanis
+cekirdek | avx2-4x16
+| olcu | us | deger | birim |
+| GEMM N256 | 813.7 | 41.2369 | GFLOPS |
+| GEMM N512 | 1413.9 | 189.855 | GFLOPS |
+| GEMM N1024 | 7544.67 | 284.636 | GFLOPS |
+| GEMM N2048 | 50745.5 | 338.55 | GFLOPS |
+| Conv2d 8x3x32x32 k3 | 10918.8 | 0.648229 | GFLOPS |
+| Depthwise 8x32x16x16 k3 | 753.45 | 1.56566 | GFLOPS |
+| Attention B4 T32 E64 H4 | 4203.4 | 237.903 | cagri/s |
+| LSTM B4 T16 C32 H64 | 2272.7 | 440.005 | cagri/s |
+| GRU B4 T16 C32 H64 | 1642.67 | 608.763 | cagri/s |
+| MSE driver 1M | 11201 | 1.12337 | GB/s |
+| Adam CPU 1M | 4406.48 | 3.8074 | GB/s |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase2" classname="bench_phase2" time="0" status="disabled">
+		<system-out>Disabled</system-out>
+	</testcase>
+</testsuite>
