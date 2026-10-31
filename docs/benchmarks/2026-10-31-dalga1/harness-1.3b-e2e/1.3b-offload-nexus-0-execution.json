@@ -1,0 +1,28 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\benchmarks\\runner\\bench_cuda_phase20.exe",
+    "--model",
+    "1.3b",
+    "--tokens",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\faz20\\tokens.bin",
+    "--out",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-31-dalga1\\harness-1.3b-e2e\\1.3b-offload-nexus-0.jsonl",
+    "--seq",
+    "1024",
+    "--precision",
+    "bf16",
+    "--optimizer",
+    "offload",
+    "--steps",
+    "15",
+    "--warmup",
+    "2",
+    "--lr",
+    "0.0001",
+    "--dump-init",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-31-dalga1\\harness-1.3b-e2e\\scratch-1.3b\\initial.bin"
+  ],
+  "returncode": 0,
+  "stdout": "step 0 loss 11.1656 ms 3550.78\nstep 10 loss 7.87891 ms 3063.54\n",
+  "stderr": ""
+}

@@ -135,7 +135,7 @@ def training(args, out, env):
                 cuda_build=reference.get('cuda_build'),
                 parity_passed=nexus_vs_truth <= 1e-3))
             print('training',model,i,'measured',flush=True)
-    torch_runs = [r for r in result['runs'] if r['framework'].startswith('torch')]
+    torch_runs = [r for r in result['runs'] if r['framework'].startswith('torch') and r['model']=='124m']
     native_runs = [r for r in result['runs'] if r['framework']=='nexus' and r['model']=='124m']
     native_ms = statistics.median(r['summary']['median_ms'] for r in native_runs)
     ref_ms = statistics.median(r['summary']['median_ms'] for r in torch_runs)
@@ -146,8 +146,86 @@ def training(args, out, env):
     if not memory_passed: result['124m_claim']['status']='failed'
     if any(r['summary']['config'].get('cuda_build') != t.get('cuda_build') for r,t in zip(native_runs,torch_runs,strict=True)):
         result['124m_claim'].update(status='no_data',reason='CUDA build differs; D.2 exact-version comparison condition unmet; inspect separate parity flags')
-    result['1.3b_claim'] = dict(status='no_data',reason='fused8 delayed clipping has no matching PyTorch optimizer reference')
+    result['1.3b_claim'] = offload_claim(args, directory, env, native, token_path, scheduler_warmup_steps, timing_discard_steps,
+                                         result['runs'])
     return result
+
+
+def offload_claim(args, directory, env, native, token_path, warmup, discard, runs):
+    """Dalga 1.3: 1.3B esdeger algoritma kiyasi. fused8 (gecikmeli kirpma, FP32 ana kopyasiz) PyTorch'ta karsiligi
+    olmadigi icin bilgi amaclidir; iddia Nexus `--optimizer offload` (FP32 ana kopya + AdamW host'ta) ile
+    benchmarks/runner/torch_offload_ref.py (ayni algoritma: gradyan kancalari, CPU AdamW, FP64 normlu kirpma) arasinda.
+    Parity: her iki BF16 egrisi ayni agirlikli PyTorch FP32 offload egrisine karsi; Nexus'un hatasi PyTorch'unkinden
+    buyuk olmamali (no_worse_than_reference). Mutlak <=1e-3 ayrica raporlanir (1.3B BF16 ileri gecisi tek basina
+    ~8e-4 ayrisir; Dalga 1.3 raporu)."""
+    repo = Path(args.repo).resolve()
+    ref_script = repo/'benchmarks/runner/torch_offload_ref.py'
+    if not ref_script.is_file():
+        return dict(status='no_data', reason='torch_offload_ref.py missing')
+    scratch = directory/'scratch-1.3b'; scratch.mkdir(exist_ok=True)
+    init = scratch/'initial.bin'  # 5.25 GB: kanit dizinine kopyalanmaz, SHA kaydedilir
+    common = ['--steps','15','--warmup',str(warmup),'--lr','0.0001']
+    nexus_ms, torch_ms, nexus_err, torch_err, peaks = [], [], [], [], {}
+    truth = None
+    try:
+        for i in range(args.repeats):
+            raw = directory/f'1.3b-offload-nexus-{i}.jsonl'
+            command = [str(native),'--model','1.3b','--tokens',token_path,'--out',str(raw),'--seq','1024','--precision','bf16',
+                       '--optimizer','offload'] + common + (['--dump-init',str(init)] if i == 0 else [])
+            t0 = time.perf_counter(); execution = capture(command, env, timeout=3600)
+            write(directory/f'1.3b-offload-nexus-{i}-execution.json', execution)
+            if execution['returncode']:
+                return dict(status='failed', reason='Nexus 1.3B offload failed; see raw execution log')
+            from faz20_validate import summarize, read_run
+            summary = summarize(raw, warmup=discard)
+            nexus_steps = [r['loss'] for r in read_run(raw)[1]]
+            runs.append(dict(model='1.3b', framework='nexus-offload', repeat=i, summary=summary,
+                             wall_s=time.perf_counter()-t0, first_step_ms=read_run(raw)[1][0]['ms']))
+            if i == 0:
+                tpath = directory/'1.3b-torch-offload-f32-truth.json'
+                execution = capture([str(Path(args.reference_python).resolve()), str(ref_script), '--nanogpt', str(Path(args.nanogpt).resolve()),
+                                     '--init', str(init), '--batches', token_path, '--precision', 'f32', '--deterministic', '1',
+                                     '--out', str(tpath)] + common, dict(env, CUBLAS_WORKSPACE_CONFIG=':4096:8'), timeout=7200)
+                write(directory/'1.3b-torch-offload-f32-truth-execution.json', execution)
+                if execution['returncode']:
+                    return dict(status='failed', reason='PyTorch FP32 offload truth failed; see raw execution log')
+                truth = json.loads(tpath.read_text())['losses']
+            rpath = directory/f'1.3b-torch-offload-bf16-{i}.json'
+            t0 = time.perf_counter()
+            execution = capture([str(Path(args.reference_python).resolve()), str(ref_script), '--nanogpt', str(Path(args.nanogpt).resolve()),
+                                 '--init', str(init), '--batches', token_path, '--precision', 'bf16', '--out', str(rpath)] + common,
+                                env, timeout=7200)
+            write(directory/f'1.3b-torch-offload-bf16-{i}-execution.json', execution)
+            if execution['returncode']:
+                return dict(status='failed', reason='PyTorch BF16 offload reference failed; see raw execution log')
+            reference = json.loads(rpath.read_text())
+            ref_summary = stats(reference['ms'][discard:])
+            ref_summary['target_tokens_per_s'] = 1023*1000/ref_summary['median_ms']
+            nexus_err.append(max(abs(a-b) for a,b in zip(nexus_steps, truth, strict=True)))
+            torch_err.append(max(abs(a-b) for a,b in zip(reference['losses'], truth, strict=True)))
+            runs.append(dict(model='1.3b', framework='torch-offload-bf16', repeat=i, summary=ref_summary,
+                             first_step_ms=reference['ms'][0], wall_s=time.perf_counter()-t0,
+                             peak_reserved_gb=reference['peak_reserved_gb'], cuda_build=reference.get('cuda_build'),
+                             nexus_bf16_vs_fp32_truth=nexus_err[-1], torch_bf16_vs_fp32_truth=torch_err[-1],
+                             parity_reference='PyTorch FP32 offload (same algorithm), same initial weights and tokens',
+                             parity_passed=nexus_err[-1] <= torch_err[-1]))
+            nexus_ms.append(summary['median_ms']); torch_ms.append(ref_summary['median_ms'])
+            peaks.setdefault('nexus', []).append(summary['peak_reserved_bytes']/1e9); peaks.setdefault('torch', []).append(reference['peak_reserved_gb'])
+            print('training 1.3b offload', i, 'measured', flush=True)
+    finally:
+        init_sha = sha(init) if init.is_file() else None
+        if init.is_file(): init.unlink()
+        meta = scratch/'initial.bin.json'
+        if meta.is_file(): meta.replace(directory/'1.3b-initial.bin.json')  # kucuk: kanitta kalir
+        if not any(scratch.iterdir()): scratch.rmdir()
+    claim = dict(algorithm='FP32-master AdamW, host offload (both)', nexus_median_ms=statistics.median(nexus_ms),
+                 torch_median_ms=statistics.median(torch_ms), nexus_bf16_vs_fp32_truth=max(nexus_err),
+                 torch_bf16_vs_fp32_truth=max(torch_err), strict_1e3_passed=max(nexus_err) <= 1e-3,
+                 parity_passed=all(n <= t for n, t in zip(nexus_err, torch_err)),
+                 memory_passed=max(peaks['nexus']) <= max(peaks['torch']), initial_sha256=init_sha,
+                 reason='speed AND memory AND Nexus BF16 no further from PyTorch FP32 truth than PyTorch BF16 (same algorithm)')
+    claim['status'] = 'passed' if claim['parity_passed'] and claim['memory_passed'] and claim['nexus_median_ms'] <= claim['torch_median_ms'] else 'failed'
+    return claim
 
 
 def inference(args, out, env):

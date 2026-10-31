@@ -1,0 +1,18 @@
+number of parameters: 1311.53M
+number of parameters: 1311.53M
+step 0 loss 11.166073 ms 10500.2 cpu_update_ms 9550.1
+step 1 loss 11.515480 ms 9302.4 cpu_update_ms 8759.3
+step 2 loss 11.681710 ms 7033.5 cpu_update_ms 6480.8
+step 3 loss 12.111108 ms 6921.6 cpu_update_ms 6364.3
+step 4 loss 10.578053 ms 6385.2 cpu_update_ms 5839.1
+step 5 loss 9.523986 ms 6835.2 cpu_update_ms 6304.8
+step 6 loss 9.121793 ms 6621.6 cpu_update_ms 6073.8
+step 7 loss 9.027203 ms 6623.5 cpu_update_ms 6063.9
+step 8 loss 8.742434 ms 6619.8 cpu_update_ms 6052.5
+step 9 loss 8.124202 ms 6584.4 cpu_update_ms 6021.5
+step 10 loss 7.870489 ms 6537.8 cpu_update_ms 5975.2
+step 11 loss 7.545742 ms 6336.9 cpu_update_ms 5785.0
+step 12 loss 7.762594 ms 6020.5 cpu_update_ms 5492.5
+step 13 loss 7.893416 ms 5989.6 cpu_update_ms 5455.1
+step 14 loss 7.360449 ms 6142.9 cpu_update_ms 5613.3
+{"framework": "PyTorch 2.15.0+cu134 manual ZeRO-Offload (post-accumulate-grad hooks, CPU AdamW)", "precision": "bf16", "peak_allocated_gb": 3.353285632, "peak_reserved_gb": 6.098518016, "parameter_count": 1313626112, "cuda_build": 13040, "lr": 0.0001, "warmup": 2, "checkpoint": true, "optimizer_impl": "fused (CPU)", "cpu_threads": 8, "perturb_ulp_seed": 0, "target_tokens_per_step": 1023, "gelu": "tanh (explicit Nexus compatibility adaptation)", "nanogpt_model_sha256": "7c01703240dbec5d554527dc666e35b3df8391d0b117fddc07afcf325a21d11c", "deterministic_algorithms": true, "cublas_workspace_config": ":4096:8", "cudnn_deterministic": true, "cudnn_benchmark": false, "sdpa_flash_available": true}

@@ -1,0 +1,116 @@
+{
+  "claim": {
+    "algorithm": "FP32-master AdamW, host offload (both)",
+    "nexus_median_ms": 2955.0319,
+    "torch_median_ms": 5621.274899999889,
+    "nexus_bf16_vs_fp32_truth": 0.0022420883178710938,
+    "torch_bf16_vs_fp32_truth": 0.01859426498413086,
+    "strict_1e3_passed": false,
+    "parity_passed": true,
+    "memory_passed": true,
+    "initial_sha256": "5686cace9787e759a60e64638a744f67bf23d45301dc99e8b0fd9b34a521f511",
+    "reason": "speed AND memory AND Nexus BF16 no further from PyTorch FP32 truth than PyTorch BF16 (same algorithm)",
+    "status": "passed"
+  },
+  "runs": [
+    {
+      "model": "1.3b",
+      "framework": "nexus-offload",
+      "repeat": 0,
+      "summary": {
+        "config": {
+          "type": "config",
+          "model": "1.3b",
+          "precision": "bf16",
+          "optimizer": "offload",
+          "parameters": 1313626112,
+          "layers": 24,
+          "dim": 2048,
+          "heads": 16,
+          "seq": 1024,
+          "micro": 1,
+          "schedule_steps": 15,
+          "seed": 1337,
+          "peak_flops": 43008000000000,
+          "device_state_bytes": 4287897600,
+          "host_state_bytes": 18390765568,
+          "compiled": false,
+          "ce_chunk_rows": 256,
+          "recompute": "full",
+          "token_sha256": "0ccef04d8043317378f9bd93f912241b1591fc271ee79a165f00e1bb47e2e443",
+          "lr": 0.0001,
+          "warmup": 2,
+          "cuda_build": 13040,
+          "grad_clip": "current-step-global-norm"
+        },
+        "warmup": 5,
+        "samples_ms": [
+          2896.2187,
+          2903.0356,
+          2884.4944,
+          2995.2478,
+          3006.5052,
+          3063.5439,
+          2981.1775,
+          2865.6793,
+          2963.1837,
+          2946.8801
+        ],
+        "median_ms": 2955.0319,
+        "min_ms": 2865.6793,
+        "max_ms": 3063.5439,
+        "std_ms": 59.81929965295152,
+        "target_tokens_per_s": 346.18915619828,
+        "mfu_estimate": 0.06827058308817,
+        "hfu_full_recompute_estimate": 0.09102744411756,
+        "flops_method": "6*N_no_position + 12*L*d*T per input position; full recompute HFU = 4/3 MFU; excludes optimizer",
+        "peak_allocated_bytes": 4900159488,
+        "peak_reserved_bytes": 4919918592,
+        "max_inactive_split_fraction": 0.004016144501278772,
+        "first_loss": 11.165584564208984,
+        "last_loss": 7.35388708114624,
+        "raw_sha256": "d2d27f426e6afde5e88f22cfd91dec513dc71ea8dafd58b1c7d19ed4b896b904"
+      },
+      "wall_s": 92.04353149999997,
+      "first_step_ms": 3550.7775
+    },
+    {
+      "model": "1.3b",
+      "framework": "torch-offload-bf16",
+      "repeat": 0,
+      "summary": {
+        "median_ms": 5621.274899999889,
+        "mean_ms": 5589.066269999967,
+        "min_ms": 5269.350700000359,
+        "max_ms": 5913.130499999625,
+        "std_ms": 162.16355565097243,
+        "variance_ms2": 26297.01878136603,
+        "cv": 0.029014427064750728,
+        "target_tokens_per_s": 181.98718586063458
+      },
+      "first_step_ms": 8817.40260000015,
+      "wall_s": 137.7163668000003,
+      "peak_reserved_gb": 6.580862976,
+      "cuda_build": 13040,
+      "nexus_bf16_vs_fp32_truth": 0.0022420883178710938,
+      "torch_bf16_vs_fp32_truth": 0.01859426498413086,
+      "parity_reference": "PyTorch FP32 offload (same algorithm), same initial weights and tokens",
+      "parity_passed": true
+    }
+  ],
+  "power": {
+    "status": 2,
+    "on_ac": true,
+    "raw": {
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-c",
+        "(Get-CimInstance Win32_Battery).BatteryStatus"
+      ],
+      "returncode": 0,
+      "stdout": "2\n",
+      "stderr": ""
+    }
+  }
+}

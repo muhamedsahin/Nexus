@@ -1,0 +1,25 @@
+{
+  "command": [
+    "C:\\Users\\muham\\Desktop\\Nexus\\.bench-venv-cu134\\Scripts\\python.exe",
+    "C:\\Users\\muham\\Desktop\\Nexus\\benchmarks\\runner\\torch_offload_ref.py",
+    "--nanogpt",
+    "C:\\Users\\muham\\nexus-data\\nanogpt",
+    "--init",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-31-dalga1\\harness-1.3b-e2e\\scratch-1.3b\\initial.bin",
+    "--batches",
+    "C:\\Users\\muham\\Desktop\\Nexus\\build-phase1\\faz20\\tokens.bin",
+    "--precision",
+    "bf16",
+    "--out",
+    "C:\\Users\\muham\\Desktop\\Nexus\\docs\\benchmarks\\2026-10-31-dalga1\\harness-1.3b-e2e\\1.3b-torch-offload-bf16-0.json",
+    "--steps",
+    "15",
+    "--warmup",
+    "2",
+    "--lr",
+    "0.0001"
+  ],
+  "returncode": 0,
+  "stdout": "number of parameters: 1311.53M\nnumber of parameters: 1311.53M\nstep 0 loss 11.166073 ms 8817.4 cpu_update_ms 7887.7\nstep 1 loss 11.517195 ms 5962.8 cpu_update_ms 5414.1\nstep 2 loss 11.681650 ms 5463.5 cpu_update_ms 4919.1\nstep 3 loss 12.117168 ms 5390.2 cpu_update_ms 4824.6\nstep 4 loss 10.582601 ms 5297.8 cpu_update_ms 4764.7\nstep 5 loss 9.530519 ms 5269.4 cpu_update_ms 4730.1\nstep 6 loss 9.125160 ms 5552.4 cpu_update_ms 5012.9\nstep 7 loss 9.031513 ms 5503.4 cpu_update_ms 4963.3\nstep 8 loss 8.747774 ms 5691.8 cpu_update_ms 5143.2\nstep 9 loss 8.129792 ms 5640.7 cpu_update_ms 5114.0\nstep 10 loss 7.875371 ms 5640.0 cpu_update_ms 5114.5\nstep 11 loss 7.549336 ms 5652.6 cpu_update_ms 5123.4\nstep 12 loss 7.760002 ms 5913.1 cpu_update_ms 5380.7\nstep 13 loss 7.895095 ms 5424.7 cpu_update_ms 4899.2\nstep 14 loss 7.362023 ms 5602.6 cpu_update_ms 5063.5\n{\"framework\": \"PyTorch 2.15.0+cu134 manual ZeRO-Offload (post-accumulate-grad hooks, CPU AdamW)\", \"precision\": \"bf16\", \"peak_allocated_gb\": 3.353285632, \"peak_reserved_gb\": 6.580862976, \"parameter_count\": 1313626112, \"cuda_build\": 13040, \"lr\": 0.0001, \"warmup\": 2, \"checkpoint\": true, \"optimizer_impl\": \"fused (CPU)\", \"cpu_threads\": 8, \"perturb_ulp_seed\": 0, \"target_tokens_per_step\": 1023, \"gelu\": \"tanh (explicit Nexus compatibility adaptation)\", \"nanogpt_model_sha256\": \"7c01703240dbec5d554527dc666e35b3df8391d0b117fddc07afcf325a21d11c\", \"deterministic_algorithms\": false, \"cublas_workspace_config\": null, \"cudnn_deterministic\": false, \"cudnn_benchmark\": false, \"sdpa_flash_available\": true}\n",
+  "stderr": ""
+}
