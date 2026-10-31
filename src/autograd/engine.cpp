@@ -9,6 +9,8 @@
 
 #include "nexus/autograd/autograd.hpp"
 
+#include "nexus/core/tensor.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -214,6 +216,26 @@ Variable Variable::from_data(std::shared_ptr<std::vector<float>> data, Shape sha
 }
 
 const std::vector<float>& Variable::values() const noexcept { return *data_; }
+
+nexus::Tensor Variable::tensor_view() const {
+  if (!data_) throw std::runtime_error("Nexus autograd: tensor_view verisiz Variable");
+  std::vector<std::size_t> dims;
+  for (const std::int64_t d : shape_.dims) dims.push_back(static_cast<std::size_t>(d));
+  if (dims.empty()) dims.push_back(1);  // autograd skaleri: nexus::Shape rank 0 = 0 eleman
+  return nexus::Tensor::adopt_shared(data_->data(), nexus::Shape(dims), nexus::MemorySpace::Host, nexus::DeviceRef::cpu(),
+                                     std::shared_ptr<void>(data_));
+}
+
+Variable Variable::from_tensor(const nexus::Tensor& tensor, bool requires_grad) {
+  const nexus::Tensor host = tensor.space() == nexus::MemorySpace::Device
+                                 ? tensor.to(nexus::MemorySpace::Host, nexus::DeviceRef::cpu())
+                                 : tensor.shallow();
+  const nexus::Tensor f32 = host.to(nexus::DType::F32);  // her zaman bitisik yeni depolama
+  Shape shape;
+  for (std::size_t a = 0; a < f32.rank(); ++a) shape.dims.push_back(static_cast<std::int64_t>(f32.shape()[a]));
+  std::vector<float> values(f32.data(), f32.data() + f32.numel());
+  return make(std::move(values), std::move(shape), requires_grad);
+}
 
 std::vector<float>& Variable::mutable_values() {
   if (meta_ && meta_->requires_grad) {

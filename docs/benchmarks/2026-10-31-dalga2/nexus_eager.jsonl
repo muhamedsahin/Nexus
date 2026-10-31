@@ -1,0 +1,9 @@
+{"mode": "bench_eager_add", "n": 1, "add_us": 0.608, "add_out_us": 0.152, "view_us": 0.043}
+{"mode": "bench_eager_add", "n": 64, "add_us": 0.651, "add_out_us": 0.152, "view_us": 0.051}
+{"mode": "bench_eager_add", "n": 4096, "add_us": 1.299, "add_out_us": 0.717, "view_us": 0.042}
+{"mode": "bench_eager_add", "n": 1, "add_us": 0.683, "add_out_us": 0.158, "view_us": 0.043}
+{"mode": "bench_eager_add", "n": 64, "add_us": 0.636, "add_out_us": 0.190, "view_us": 0.043}
+{"mode": "bench_eager_add", "n": 4096, "add_us": 1.181, "add_out_us": 0.717, "view_us": 0.043}
+{"mode": "bench_eager_add", "n": 1, "add_us": 0.626, "add_out_us": 0.173, "view_us": 0.044}
+{"mode": "bench_eager_add", "n": 64, "add_us": 0.698, "add_out_us": 0.177, "view_us": 0.043}
+{"mode": "bench_eager_add", "n": 4096, "add_us": 1.181, "add_out_us": 0.710, "view_us": 0.044}

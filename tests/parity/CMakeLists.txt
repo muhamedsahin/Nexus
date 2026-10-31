@@ -395,3 +395,13 @@ if(NEXUS_XLA_PYTHON)
             --producer $<TARGET_FILE:test_phase19_backends>)
     set_tests_properties(test_pjrt_xla_cpu PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 endif()
+
+# Dalga 2: dtype'li adimli Tensor + dagitici
+add_executable(test_tensor_core test_tensor_core.cpp)
+target_link_libraries(test_tensor_core PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_tensor_core)
+add_test(NAME test_tensor_views COMMAND test_tensor_core views)
+add_test(NAME test_tensor_dtype_cast COMMAND test_tensor_core dtype)
+add_test(NAME test_tensor_ops_dispatch COMMAND test_tensor_core ops)
+add_test(NAME test_tensor_legacy_api COMMAND test_tensor_core legacy)
+add_test(NAME test_tensor_autograd_bridge COMMAND test_tensor_core bridge)

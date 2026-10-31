@@ -46,6 +46,8 @@ endif()
 add_library(nexus STATIC
     src/core/allocator.cpp
     src/core/memory.cpp
+    src/core/tensor.cpp
+    src/core/tensor_ops.cpp
     src/core/mirrored_tensor.cpp
     src/backend/registry.cpp
     src/backend/vulkan.cpp

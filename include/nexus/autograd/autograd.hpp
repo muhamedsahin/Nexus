@@ -38,6 +38,7 @@
 #include <vector>
 
 namespace nexus {
+class Tensor;
 namespace autograd {
 
 class Variable;
@@ -224,7 +225,14 @@ class Variable {
   static Variable from_data(std::shared_ptr<std::vector<float>> data, Shape shape,
                             std::shared_ptr<AutogradMeta> meta);
 
+  /// Dalga 2 koprusu: herhangi bir dtype / cihaz / adimli Tensor'dan F32 host kopya (rank 0 yok: {n} sekli korunur).
+  static Variable from_tensor(const nexus::Tensor& tensor, bool requires_grad = false);
+
   [[nodiscard]] bool has_data() const noexcept { return static_cast<bool>(data_); }
+  /// Dalga 2 koprusu: verinin KOPYASIZ F32 host Tensor gorunumu (yasam: Variable'in verisi). SALT OKUNUR kullanin:
+  /// gorunum uzerinden yazi Variable surumunu artirmaz (autograd kayitlari bayatlar); yazmak icin mutable_values().
+  /// Skaler (rank 0) Variable {1} sekliyle gorunur.
+  [[nodiscard]] nexus::Tensor tensor_view() const;
   [[nodiscard]] const std::vector<float>& values() const noexcept;
   [[nodiscard]] std::vector<float>& mutable_values();  // sürümü artirir
   [[nodiscard]] const Shape& shape() const noexcept;

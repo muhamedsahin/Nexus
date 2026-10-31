@@ -1,0 +1,6 @@
+paralel gruplu 857.1 ms (7.5 GFLOP/s, 1.02x)
+paralel gruplu 814.9 ms (7.9 GFLOP/s, 1.02x)
+paralel gruplu 819.3 ms (7.9 GFLOP/s, 1.01x)
+paralel gruplu 812.3 ms (7.9 GFLOP/s, 1.02x)
+paralel gruplu 830.1 ms (7.8 GFLOP/s, 1.02x)
+paralel gruplu 818.1 ms (7.9 GFLOP/s, 1.04x)

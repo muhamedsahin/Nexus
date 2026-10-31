@@ -1,0 +1,678 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="35"
+	failures="0"
+	disabled="1"
+	skipped="1"
+	hostname="Rabia_Zeynep"
+	time="685"
+	timestamp="2026-10-31T13:09:53"
+	>
+	<testcase name="test_phase1_bridge" classname="test_phase1_bridge" time="0.231555" status="run">
+		<system-out>Nexus Faz 1 kopru testi
+kutuphaneler ve sifir kopya
+  PASS  nexus_model data() adresi ayni
+  PASS  gorunum uzerinden yazmak model tensörunu degistirir
+  PASS  nexus_model deposu 64 bayt hizali
+  PASS  NDArray data() adresi ayni
+  PASS  NDArray gorunumu ayni bellek
+  PASS  share() float dizisini kopyalamaz
+  PASS  share() Nexus ayirma sayacini artirmaz
+  PASS  paylasilan isaretci yerel NDArray ile ayni
+  PASS  NDArray olunce shared_ptr bellegi ayakta tutar
+  PASS  batch girdi adresi ayni
+  PASS  batch etiket adresi ayni
+  PASS  batch gorunumu ayni bellek
+  PASS  alias yigin adresini korur
+  PASS  alias bellek ayirmaz
+  PASS  alias sahibi degildir
+  PASS  zeros tek host blogu ayirir
+  PASS  sahip olunan host 64 bayt hizali
+  PASS  zeros host alanindadir
+  PASS  zeros tum elemanlari sifirlar
+  PASS  pinned host alani
+  PASS  pinned bellek 64 bayt hizali
+  PASS  pinned kayit altinda
+  PASS  pinned host uzerinden okunur
+  info  nexus_optim simd=avx2
+  PASS  nexus_model cekirdegi calisti
+  info  nexus_train symbol...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_phase1_loss_families" classname="test_phase1_loss_families" time="0.183066" status="run">
+		<system-out>Nexus Faz 1 kayip aileleri testi
+regresyon (LossBase)
+  PASS  MSE: deger ve turev sonlu
+  PASS  MSE: backward_into 0 heap ayirma
+  PASS  MSE: backward == backward_into (bit duzeyinde)
+  PASS  MSE: sayisal turevle uyumlu (hata/tolerans=2.9e-05)
+  PASS  MSE sum: deger ve turev sonlu
+  PASS  MSE sum: backward_into 0 heap ayirma
+  PASS  MSE sum: backward == backward_into (bit duzeyinde)
+  PASS  MSE sum: sayisal turevle uyumlu (hata/tolerans=4.7e-05)
+  PASS  MAE: deger ve turev sonlu
+  PASS  MAE: backward_into 0 heap ayirma
+  PASS  MAE: backward == backward_into (bit duzeyinde)
+  PASS  MAE: sayisal turevle uyumlu (hata/tolerans=1e-05)
+  PASS  Huber: deger ve turev sonlu
+  PASS  Huber: backward_into 0 heap ayirma
+  PASS  Huber: backward == backward_into (bit duzeyinde)
+  PASS  Huber: sayisal turevle uyumlu (hata/tolerans=1.8e-05)
+  PASS  LogCosh: deger ve turev sonlu
+  PASS  LogCosh: backward_into 0 heap ayirma
+  PASS  LogCosh: backward == backward_into (bit duzeyinde)
+  PASS  LogCosh: sayisal turevle uyumlu (hata/...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_phase1_mirrored_tensor" classname="test_phase1_mirrored_tensor" time="0.103855" status="run">
+		<system-out>Nexus Faz 1 MirroredTensor testi
+unified (CPU) ayna
+  PASS  CPU cihazi unified moddur
+  PASS  unified ayna Synced baslar
+  PASS  unified modda host ve cihaz ayni adres
+  PASS  unified host 64 bayt hizali
+  PASS  unified host Nexus kaydinda
+  PASS  sahip olunan host sifirla baslar
+  PASS  unified senkronlar heap ayirmaz
+  PASS  unified modda hicbir bayt kopyalanmaz
+  PASS  unified modda pin_host anlamsizdir (false)
+  PASS  unified cihaz gorunumu host adresidir
+  PASS  mirror(nexus_model::Tensor) host adresini korur
+  PASS  CPU aynasi cihaz tarafinda da ayni adres
+  PASS  CPU aynasi bellek ayirmaz
+  PASS  ayna sekli model sekliyle ayni
+  PASS  CPU wrap'inda iki farkli adres reddedilir
+  PASS  hybrid politika somut ayna cihazi degildir
+  PASS  bos olmayan wrap_host icin nullptr reddedilir
+  PASS  bos ayna bellek ayirmaz
+tasima ve serbest birakma
+  PASS  tasima isaretciyi devreder
+  PASS  tasinan kaynak bos kalir
+  PASS  tasima atamasi yeni tamponu alir
+  PASS  tasima atamasi eski tamponu serbest birakir
+  PASS  ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_phase1_thread_pool" classname="test_phase1_thread_pool" time="0.839994" status="run">
+		<system-out>Nexus Faz 1 is parcacigi havuzu testi
+MatrixFlash paralel dongu havuzu
+  info  katilimci thread=16
+  PASS  en az bir katilimci
+  PASS  1500 rastgele boyutta her parca tam bir kez kosar
+  PASS  parca istisnasi cagirana firlatilir
+  PASS  istisnadan sonra havuz kullanilabilir
+  PASS  ic ice parallel_for satir ici kosar, kilitlenmez
+  PASS  4 thread ayni anda cagirdiginda sonuc dogru
+cok thread'li GEMM ve tampon omru
+  info  en buyuk |hizli - referans|=4.29153e-06
+  PASS  60 GEMM referansla ayni; cikis tamponu donuste serbest
+test_phase1_thread_pool: 7 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_phase4_custom_extensions" classname="test_phase4_custom_extensions" time="0.110223" status="run">
+		<system-out>Nexus Faz 4 ozel genisletme testi
+  PASS  activation name
+  PASS  swish forward
+  PASS  swish backward
+  PASS  finite-difference swish
+  info  avx_max_abs=0
+  PASS  avx2 batch activation
+  PASS  parallel swish
+  PASS  asymmetric huber loss
+  PASS  asymmetric huber grad
+  PASS  numeric mse value
+  PASS  numeric mse grad
+  PASS  tape mse value
+  PASS  tape mse grad
+  PASS  mae metric
+  info  loss 0.950594 -&gt; 2.45074e-07 weight=0.999528
+  PASS  training loss decreases
+  PASS  custom layer weight moves toward target
+  PASS  callback sees every step
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase5_rl_and_marl" classname="test_phase5_rl_and_marl" time="1.8903" status="run">
+		<system-out>Nexus Faz 5 pekistirmeli ogrenme testi
+  PASS  gae advantages
+  PASS  replay ring overwrite
+  PASS  replay 64-byte alignment
+  info  per_top_fraction=0.57
+  PASS  prioritized sample favors large td
+  PASS  cartpole force pushes right
+  PASS  gridworld moves right
+  PASS  vector env stacks observations
+  PASS  aec starts at agent a
+  PASS  aec alternates
+  PASS  self-play elo rewards the winner
+  PASS  historical checkpoint roundtrip
+  info  dqn 0 -&gt; 0.7
+  PASS  dqn return increases
+  info  ppo 0 -&gt; 1.4
+  PASS  ppo return increases
+  info  a2c 0.7 -&gt; 1.4
+  PASS  actor-critic return increases
+  info  ippo 1.16667 -&gt; 6
+  PASS  ippo cooperative return increases
+  info  mappo 1.16667 -&gt; 6
+  PASS  mappo centralized return increases
+  info  trio ippo 1 mappo 1
+  PASS  three-agent ippo and mappo run
+  PASS  team button has three agents
+  info  sac -6.32453 -&gt; -1.55438
+  PASS  sac return increases
+  info  continuous_a2c -11.739 -&gt; -0.361898
+  PASS  continuous actor-critic return increases
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase10_structure" classname="test_phase10_structure" time="0.138924" status="run">
+		<system-out>Nexus Faz 10 yapi testi
+  PASS  maxpool keeps the first maximum
+  PASS  maxpool routes the gradient to argmax
+  PASS  avgpool mean
+  PASS  avgpool spreads the gradient
+  PASS  global pool is the spatial mean
+  PASS  global pool broadcasts the gradient
+  PASS  flatten keeps the batch axis
+  PASS  flatten restores the rank
+  PASS  dropout eval is the identity
+  PASS  dropout train with p=1 zeroes the tensor
+  PASS  sequential eval reaches dropout
+  PASS  sequential train reaches dropout
+  PASS  batchnorm2d keeps NCHW
+  PASS  batchnorm2d backward finite
+  PASS  batchnorm2d eval uses running statistics
+  PASS  residual keeps the linear shape
+  PASS  residual backward reaches the branch
+  PASS  residual adds the identity path
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase11_sequence" classname="test_phase11_sequence" time="0.124295" status="run">
+		<system-out>Nexus Faz 11 dizi testi
+  PASS  positional shape [B,T,E]
+  PASS  position 0 is sin/cos of zero
+  PASS  later positions leave zero
+  PASS  learnable positions receive gradient
+  PASS  decoder rejects a single tensor
+  PASS  decoder keeps the target shape
+  PASS  decoder forward finite
+  PASS  decoder backward finite
+  PASS  rnn output [B,T,H]
+  PASS  rnn forward finite
+  PASS  rnn backward finite
+  PASS  reshape writes the requested shape
+  PASS  reshape restores the input rank
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase12_catalog" classname="test_phase12_catalog" time="0.118931" status="run">
+		<system-out>Nexus Faz 12 katalog testi
+  PASS  conv1d keeps the length
+  PASS  conv1d forward finite
+  PASS  conv1d backward finite
+  PASS  conv3d keeps the volume
+  PASS  conv3d forward finite
+  PASS  conv3d backward finite
+  PASS  depthwise keeps NCHW
+  PASS  depthwise forward finite
+  PASS  depthwise backward finite
+  PASS  groupnorm keeps the tensor
+  PASS  groupnorm backward finite
+  PASS  instancenorm keeps NCHW
+  PASS  instancenorm backward finite
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase13_isa" classname="test_phase13_isa" time="0.425746" status="run">
+		<system-out>Nexus Faz 13 ISA testi
+  cekirdek avx2-4x16
+  PASS  avx2 kernel is selected ahead of the serial avx512 path
+  PASS  serial avx512 kernel is not selected
+  PASS  gemm matches the reference
+  PASS  gemm matches the reference
+  PASS  gemm matches the reference
+  PASS  gemm matches the reference
+  PASS  gemm matches the reference
+  PASS  gemm matches the reference
+  PASS  gemm matches the reference
+tum kontroller gecti
+</system-out>
+	</testcase>
+	<testcase name="test_phase1_allocator" classname="test_phase1_allocator" time="0.109829" status="run">
+		<system-out>k64 yuvarlama
+  PASS  0 -&gt; 64
+  PASS  1 -&gt; 64
+  PASS  64 -&gt; 64
+  PASS  65 -&gt; 128
+  PASS  127 -&gt; 128
+  PASS  128 -&gt; 128
+  PASS  129 -&gt; 256
+  PASS  4096 -&gt; 4096
+  PASS  4097 -&gt; 8192
+  PASS  siniflar 64'e tam bolunur
+ayirma, hizalama, yeniden kullanim
+  PASS  reset temiz baslar
+  PASS  ayirma basarili
+  PASS  isaretci 64 bayt hizali
+  PASS  100 bayt -&gt; 128 sinifi
+  PASS  tek canli blok, tek OS blogu
+  PASS  ilk ayirma OS'a gider
+  PASS  serbest: canli kalmadi
+  PASS  blok OS'a donmedi (onbellek)
+  PASS  sayaçlar
+  PASS  aynı adres yeniden kullanildi
+  PASS  ikinci ayirma onbellekten
+  PASS  yeni OS blogu acilmadi
+parcalanma orani
+  PASS  2 canli + 1 onbellekli
+  PASS  oran = 192/128 = 1.5
+  PASS  kapi erisimi ayni degeri dondurur
+  PASS  empty_cache reserved'i current'a ceker
+  PASS  parcalanma 1.0
+  PASS  yalnizca onbellek kaldi
+  PASS  canli yok + onbellek var -&gt; -1.0
+  PASS  hepsi OS'a dondu
+  PASS  bos havuz -&gt; 1.0
+buyuk blok
+  PASS  3 MiB -&gt; 2^22 sinifi
+  PASS  buyuk blok serbest birakildi
+cok is parcacig...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_phase1_dtype" classname="test_phase1_dtype" time="12.7915" status="run">
+		<system-out>dtype ozellikleri
+  PASS  size_of degerleri
+  PASS  is_floating
+  PASS  is_integral (bool haric)
+  PASS  to_string PyTorch adlari
+test_dtype_roundtrip: 65536 binary16 deseni
+  info  half_roundtrip_mismatch=0
+  PASS  tum 65536 half deseni gidis-donus
+  PASS  NexusOptim float16 ayni bitleri uretir (tek tanim)
+  PASS  en buyuk sonlu ve tasma (RNE)
+  PASS  en kucuk alt-normal 2^-24
+  PASS  2^-25 tam yari -&gt; cift (0)
+  PASS  -0 isareti korunur
+F16C donanim capraz kontrolu
+  info  f16c_float_to_half_samples=9.33322e+07
+  PASS  half-&gt;float F16C ile bit-bit ayni (65536; NaN yuku haric)
+  PASS  float-&gt;half F16C ile bit-bit ayni (ornekler + alt-normal bolge)
+test_bf16_rounding
+  PASS  bf16 1.0 tam
+  PASS  bf16 tam yari, alt cift -&gt; asagi
+  PASS  bf16 tam yari, alt tek -&gt; yukari
+  PASS  bf16 yarinin ustu -&gt; yukari
+  PASS  bf16 yarinin alti -&gt; asagi
+  PASS  bf16 FLT_MAX RNE ile Inf
+  PASS  bf16 +Inf
+  PASS  bf16 -Inf
+  PASS  bf16 -0
+  PASS  bf16 en kucuk alt-normal -&gt; 0
+  PASS  bf16 sinyal NaN -&gt; sessiz NaN (Inf'e yuvarl...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_dtensor_redistribute_all_pairs" classname="test_dtensor_redistribute_all_pairs" time="1.53989" status="run">
+		<system-out>  info  1B mesh: 60 op yayilim denetimi
+  info  1B mesh: 16 / 16 redistribute cifti dogru
+  PASS  1B mesh: tum (kaynak, hedef) yerlesim ciftleri dogru
+  info  2B mesh: 630 op yayilim denetimi
+  info  2B mesh: 196 / 196 redistribute cifti dogru
+  PASS  2B mesh: tum (kaynak, hedef) yerlesim ciftleri dogru
+  PASS  matmul S1 x S0 -&gt; Partial (S1 x S0 -&gt; P (daralan eksen))
+  PASS  embedding tablo S0 -&gt; Partial (tablo S0 (sozluk) -&gt; P (maskeli arama))
+  PASS  ic ice parcalama (iki mesh boyutu ayni tensor boyutu) acik hata
+  PASS  rank ici denetimler
+test_phase12_parallel: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_safetensors_roundtrip" classname="test_safetensors_roundtrip" time="0.156075" status="run">
+		<system-out>  PASS  test_safetensors_roundtrip (mmap): F32/F16/BF16/I64/bos, metadata
+  PASS  test_safetensors_roundtrip (tam kopya): F32/F16/BF16/I64/bos, metadata
+  info  baslik_boyu            -&gt; Nexus interop: safetensors: C:\Users\muham\AppData\Local\Temp\nexus_faz17_st\baslik_boyu.safetensors: baslik b
+  info  kesik_dosya            -&gt; Nexus interop: safetensors: ids: aralik veri bolgesi disinda
+  info  dtype_bilinmeyen       -&gt; Nexus interop: safetensors: bilinmeyen dtype 'Q4'
+  info  sekil_uyusmaz          -&gt; Nexus interop: safetensors: w: sekil x dtype boyutu araliga esit degil
+  info  negatif_boyut          -&gt; Nexus interop: safetensors: w: negatif boyut
+  info  tasma                  -&gt; Nexus interop: safetensors: w: sekil tasmasi
+  info  json_bozuk             -&gt; Nexus interop: C:\Users\muham\AppData\Local\Temp\nexus_faz17_st\json_bozuk.safetensors: JSON kapanmamis dize (
+  info  ust_uste_aralik        -&gt; Nexus interop: safetensors: h: sekil x dtype boyutu araliga esit degil
+  PASS  bozuk / kotu niyetli safet...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_hf_templates" classname="test_hf_templates" time="44.2456" status="run">
+		<system-out>{"tiny": "llama", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_llama"}
+{"tokens": 16, "vocab": 211, "argmax_last": 51}
+  info  llama    sablon llama/v1, 21 tensor; Nexus vs torch FP64 goreli 7.0e-07; save_hf -&gt; load_hf bit bit (pencere 0, qkv_bias 0, bagli 0)
+  PASS  HF llama/v1: logitler &lt;= 1e-4, gidis-donus bit bit
+{"tiny": "mistral", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_mistral"}
+{"tokens": 16, "vocab": 211, "argmax_last": 27}
+  info  mistral  sablon mistral/v1, 21 tensor; Nexus vs torch FP64 goreli 5.9e-07; save_hf -&gt; load_hf bit bit (pencere 7, qkv_bias 0, bagli 0)
+  PASS  HF mistral/v1: logitler &lt;= 1e-4, gidis-donus bit bit
+{"tiny": "qwen2", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_tiny_qwen2"}
+{"tokens": 16, "vocab": 211, "argmax_last": 80}
+  info  qwen2    sablon qwen2/v1, 26 tensor; Nexus vs torch FP64 goreli 1.1e-06; save_hf -&gt; load_hf bit bit (pencere 0, qkv_bias 1, bagli 1)
+  PASS  HF qwen2/v1: logitler &lt;= 1e-4, gidis-donus bit bit...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_gguf_roundtrip" classname="test_gguf_roundtrip" time="388.249" status="run">
+		<system-out>{"tiny": "llama", "dir": "C:\\Users\\muham\\AppData\\Local\\Temp\\nexus_faz17_gguf\\hf"}
+{"gguf": "tiny_F32.gguf", "kv": 15, "tensors": 21, "types": [0], "tokens_meta": 0, "arch": "llama"}
+  info  F32    406080 bayt, 21 tensor, 15 KV; C++ okuyucu: surum 3, mimari llama, 21 tensor; bagimsiz Python okuyucu + ileri gecis vs GGUF'tan ice aktarilan Nexus 1.7e-06; nicemleme hatasi (orijinale gore) 1.70e-06
+  PASS  test_gguf_roundtrip (dosya duzeyi) F32: Nexus -&gt; GGUF -&gt; bagimsiz okuyucu == Nexus ice aktarma (&lt;= 1e-4)
+{"gguf": "tiny_F16.gguf", "kv": 15, "tensors": 21, "types": [0, 1], "tokens_meta": 0, "arch": "llama"}
+  info  F16    204608 bayt, 21 tensor, 15 KV; C++ okuyucu: surum 3, mimari llama, 21 tensor; bagimsiz Python okuyucu + ileri gecis vs GGUF'tan ice aktarilan Nexus 1.2e-06; nicemleme hatasi (orijinale gore) 1.58e-03
+  PASS  test_gguf_roundtrip (dosya duzeyi) F16: Nexus -&gt; GGUF -&gt; bagimsiz okuyucu == Nexus ice aktarma (&lt;= 1e-4)
+{"gguf": "tiny_Q8_0.gguf", "kv": 15, "tensors": 21, "types": [0, 8], "tokens...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_onnx_roundtrip" classname="test_onnx_roundtrip" time="170.066" status="run">
+		<system-out>{"onnx": "m17.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+{"onnx": "m17.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", "Unsqueeze", "Where"]}
+  info  gpt2 tipi , opset 17: 111 ONNX dugumu (85 IR dugumu), 103 baslatici, model 450352 + veri 0 bayt; yorumlayici vs Nexus (B,T) = (1,9) ve (2,16) goreli 8.8e-07
+  PASS  test_onnx_roundtrip: gpt2 tipi (ogrenilen konum, LayerNorm + bias, GELU, bagli) opset 17 &lt;= 1e-4 (dinamik batch/seq)
+{"onnx": "m17_ext.onnx", "opset": 17, "nodes": 111, "ops": ["Add", "Concat", "Erf", "Gather", "Gemm", "Greater", "LayerNormalization", "MatMul", "Mod", "Mul", "Range", "Reshape", "Shape", "Slice", "Softmax", "Squeeze", "Transpose", ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_dlpack_torch" classname="test_dlpack_torch" time="9.85802" status="run">
+		<system-out>nexus C:\Users\muham\Desktop\Nexus\python\src\nexus\__init__.py, python 3.14.8, torch 2.14.1+cu132
+  PASS  test_dlpack_torch (CPU): torch -&gt; nexus ayni isaretci
+  PASS  nexus'ta yerinde islem torch'ta gorunur (sifir kopya)
+  PASS  nexus -&gt; torch ayni isaretci
+  PASS  numpy goruntusu sifir kopya
+  PASS  kaynak silindikten sonra veri gecerli (sahiplik dogru)
+  info  float64 -&gt; Nexus interop: DLPack: yalniz float32 (kod 2, 64 bit gelmis); donusturme yapilmaz
+  info  bitisik olmayan -&gt; Nexus interop: DLPack: bitisik olmayan adimlar (eksen 1); once .contiguous() cagirin
+  PASS  uyumsuz dtype / adim acik hata (kopyaya dusme yok)
+  PASS  tuketilmis kapsul ikinci kez kullanilamaz
+  PASS  test_dlpack_torch (CUDA): torch -&gt; nexus ayni aygit isaretcisi
+  PASS  nexus CUDA cekirdegi (add_) torch tensorunu yerinde degistirdi
+  PASS  nexus -&gt; torch (CUDA) ayni isaretci
+  PASS  nexus.lm: build / logits / KV onbellekli generate
+  PASS  nexus.config preset / sayim
+  PASS  safetensors yaz (nexus) -&gt; oku (nexus + bagimsiz)
+{"tin...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_backend_detection" classname="test_backend_detection" time="4.13847" status="run">
+		<system-out>[Nexus UYARI] backend=metal op=add (4 eleman) CPU'ya geri dusuyor (Apple Metal (MPS/MSL) yalniz macOS / Apple Silicon (M1-M4) uzerinde kullanilabilir (yalniz ornek MSL kaynaklari: 2186 bayt; execution backend uygulanmadi))
+FAZ 19.A: Backend algilama, Device cozumleme ve geri dusus politikasi
+  PASS  parse('cpu') == cpu
+  PASS  parse('cuda:0') == cuda(0)
+  PASS  parse('rocm:1') == rocm(1)
+  PASS  parse('hip:0') == rocm(0)
+  PASS  parse('vulkan:0') == vulkan(0)
+  PASS  parse('mps:0') == metal(0)
+  PASS  parse('metal:0') == metal(0)
+  PASS  parse('dml:0') == directml(0)
+  PASS  parse('directml:1') == directml(1)
+  PASS  parse('tpu:0') == tpu(0)
+  PASS  parse('pjrt:0') == tpu(0)
+  PASS  bilinmeyen cihaz dizgesi acik TensorError firlatir
+  PASS  Registry 7 backend surucusunu (cpu, cuda, hip, vulkan, metal, directml, pjrt) icerir
+  info  backend=cpu        name=cpu           version=1.0      available=evet devices=1 reason=''
+        -&gt; dev=cpu 'AMD Ryzen 7 5800H with Radeon Graphics' vendor=AuthenticAMD api=AVX2+F...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_export" classname="test_pjrt_export" time="2.81233" status="run">
+		<system-out>FAZ 19.E: StableHLO + GSPMD (mhlo.sharding) -&gt; PJRT C API derleme ve yurutme
+  info  GSPMD Replicate -&gt; {replicated}
+  info  GSPMD Shard(0,1)-&gt; {devices=[2,2]0,1,2,3}
+  info  GSPMD Partial   -&gt; 
+  PASS  Replicate yerlesimi {replicated} uretir
+  PASS  2B Shard(0),Shard(1) yerlesimi {devices=[2,2]0,1,2,3} uretir
+  PASS  Partial(sum) cannot be misrepresented as manual XLA sharding
+  PASS  Swapped mesh axes reorder XLA tile devices
+  PASS  Replication dimension follows tensor tile dimensions
+  info  StableHLO SPMD modulu (993 bayt):
+module @nexus_spmd {
+  func.func @main(%arg0: tensor&lt;8x16xf32&gt; {mhlo.sharding = "{replicated}"}, %arg1: tensor&lt;16x32xf32&gt; {mhlo.sharding = "{replicated}"}, %arg2: tensor&lt;32xf32&gt; {mhlo.sharding = "{replicated}"}, %arg3: tensor&lt;32x8xf32&gt; {mhlo.sharding = "{replicated}"}) -&gt; (tensor&lt;8x8xf32&gt; {mhlo.sharding = "{replicated}"}) {
+    %v4 = "stablehlo.dot_general"(%arg0, %arg1) {dot_dimension_numbers = #stablehlo.dot&lt;lhs_contracting_dimensions = [1], rhs_contracting_dimensions = [0]&gt;} : (ten...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_backend_fallback" classname="test_backend_fallback" time="2.724" status="run">
+		<system-out>[Nexus UYARI] backend=pjrt op=softmax (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=rms_norm (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=layer_norm (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=rope (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=swiglu (8 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=attention (16 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=quant_matmul_q8 (4 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=quant_matmul_q4 (4 eleman) CPU'ya geri dusuyor ()
+[Nexus UYARI] backend=pjrt op=adamw (16 eleman) CPU'ya geri dusuyor ()
+CPU fallback policy and opaque device buffer transfers
+  PASS  softmax rejects implicit CPU execution
+  PASS  softmax stages opaque buffers before CPU computation
+  PASS  softmax counts exactly one fallback
+  PASS  rms_norm rejects implicit CPU execution
+  PASS  rms_norm stages opaque buffers before CPU computation
+  PASS  rms_norm counts exactly one f...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_plugin_abi" classname="test_pjrt_plugin_abi" time="0.160591" status="run">
+		<system-out>  PASS  official ABI client reports the real plugin identity
+  PASS  shared library is initialized once for concurrent clients
+  PASS  nested arguments and multiple opaque outputs have correct values/layout
+  PASS  only the two clients remain after execution
+  PASS  zero-size host results release all events and buffers
+  PASS  clients are destroyed before the adapter releases its library
+  PASS  injected API failure 1 is reported without interpreter fallback
+  PASS  injected API failure 1 releases every owned object/error/event
+  PASS  injected API failure 2 is reported without interpreter fallback
+  PASS  injected API failure 2 releases every owned object/error/event
+  PASS  injected API failure 3 is reported without interpreter fallback
+  PASS  injected API failure 3 releases every owned object/error/event
+  PASS  injected API failure 4 is reported without interpreter fallback
+  PASS  injected API failure 4 releases every owned object/error/event
+  PASS  injected API failure 5 is reported without interprete...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_vendor" classname="test_pjrt_vendor" time="0.0528454" status="notrun">
+		<skipped message="SKIP_RETURN_CODE=77"/>
+		<system-out>  SKIP  Supply a trusted vendor library with -DNEXUS_PJRT_TEST_PLUGIN_PATH=&lt;path&gt;
+</system-out>
+	</testcase>
+	<testcase name="test_pjrt_xla_cpu" classname="test_pjrt_xla_cpu" time="6.22029" status="run">
+		<system-out>{
+  "status": "compiled_and_executed",
+  "backend": "cpu",
+  "jax": "0.10.2",
+  "max_abs": 1.430511474609375e-06,
+  "module_origin": "nexus_ir_export",
+  "actual": [
+    -11.02959156036377,
+    -7.111634254455566,
+    8.774435997009277,
+    7.860472202301025,
+    -6.790712833404541,
+    -11.823305130004883,
+    6.189984321594238,
+    10.95689868927002,
+    6.348823547363281,
+    -3.3790066242218018,
+    -5.709881782531738,
+    -2.225017786026001,
+    8.738031387329102,
+    0.7436672449111938,
+    -2.8925912380218506,
+    -5.207062244415283,
+    -5.204111099243164,
+    2.5806968212127686,
+    3.924790620803833,
+    -2.9870212078094482,
+    -5.21531867980957,
+    -2.7355284690856934,
+    6.639662742614746,
+    -0.43389761447906494,
+    -1.8828214406967163,
+    1.8736075162887573,
+    -1.3977268934249878,
+    0.6398037672042847,
+    -1.9033422470092773,
+    -4.207948684692383,
+    1.0867632627487183,
+    2.382146120071411,
+    2.094606637954712,
+    -5.203695297241211,
+    -1.259259581565857,
+    7.5183959007263...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_views" classname="test_tensor_views" time="0.110789" status="run">
+		<system-out>views: kopyasiz gorunumler
+  PASS  bitisik adimlar 12/4/1
+  PASS  transpose: ayni depolama, bitisik degil, sekil 4x3x2
+  PASS  transpose eleman t[1,2,3] = 23
+  PASS  slice(step 2): sekil, adim 2, eleman
+  PASS  select + fill_: ayni depolamaya yazar, komsuya dokunmaz, surum artar
+  PASS  expand: adim 0 yayin
+  PASS  view bitisik olmayanda acik hata
+  PASS  reshape bitisik degilse kopyalar
+  PASS  reshape bitisikse gorunum
+  PASS  permute
+  PASS  contiguous kopya mantiksal sirayi korur
+  PASS  unsqueeze / squeeze
+  PASS  aralik disi slice / gecersiz expand / tekrarli permute acik hata
+  PASS  kopya kurucusu derin + bitisik
+test_tensor_core: 14 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_dtype_cast" classname="test_tensor_dtype_cast" time="0.0574097" status="run">
+		<system-out>dtype: donusumler
+  PASS  F32 -&gt; BF16 / F16 (RNE, half.hpp ile ayni bit) / F64 tam
+  PASS  BF16 -&gt; F32 gidis-donus
+  PASS  kayan -&gt; tamsayi: sifira dogru kesme
+  PASS  aralik disi (300 -&gt; I8) acik hata
+  PASS  NaN -&gt; tamsayi acik hata
+  PASS  from_values tamsayiya kesirli deger acik hata
+  PASS  I64 kopya tam (2^62+1, double'dan gecmez)
+  PASS  I64 2^62 -&gt; I32 aralik disi acik hata
+  PASS  kayan -&gt; Bool: sifir disi 1
+  PASS  F8E4M3 doygun (1000 -&gt; 448)
+  PASS  BF16 tensörde data() / yanlis boyutlu data_as acik hata
+  PASS  devrik gorunum -&gt; F64 bitisik kopya
+test_tensor_core: 12 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_ops_dispatch" classname="test_tensor_ops_dispatch" time="3.08387" status="run">
+		<system-out>ops: dagitici + cekirdekler
+  PASS  add yayin [2,3] + [3]
+  PASS  mul adimli (devrik) girdi
+  PASS  BF16 add: FP32'de hesap, RNE
+  PASS  I64 add
+  PASS  sum FP64 biriktirir
+  PASS  sum I32 -&gt; I64
+  info  matmul F32 (devrik gorunumler dahil) en kotu goreli 6.83e-07; BF16/F16 (cikti RNE) 2.91e-03
+  PASS  matmul F32 + F64 double referansla &lt;= 1e-5 (F64 x1e6 olcekli)
+  PASS  matmul BF16 / F16: FP32 biriktirme, yalniz cikti yuvarlamasi (&lt;= 1e-2)
+  PASS  dtype uyusmazligi acik hata
+  PASS  yayin uyusmazligi acik hata
+  PASS  kayitsiz cekirdek (F8 add) acik hata
+  PASS  I32 matmul cekirdegi yok -&gt; acik hata
+  PASS  ayni anahtara ikinci kayit acik hata
+  PASS  add_out == add
+test_tensor_core: 14 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="test_tensor_legacy_api" classname="test_tensor_legacy_api" time="0.0549414" status="run">
+		<system-out>legacy: FAZ 1 API
+  PASS  alias: ayni adres, sahip degil
+  PASS  adopt_shared yasam tutucuyu saklar
+  PASS  kopya derin; zeros F32
+  PASS  full + view()
+  PASS  tasima
+  PASS  operator[] adimli tensörde acik hata
+test_tensor_core: 6 gecti, 0 basarisiz
+</system-out>
+	</testcase>
+	<testcase name="bench_phase1_bridge" classname="bench_phase1_bridge" time="32.9733" status="run">
+		<system-out>Nexus Faz 1 benchmark
+triad N=4194304  grad N=1048576  sink=3
+| islem                                      | sure      | hiz          | bant        | hesap        | not |
+|--------------------------------------------|-----------|--------------|-------------|--------------|-----|
+| view triad y=a+b                           | 6654.79 us | 150.268 /s | 7.56322 GB/s | 0.630269 GFLOPS | sifir kopya gorunum |
+| MSE backward()                             | 21150.1 us | 47.2811 /s | 0.594934 GB/s | 0.198311 GFLOPS | vektor ayirir |
+| MSE into                                   | 16830 us | 59.4178 /s | 0.747649 GB/s | 0.249216 GFLOPS | 16829966.7 ns/cagri, speedup 1.3x |
+| Huber backward()                           | 22694.5 us | 44.0635 /s | 0.554448 GB/s | 0.184816 GFLOPS | vektor ayirir |
+| Huber into                                 | 23365.9 us | 42.7974 /s | 0.538516 GB/s | 0.179505 GFLOPS | 23365883.3 ns/cagri, speedup 1.0x |
+| BCEWithLogits backward()                   | 32352.9 us | 30.9091 /s | 0.388927 GB/s...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="bench_phase4_custom" classname="bench_phase4_custom" time="0.285303" status="run">
+		<system-out>Nexus Faz 4 benchmark  N=1048576 sink=-0.261772
+| yol | us | cagri/s | GB/s | hizlanma |
+| skaler olcek | 8366.23 | 119.528 | 1.00267 | 1 |
+| havuz olcek | 3042.57 | 328.67 | 2.75708 | 2.74973 |
+| AVX2 olcek | 4404.35 | 227.048 | 1.90462 | 1.89954 |
+| skaler swish | 11443.4 | 87.3869 | 0.733054 | 1 |
+| havuz swish | 3473.23 | 287.916 | 2.41522 | 3.29473 |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase10_structure" classname="bench_phase10_structure" time="0.127542" status="run">
+		<system-out>Nexus Faz 10 benchmark
+| katman | us | cagri/s |
+| MaxPool2d 8x16x32x32 k2 | 405.7 | 2464.88 |
+| AvgPool2d 8x16x32x32 k2 | 391.325 | 2555.42 |
+| GlobalAvgPool2d 8x16x32x32 | 301.062 | 3321.57 |
+| Flatten 8x16x32x32 | 157.938 | 6331.62 |
+| Dropout 32x1024 p0.1 | 367.363 | 2722.11 |
+| BatchNorm2d 8x32x16x16 | 561.3 | 1781.58 |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase11_sequence" classname="bench_phase11_sequence" time="0.17762" status="run">
+		<system-out>Nexus Faz 11 benchmark
+| katman | us | cagri/s |
+| PositionalEncoding B4 T32 E64 | 15.7875 | 63341.3 |
+| TransformerDecoder B4 T32 E64 | 6931.27 | 144.274 |
+| RNN B4 T16 C32 H64 | 600.3 | 1665.83 |
+| Reshape 4x32x64 -&gt; 4x2048 | 0.3375 | 2.96296e+06 |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase12_catalog" classname="bench_phase12_catalog" time="0.176004" status="run">
+		<system-out>Nexus Faz 12 benchmark
+| katman | us | cagri/s |
+| Conv1d 8x16x128 k3 | 2979.2 | 335.661 |
+| Conv3d 2x4x8x8x8 k3 | 4748.2 | 210.606 |
+| DepthwiseConv2d 8x32x16x16 k3 | 715.75 | 1397.14 |
+| GroupNorm 8x32x16x16 g8 | 558.175 | 1791.55 |
+| InstanceNorm 8x32x16x16 | 566.488 | 1765.26 |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase13_baseline" classname="bench_phase13_baseline" time="0.664203" status="run">
+		<system-out>Nexus Faz 13 taban
+cekirdek | avx2-4x16
+| olcu | us | deger | birim |
+| GEMM N256 | 1037.63 | 32.3375 | GFLOPS |
+| GEMM N512 | 1483.13 | 180.992 | GFLOPS |
+| GEMM N1024 | 8006.07 | 268.232 | GFLOPS |
+| GEMM N2048 | 48646.5 | 353.157 | GFLOPS |
+| Conv2d 8x3x32x32 k3 | 11148.1 | 0.634896 | GFLOPS |
+| Depthwise 8x32x16x16 k3 | 793.6 | 1.48645 | GFLOPS |
+| Attention B4 T32 E64 H4 | 2244.75 | 445.484 | cagri/s |
+| LSTM B4 T16 C32 H64 | 2355.8 | 424.484 | cagri/s |
+| GRU B4 T16 C32 H64 | 1663.17 | 601.26 | cagri/s |
+| MSE driver 1M | 12152.8 | 1.03539 | GB/s |
+| Adam CPU 1M | 6417.57 | 2.61426 | GB/s |
+</system-out>
+	</testcase>
+	<testcase name="bench_phase1" classname="bench_phase1" time="0" status="disabled">
+		<system-out>Disabled</system-out>
+	</testcase>
+</testsuite>

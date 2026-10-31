@@ -1,0 +1,9 @@
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 1, "add_us": 3.916, "add_out_us": 2.607, "view_us": 2.015}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 64, "add_us": 2.625, "add_out_us": 2.294, "view_us": 1.972}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 4096, "add_us": 3.303, "add_out_us": 2.84, "view_us": 2.477}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 1, "add_us": 3.25, "add_out_us": 2.264, "view_us": 1.838}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 64, "add_us": 2.561, "add_out_us": 2.351, "view_us": 1.807}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 4096, "add_us": 3.3, "add_out_us": 2.761, "view_us": 1.772}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 1, "add_us": 2.488, "add_out_us": 2.245, "view_us": 2.154}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 64, "add_us": 2.559, "add_out_us": 2.259, "view_us": 2.206}
+{"mode": "torch_eager_add", "torch": "2.14.1+cpu", "n": 4096, "add_us": 3.548, "add_out_us": 2.993, "view_us": 2.2}
