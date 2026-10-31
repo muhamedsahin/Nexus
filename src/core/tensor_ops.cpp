@@ -329,7 +329,8 @@ Kernel find_kernel(Op op, DType dtype, DeviceKind device) {
   const Kernel k = table().k[slot(op, dtype, device)];
   if (k == nullptr)
     throw TensorError(std::string("Nexus: ") + std::string(op_name(op)) + " " + std::string(to_string(dtype)) + " " +
-                      std::string(device_name(device)) + " icin cekirdek yok");
+                      std::string(device_name(device)) + " icin cekirdek yok" +
+                      (device == DeviceKind::Device ? " (CUDA: nexus::cuda::register_tensor_kernels() cagrildi mi?)" : ""));
   return k;
 }
 

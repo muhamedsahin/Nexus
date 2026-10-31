@@ -1,0 +1,12 @@
+========= COMPUTE-SANITIZER
+ops: cihaz cekirdekleri
+  PASS  add / mul (yayin [4,1,6]+[3,6], adimli) F32/BF16/F16/F64/I64 host ile bit bit
+  info  sum 65536: host -60.9152222 cihaz -60.9152222
+  PASS  sum: FP64 biriktirme (host'a <= 1e-6), cihazda belirlenimci (iki cagri bit bit)
+  PASS  sum I32 -> I64 cihaz
+  PASS  fill_ adimli cihaz gorunumu (komsulara dokunmaz)
+  info  cihaz matmul F32 (Highest) en kotu 1.97e-07; BF16/F16 3.31e-03
+  PASS  cihaz matmul F32 (devrik gorunumler dahil) double referansla <= 1e-5
+  PASS  cihaz matmul BF16/F16 (FP32 biriktirme, cikti yuvarlamasi) <= 1e-2
+test_tensor_cuda: 6 gecti, 0 basarisiz
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

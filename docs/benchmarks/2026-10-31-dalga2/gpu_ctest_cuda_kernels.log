@@ -1,0 +1,117 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+      Start   1: test_phase1_bridge
+ 1/54 Test   #1: test_phase1_bridge ....................   Passed    0.69 sec
+      Start   2: test_phase1_loss_families
+ 2/54 Test   #2: test_phase1_loss_families .............   Passed    0.16 sec
+      Start   3: test_phase1_mirrored_tensor
+ 3/54 Test   #3: test_phase1_mirrored_tensor ...........   Passed    0.70 sec
+      Start   4: test_phase1_thread_pool
+ 4/54 Test   #4: test_phase1_thread_pool ...............   Passed    0.27 sec
+      Start   7: test_phase4_custom_extensions
+ 5/54 Test   #7: test_phase4_custom_extensions .........   Passed    0.12 sec
+      Start  12: test_phase10_structure
+ 6/54 Test  #12: test_phase10_structure ................   Passed    0.15 sec
+      Start  13: test_phase11_sequence
+ 7/54 Test  #13: test_phase11_sequence .................   Passed    0.15 sec
+      Start  14: test_phase12_catalog
+ 8/54 Test  #14: test_phase12_catalog ..................   Passed    0.14 sec
+      Start  15: test_phase13_isa
+ 9/54 Test  #15: test_phase13_isa ......................   Passed    0.15 sec
+      Start  19: test_phase1_allocator
+10/54 Test  #19: test_phase1_allocator .................   Passed    0.10 sec
+      Start  23: test_phase1_dtype
+11/54 Test  #23: test_phase1_dtype .....................   Passed    4.39 sec
+      Start  77: test_dtensor_redistribute_all_pairs
+12/54 Test  #77: test_dtensor_redistribute_all_pairs ...   Passed    0.27 sec
+      Start 110: test_kv_cache_matches_full_cpu
+13/54 Test #110: test_kv_cache_matches_full_cpu ........   Passed    0.25 sec
+      Start 111: test_kv_cache_generate_cpu
+14/54 Test #111: test_kv_cache_generate_cpu ............   Passed    0.17 sec
+      Start 112: test_safetensors_roundtrip
+15/54 Test #112: test_safetensors_roundtrip ............   Passed    0.20 sec
+      Start 117: test_dlpack_torch
+16/54 Test #117: test_dlpack_torch .....................   Passed   15.28 sec
+      Start 126: test_zero_offload_step
+17/54 Test #126: test_zero_offload_step ................   Passed    1.09 sec
+      Start 127: test_cpu_flash_vs_math
+18/54 Test #127: test_cpu_flash_vs_math ................   Passed    0.46 sec
+      Start 128: test_cpu_flash_attn_vs_ref
+19/54 Test #128: test_cpu_flash_attn_vs_ref ............   Passed    0.46 sec
+      Start 132: test_backend_detection
+20/54 Test #132: test_backend_detection ................   Passed    2.05 sec
+      Start 137: test_pjrt_export
+21/54 Test #137: test_pjrt_export ......................   Passed    1.87 sec
+      Start 138: test_backend_fallback
+22/54 Test #138: test_backend_fallback .................   Passed    1.89 sec
+      Start 139: test_pjrt_plugin_abi
+23/54 Test #139: test_pjrt_plugin_abi ..................   Passed    0.12 sec
+      Start 140: test_pjrt_vendor
+24/54 Test #140: test_pjrt_vendor ......................***Skipped   0.03 sec
+      Start 143: test_pjrt_xla_cpu
+25/54 Test #143: test_pjrt_xla_cpu .....................   Passed    8.39 sec
+      Start 144: test_tensor_views
+26/54 Test #144: test_tensor_views .....................   Passed    0.11 sec
+      Start 145: test_tensor_dtype_cast
+27/54 Test #145: test_tensor_dtype_cast ................   Passed    0.04 sec
+      Start 146: test_tensor_ops_dispatch
+28/54 Test #146: test_tensor_ops_dispatch ..............   Passed    0.59 sec
+      Start 147: test_tensor_legacy_api
+29/54 Test #147: test_tensor_legacy_api ................   Passed    0.03 sec
+      Start 148: test_tensor_autograd_bridge
+30/54 Test #148: test_tensor_autograd_bridge ...........   Passed    0.03 sec
+      Start 149: test_cuda_allocator
+31/54 Test #149: test_cuda_allocator ...................   Passed    1.92 sec
+      Start 150: test_cuda_kernels
+32/54 Test #150: test_cuda_kernels .....................   Passed    4.86 sec
+      Start 157: test_gpt_flash_vs_math
+33/54 Test #157: test_gpt_flash_vs_math ................   Passed   41.20 sec
+      Start 159: test_gpt2s_parity_fp32
+34/54 Test #159: test_gpt2s_parity_fp32 ................   Passed  300.85 sec
+      Start 160: test_flash_vs_math
+35/54 Test #160: test_flash_vs_math ....................   Passed    0.80 sec
+      Start 161: test_flash_tq1_decode
+36/54 Test #161: test_flash_tq1_decode .................   Passed    0.48 sec
+      Start 162: test_flash_varlen_equals_separate
+37/54 Test #162: test_flash_varlen_equals_separate .....   Passed    0.37 sec
+      Start 163: test_flash_dropout_stats
+38/54 Test #163: test_flash_dropout_stats ..............   Passed    0.41 sec
+      Start 164: test_flash_determinism
+39/54 Test #164: test_flash_determinism ................   Passed    0.45 sec
+      Start 169: test_zero_offload_equals_gpu_adam
+40/54 Test #169: test_zero_offload_equals_gpu_adam .....   Passed   10.69 sec
+      Start 183: test_moe_grouped_gemm_cuda
+41/54 Test #183: test_moe_grouped_gemm_cuda ............   Passed   10.21 sec
+      Start 184: test_kv_cache_matches_full
+42/54 Test #184: test_kv_cache_matches_full ............   Passed   20.41 sec
+      Start 185: test_paged_cache_equivalence
+43/54 Test #185: test_paged_cache_equivalence ..........   Passed    9.00 sec
+      Start 189: test_decode_cuda_graph
+44/54 Test #189: test_decode_cuda_graph ................   Passed   10.43 sec
+      Start 191: test_tensor_cuda_copy
+45/54 Test #191: test_tensor_cuda_copy .................   Passed    0.57 sec
+      Start 192: test_tensor_cuda_ops
+46/54 Test #192: test_tensor_cuda_ops ..................   Passed    1.48 sec
+      Start 193: test_tensor_cuda_errors
+47/54 Test #193: test_tensor_cuda_errors ...............   Passed    0.50 sec
+      Start 194: bench_phase1_bridge
+48/54 Test #194: bench_phase1_bridge ...................   Passed    7.81 sec
+      Start 197: bench_phase4_custom
+49/54 Test #197: bench_phase4_custom ...................   Passed    0.19 sec
+      Start 201: bench_phase10_structure
+50/54 Test #201: bench_phase10_structure ...............   Passed    0.27 sec
+      Start 202: bench_phase11_sequence
+51/54 Test #202: bench_phase11_sequence ................   Passed    0.15 sec
+      Start 203: bench_phase12_catalog
+52/54 Test #203: bench_phase12_catalog .................   Passed    0.44 sec
+      Start 204: bench_phase13_baseline
+53/54 Test #204: bench_phase13_baseline ................   Passed    0.55 sec
+      Start 211: bench_phase1
+54/54 Test #211: bench_phase1 ..........................   Passed    0.43 sec
+
+100% tests passed, 0 tests failed out of 54
+
+Total Test time (real) = 465.09 sec
+
+The following tests did not run:
+	140 - test_pjrt_vendor (Skipped)

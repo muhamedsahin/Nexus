@@ -165,3 +165,12 @@ add_test(NAME test_decode_cuda_graph COMMAND test_phase16_infer_cuda graph)
 add_test(NAME test_continuous_batching COMMAND test_phase16_infer_cuda serve)
 set_tests_properties(test_kv_cache_matches_full test_paged_cache_equivalence test_sampling_distribution test_speculative_exact
     test_quant_ppl test_decode_cuda_graph test_continuous_batching PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+
+# Dalga 2: Tensor dagiticisinin CUDA cekirdekleri
+add_executable(test_tensor_cuda test_tensor_cuda.cpp)
+target_link_libraries(test_tensor_cuda PRIVATE nexus::nexus nexus::cuda nexus_test_support)
+nexus_configure_target(test_tensor_cuda)
+add_test(NAME test_tensor_cuda_copy COMMAND test_tensor_cuda copy)
+add_test(NAME test_tensor_cuda_ops COMMAND test_tensor_cuda ops)
+add_test(NAME test_tensor_cuda_errors COMMAND test_tensor_cuda errors)
+set_tests_properties(test_tensor_cuda_copy test_tensor_cuda_ops test_tensor_cuda_errors PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)

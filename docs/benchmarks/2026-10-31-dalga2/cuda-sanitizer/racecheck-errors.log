@@ -1,0 +1,8 @@
+========= COMPUTE-SANITIZER
+  PASS  kayit oncesi cihaz islemi acik hata + register_tensor_kernels onerisi
+errors: acik hatalar
+  PASS  cihaz FP8 donusumu kayitsiz -> acik hata
+  PASS  cihaz I32 matmul kayitsiz -> acik hata
+  PASS  host + cihaz karisik ikili islem acik hata
+test_tensor_cuda: 4 gecti, 0 basarisiz
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

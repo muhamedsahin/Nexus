@@ -216,7 +216,8 @@ if(NEXUS_ENABLE_CUDA AND TARGET matrix_pro)
         src/cuda/nvrtc_jit.cpp
         src/cuda/infer_kernels.cu
         src/cuda/infer.cpp
-        src/cuda/serve.cpp)
+        src/cuda/serve.cpp
+        src/cuda/tensor_kernels.cu)
     add_library(nexus::cuda ALIAS nexus_cuda)
     # nexus'un kullanim gereksinimleri (or. NexusLoss'un INTERFACE /W4) nvcc'ye gecmesin:
     # yalniz baglama icin nexus, basliklar ve tanimlar acikca verilir.

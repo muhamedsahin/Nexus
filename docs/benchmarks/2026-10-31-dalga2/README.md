@@ -70,13 +70,40 @@ CPU çekirdekleri:
   - libtorch (C++) kurulu değil; Nexus'un Python bağlaması bu yeni API'yi henüz sunmuyor.
   - Bu yüzden **"PyTorch'tan hızlı" iddiası yok**; yalnız mutlak hedef ölçüldü.
 
+## CUDA çekirdekleri (Dalga 2 devamı, 2026-10-31)
+
+`nexus::cuda::register_tensor_kernels()` (`include/nexus/cuda/tensor_kernels.hpp`, `src/cuda/tensor_kernels.cu`) dağıtıcıya `DeviceKind::Device` çekirdeklerini kaydediyor:
+
+- **Açıkça çağrılıyor ve idempotent.** Statik kütüphanede kendini kaydeden nesneyi bağlayıcı atabilir.
+- **Kayıt öncesi davranış:** cihaz işlemi açık hata veriyor ve mesaj bu çağrıyı öneriyor.
+
+| Çekirdek | dtype | Ayrıntı |
+|---|---|---|
+| copy | F32 F16 BF16 F64 I32 I64 I8 U8 Bool | Adımlı + dönüşümlü, D2D / H2D / D2H. Host tarafı bitişik ara tamponla taşınıyor. Kayan → tamsayı NaN / aralık dışı: cihaz bayrağı → açık hata. |
+| fill | aynı | 1 ögelik cihaz skalerinin adım 0 kopyası (adımlı hedef). |
+| add / mul | F32 F16 BF16 F64 I32 I64 | Yayın; bitişik aynı şekilde düz yol. BF16 / F16 FP32'de hesaplanıyor, RNE. |
+| sum | F32 F16 BF16 F64 → FP64 biriktirme · I32 I64 → I64 | Belirlenimci: sabit ızgarada (≤ 1024 blok) blok kısmi toplamları, ardından tek iş parçacığı sıralı toplam. |
+| matmul | F32 F16 BF16 | cuBLASLt (`nexus::cuda::gemm`, FP32 biriktirme; F32'de `float32_matmul_precision` geçerli). Devrik görünüm kopyasız `trans` bayrağına çevriliyor. |
+
+- **FP8 cihaz dönüşümü ve I32 / I64 matmul kayıtlı değil** → açık hata.
+- **Akış:** tüm çekirdekler **eski varsayılan akışta** (stream 0) çalışıyor. Böylece Tensor'ün `copy_bytes` hızlı yolu (`cudaMemcpy`) ile doğal sıralı. Nexus akışları `cudaStreamNonBlocking` olduğundan başka akışta çalışan kodla (örn. GptModel) paylaşılan tamponlarda çağıran açık senkronizasyon yapmalı. Bu, PyTorch'un "geçerli akış" modelinden farklı; akış farkındalığı açık iş.
+
+### Testler (`tests/cuda/test_tensor_cuda.cpp`)
+
+| Test | Sonuç |
+|---|---|
+| `test_tensor_cuda_copy` | ✅ 8/8:<br>• H2D / D2H gidiş-dönüş bit bit;<br>• cihazda `permute().contiguous()` host ile bit bit;<br>• cihazda devrik + dönüşüm (BF16 / F16 / F64 / I32 / I64 / I8 / U8 / Bool) host çekirdekleriyle **bit bit**;<br>• BF16 → F32;<br>• host → cihaz adımlı + dönüşümlü hedef; cihaz → host adımlı hedef;<br>• cihazda NaN → I32 ve 300 → I8 açık hata. |
+| `test_tensor_cuda_ops` | ✅ 6/6:<br>• add / mul (yayın [4,1,6] + [3,6], adımlı) F32 / BF16 / F16 / F64 / I64 host ile **bit bit**;<br>• sum 65536 öge host'a ≤ 1e-6 ve iki çağrı bit bit (belirlenimci); sum I32 → I64;<br>• adımlı `fill_` komşulara dokunmuyor;<br>• matmul (3 şekil × 4 yerleşim) F32 (Highest) double referansla **2.0e-7**, BF16 / F16 **3.3e-3**. |
+| `test_tensor_cuda_errors` | ✅ 4/4: kayıt öncesi hata + öneri; FP8 / I32 matmul kayıtsız → açık hata; host + cihaz karışık ikili işlem açık hata. |
+| compute-sanitizer | ✅ memcheck / initcheck / racecheck / synccheck × 3 mod: **0 hata, 0 yarış**; sanitizer altında testler de geçti (`cuda-sanitizer/`). |
+| GPU regresyonu | ✅ 54 / 54 (Tensor kullanıcıları + CUDA çekirdek / GPT / flash / KV / MoE grouped alt kümesi, `gpu_ctest_cuda_kernels.log`). |
+
+Hız ölçülmedi. Bu adım doğruluk ve kapsam içindi; cihaz eager ek yükü ve bant genişliği sonraki dalgada ölçülecek.
+
 ## Açık kalanlar
 
 - **Variable köprüsü:** autograd `Variable`'ın verisi hâlâ `vector<float>`. Köprü eklendi: `Variable::tensor_view()` (kopyasız F32 görünüm, yaşam tutucu; salt okunur: görünümden yazı Variable sürümünü artırmaz) ve `Variable::from_tensor()` (her dtype / cihaz / adım → F32). `test_tensor_autograd_bridge` 6/6, Tensor matmul ↔ autograd matmul 4.8e-7. Autograd'ın dtype'lı Tensor üzerine taşınması (BF16 / F16 autograd) yapılmadı. Bu, en büyük kalan iş.
-- **CUDA çekirdekleri:**
-  - Dağıtıcıya kayıtlı cihaz çekirdeği yok. Cihazda yalnız bitişik + aynı dtype kopya (`copy_bytes`) çalışıyor.
-  - Cihazda adımlı / dönüşümlü kopya, add / mul / matmul **açık hata veriyor**.
-  - nexus_cuda'dan kayıt (cuBLASLt matmul, eleman çekirdekleri) sonraki adım.
+- **CUDA:** akış farkındalığı (geçerli akış), FP8 cihaz dönüşümü, cihaz eager ek yükü ölçümü.
 - **Diğer:**
   - Otomatik dtype yükseltme yok.
   - Batch matmul (3B+) yok.

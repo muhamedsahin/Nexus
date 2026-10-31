@@ -1,0 +1,12 @@
+========= COMPUTE-SANITIZER
+copy: H2D / D2H / D2D, adimli + donusumlu
+  PASS  bitisik H2D -> D2H gidis-donus bit bit
+  PASS  cihazda permute().contiguous() == host
+  PASS  cihaz devrik + donusum (BF16/F16/F64/I32/I64/I8/U8/Bool) host ile bit bit
+  PASS  cihaz BF16 -> F32
+  PASS  host -> cihaz adimli + donusumlu hedef
+  PASS  cihaz -> host adimli hedef
+  PASS  cihaz NaN -> I32 acik hata (bayrak)
+  PASS  cihaz 300 -> I8 acik hata
+test_tensor_cuda: 8 gecti, 0 basarisiz
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
