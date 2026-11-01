@@ -10,8 +10,8 @@
  *
  * - cuBLASLt matmul tanimlayici + algoritma secimi (sezgisel, istege bagli otomatik
  *   ayar) sekil anahtarli plan onbelleginde tutulur.
- * - Calisma alani (workspace) onbellekli aygit ayiricisindan; tanitici (handle) aygit
- *   basina, akis argumani her cagrida verilir.
+ * - Calisma alani (workspace) (aygit, akis) basina onbellekli ayiricidan; tanitici (handle) aygit
+ *   basina, akis argumani her cagrida verilir. Farkli is parcaciklari / akislar es zamanli cagirabilir.
  * - Epilog fuzyonu: bias, GELU (tanh yaklasimi) + aux cikti (on-aktivasyon), ReLU,
  *   DGELU (geri), BGRADA/BGRADB (bias gradyani).
  * - Strided batched GEMM (dikkat icin).
@@ -94,11 +94,19 @@ void set_float32_matmul_precision(const std::string& name);
 /// true: her yeni sekil icin aday algoritmalar olculup en hizlisi plan onbellegine yazilir.
 void set_gemm_autotune(bool enabled) noexcept;
 
+/// Autotune secimlerinin kalici dosyasi (bos: kapali). Dosya cuBLASLt surumu + aygitla damgalidir;
+/// damga uyusmazsa yok sayilir. Yuklenen algoritma cublasLtMatmulAlgoCheck'ten gecmezse yeniden secilir.
+/// Autotune kapaliyken de okunur (onceki olcumler kullanilir, yeni olcum yapilmaz).
+void set_gemm_tune_cache(const std::string& path);
+
 struct GemmCacheStats {
   std::uint64_t plans = 0;
   std::uint64_t hits = 0;
   std::uint64_t misses = 0;
   std::uint64_t autotuned = 0;
+  std::uint64_t disk_hits = 0;      // plan disk onbelleginden geldi
+  std::uint64_t disk_rejected = 0;  // diskteki algoritma bu surum/aygitta gecersiz -> yeniden secildi
+  std::uint64_t workspaces = 0;     // (aygit, akis) basina calisma alani sayisi
 };
 [[nodiscard]] GemmCacheStats gemm_cache_stats() noexcept;
 void clear_gemm_cache();

@@ -90,6 +90,11 @@ if(TARGET nexus_cuda)
     add_test(NAME bench_cuda_phase4 COMMAND bench_cuda_phase4)
     set_tests_properties(bench_cuda_phase4 PROPERTIES TIMEOUT 1800 SKIP_RETURN_CODE 77)
 
+    # Dalga 3.1: GEMM sekil benchmarki (ctest degil; elle kosulur, PyTorch karsiligi dalga3_gemm_torch.py)
+    add_executable(dalga3_gemm dalga3_gemm.cpp)
+    target_link_libraries(dalga3_gemm PRIVATE nexus::nexus nexus::cuda)
+    nexus_configure_target(dalga3_gemm)
+
     add_executable(bench_cuda_phase5 bench_cuda_phase5.cpp)
     target_link_libraries(bench_cuda_phase5 PRIVATE nexus::nexus nexus::cuda)
     target_compile_definitions(bench_cuda_phase5 PRIVATE

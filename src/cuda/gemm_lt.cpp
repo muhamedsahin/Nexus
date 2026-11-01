@@ -6,6 +6,14 @@
  * C^T[n,m] = op(B)^T op(A)^T. Yani cuBLASLt'nin A'si bizim B'miz, B'si bizim A'miz;
  * M_lt = n, N_lt = m, K = k. Bias uzunlugu M_lt = n (cikis ozellik sayisi).
  *
+ * Dalga 3.1 eszamanlilik: plan onbellegi std::shared_mutex ile okunur (paylasimli kilit: okuyucular
+ * birbirini beklemez); yalniz yeni plan eklemek ozel kilit alir. Isaretci ozelligi (bias / aux) olan
+ * planlarda tanimlayici cagri basina yazildigindan "ozellik yaz + baslat" o plana ait mutex altinda.
+ * Calisma alani (aygit, akis) basina: ayni akistaki cagrilar sirali, farkli akislar ayri tampon.
+ * Autotune: sezgiden en cok 16 aday, her biri 3 x olculur; secim istege bagli diske yazilir
+ * (set_gemm_tune_cache), dosya cuBLASLt surumu + aygit adi + SM sayisiyla damgali; yuklenen algoritma
+ * cublasLtMatmulAlgoCheck'ten gecmezse yeniden secilir (sayac: disk_rejected).
+ *
  * Bu yazilim ekosistemi Bursa Teknik Universitesi Bilgisayar Muhendisligi
  * 1. sinif ogrencisi Muhammed Fatih Sahin tarafindan yapay zeka destekli
  * olarak gelistirilmistir.
@@ -19,10 +27,15 @@
 
 #include <cublasLt.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <fstream>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <shared_mutex>
+#include <sstream>
 #include <tuple>
 #include <vector>
 
@@ -83,16 +96,21 @@ struct Plan {
   cublasLtMatmulAlgo_t algo{};
 };
 
-struct DeviceContext {
-  cublasLtHandle_t handle = nullptr;
-  DeviceBuffer workspace;
+struct Entry {
+  Plan plan;
+  bool pointer_attrs = false;  // bias / aux isaretcisi cagri basina tanimlayiciya yazilir
+  std::mutex mutex;            // pointer_attrs ise "yaz + baslat" bolumunu korur
 };
 
 struct State {
-  std::mutex mutex;
-  std::array<DeviceContext, kMaxDevices> devices;
-  std::map<PlanKey, Plan> plans;
-  GemmCacheStats stats;
+  std::shared_mutex mutex;  // plans / handles / workspaces: okuma paylasimli, ekleme ozel
+  std::array<cublasLtHandle_t, kMaxDevices> handles{};
+  std::map<PlanKey, std::unique_ptr<Entry>> plans;
+  std::map<std::pair<int, cudaStream_t>, DeviceBuffer> workspaces;
+  std::atomic<std::uint64_t> hits{0}, misses{0}, autotuned{0}, disk_hits{0}, disk_rejected{0};
+  std::string tune_path;                         // bos: disk onbellegi kapali
+  std::map<PlanKey, cublasLtMatmulAlgo_t> disk;  // yuklenen + yeni olculen secimler
+  bool disk_loaded = false;
 };
 
 State& state() {
@@ -168,7 +186,79 @@ void validate(const GemmArgs& g) {
   }
 }
 
-Plan build_plan(const PlanKey& key, const GemmArgs& g, DeviceContext& ctx, cudaStream_t stream) {
+// ---- disk onbellegi (autotune secimleri) ----
+std::string tune_stamp(int device) {
+  cudaDeviceProp prop{};
+  check(cudaGetDeviceProperties(&prop, device), "cudaGetDeviceProperties");
+  std::ostringstream o;
+  o << "nexus-gemm-tune v1 cublasLt=" << cublasLtGetVersion() << " sm=" << prop.major << prop.minor
+    << " sms=" << prop.multiProcessorCount << " name=" << prop.name;
+  return o.str();
+}
+
+constexpr int kKeyInts = 21;
+std::array<long long, kKeyInts> key_ints(const PlanKey& k) {
+  return {k.device, k.m,       k.n,          k.k,      k.lda,       k.ldb,     k.ldc,
+          k.batch,  k.a_type,  k.c_type,     k.bias_type, k.sa,     k.sb,      k.sc,
+          k.ta,     k.tb,      k.epilogue,   k.precision, k.has_aux, k.ldaux,  k.beta_zero};
+}
+PlanKey key_from(const std::array<long long, kKeyInts>& v) {
+  PlanKey k{};
+  k.device = int(v[0]);
+  k.m = int(v[1]);
+  k.n = int(v[2]);
+  k.k = int(v[3]);
+  k.lda = int(v[4]);
+  k.ldb = int(v[5]);
+  k.ldc = int(v[6]);
+  k.batch = int(v[7]);
+  k.a_type = int(v[8]);
+  k.c_type = int(v[9]);
+  k.bias_type = int(v[10]);
+  k.sa = v[11];
+  k.sb = v[12];
+  k.sc = v[13];
+  k.ta = v[14] != 0;
+  k.tb = v[15] != 0;
+  k.epilogue = int(v[16]);
+  k.precision = int(v[17]);
+  k.has_aux = v[18] != 0;
+  k.ldaux = int(v[19]);
+  k.beta_zero = v[20] != 0;
+  return k;
+}
+
+// Ozel kilit altinda cagrilir. Damga uyusmazsa dosya yok sayilir (ilk kayitta ustune yazilir).
+void load_disk(State& st, int device) {
+  st.disk_loaded = true;
+  std::ifstream in(st.tune_path);
+  if (!in) return;
+  std::string stamp;
+  std::getline(in, stamp);
+  if (stamp != tune_stamp(device)) return;
+  std::array<long long, kKeyInts> v{};
+  cublasLtMatmulAlgo_t algo{};
+  while (true) {
+    for (auto& x : v) in >> x;
+    for (auto& w : algo.data) in >> w;
+    if (!in) break;
+    st.disk[key_from(v)] = algo;
+  }
+}
+
+void save_disk(const State& st, int device) {
+  std::ofstream out(st.tune_path, std::ios::trunc);
+  if (!out) throw TensorError("Nexus gemm: autotune onbellek dosyasi yazilamadi: " + st.tune_path);
+  out << tune_stamp(device) << '\n';
+  for (const auto& [key, algo] : st.disk) {
+    for (long long x : key_ints(key)) out << x << ' ';
+    for (std::uint64_t w : algo.data) out << w << ' ';
+    out << '\n';
+  }
+}
+
+Plan build_plan(const PlanKey& key, const GemmArgs& g, cublasLtHandle_t handle, void* workspace,
+                cudaStream_t stream) {
   Plan plan;
   const auto precision = static_cast<MatmulPrecision>(key.precision);
   // Dar girislerde (BF16/F16) FP32 biriktirici + Tensor Core; FP32 girislerde TF32 politikasi.
@@ -220,10 +310,10 @@ Plan build_plan(const PlanKey& key, const GemmArgs& g, DeviceContext& ctx, cudaS
   const std::uint64_t ws = kWorkspaceBytes;
   NEXUS_LT_CHECK(
       cublasLtMatmulPreferenceSetAttribute(pref, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &ws, sizeof(ws)));
-  constexpr int kCandidates = 8;
+  constexpr int kCandidates = 16;
   std::array<cublasLtMatmulHeuristicResult_t, kCandidates> results{};
   int returned = 0;
-  const cublasStatus_t heuristic = cublasLtMatmulAlgoGetHeuristic(ctx.handle, plan.desc, plan.a, plan.b, plan.c, plan.c,
+  const cublasStatus_t heuristic = cublasLtMatmulAlgoGetHeuristic(handle, plan.desc, plan.a, plan.b, plan.c, plan.c,
                                                                   pref, kCandidates, results.data(), &returned);
   cublasLtMatmulPreferenceDestroy(pref);
   if (heuristic != CUBLAS_STATUS_SUCCESS || returned == 0) {
@@ -233,31 +323,79 @@ Plan build_plan(const PlanKey& key, const GemmArgs& g, DeviceContext& ctx, cudaS
   }
   plan.algo = results[0].algo;
 
+  State& st = state();
+  if (!st.tune_path.empty()) {
+    if (!st.disk_loaded) load_disk(st, key.device);
+    const auto it = st.disk.find(key);
+    if (it != st.disk.end()) {
+      cublasLtMatmulHeuristicResult_t checked{};
+      if (cublasLtMatmulAlgoCheck(handle, plan.desc, plan.a, plan.b, plan.c, plan.c, &it->second, &checked) ==
+              CUBLAS_STATUS_SUCCESS &&
+          checked.workspaceSize <= kWorkspaceBytes) {
+        plan.algo = it->second;
+        st.disk_hits += 1;
+        return plan;
+      }
+      st.disk_rejected += 1;
+    }
+  }
   if (g_autotune.load() && key.beta_zero && returned > 1) {
-    // Her aday 3 kez kosulur; en kisa medyanli olan secilir. beta=0 oldugundan C uzerine
-    // yazmak zararsizdir (gercek cagri hemen ardindan tekrar yazar).
-    float best = 1e30f;
+    cudaStreamCaptureStatus capture = cudaStreamCaptureStatusNone;
+    check(cudaStreamIsCapturing(stream, &capture), "cudaStreamIsCapturing");
+    if (capture != cudaStreamCaptureStatusNone) {
+      throw TensorError("Nexus gemm: autotune acikken CUDA graf yakalamasi sirasinda yeni GEMM sekli (m=" +
+                        std::to_string(g.m) + " n=" + std::to_string(g.n) + " k=" + std::to_string(g.k) +
+                        "); sekli yakalamadan once bir kez kosun");
+    }
+    // Adaylar 5 tur boyunca ic ice (tur basina her aday 8 ardisik cagri) olculur: GPU saat kaymasi
+    // tum adaylara esit dagilir. Aday basina tur medyani; sezgi secimi (aday 0) ancak bir aday ondan
+    // >= %2 hizliysa degistirilir (olcum gurultusuyle daha yavas algoritma secilmesin). beta=0
+    // oldugundan C / aux / bias_grad uzerine yazmak zararsizdir (gercek cagri hemen ardindan yazar).
+    constexpr int kRounds = 5, kCalls = 8;
+    const Stream s(stream, key.device);
     Event start;
     Event stop;
-    const Stream s(stream, key.device);
-    for (int i = 0; i < returned; ++i) {
-      float total = 0.0f;
-      bool ok = true;
-      for (int r = 0; r < 3 && ok; ++r) {
-        start.record(s);
-        ok = cublasLtMatmul(ctx.handle, plan.desc, &g.alpha, g.b, plan.a, g.a, plan.b, &g.beta, g.c, plan.c, g.c,
-                            plan.c, &results[static_cast<std::size_t>(i)].algo, ctx.workspace.data(), kWorkspaceBytes,
+    auto run = [&](int i) {
+      return cublasLtMatmul(handle, plan.desc, &g.alpha, g.b, plan.a, g.a, plan.b, &g.beta, g.c, plan.c, g.c, plan.c,
+                            &results[static_cast<std::size_t>(i)].algo, workspace, kWorkspaceBytes,
                             stream) == CUBLAS_STATUS_SUCCESS;
+    };
+    std::vector<bool> ok(static_cast<std::size_t>(returned), true);
+    std::vector<std::vector<float>> times(static_cast<std::size_t>(returned));
+    for (int i = 0; i < returned; ++i) ok[static_cast<std::size_t>(i)] = run(i) && run(i);  // isinma
+    for (int r = 0; r < kRounds; ++r) {
+      for (int i = 0; i < returned; ++i) {
+        if (!ok[static_cast<std::size_t>(i)]) continue;
+        start.record(s);
+        for (int c = 0; c < kCalls && ok[static_cast<std::size_t>(i)]; ++c) ok[static_cast<std::size_t>(i)] = run(i);
         stop.record(s);
         stop.synchronize();
-        total += start.elapsed_ms(stop);
-      }
-      if (ok && total < best) {
-        best = total;
-        plan.algo = results[static_cast<std::size_t>(i)].algo;
+        times[static_cast<std::size_t>(i)].push_back(start.elapsed_ms(stop));
       }
     }
-    state().stats.autotuned += 1;
+    auto median = [](std::vector<float> v) {
+      std::sort(v.begin(), v.end());
+      return v[v.size() / 2];
+    };
+    if (ok[0]) {
+      const float base = median(times[0]);
+      float best = base;
+      int pick = 0;
+      for (int i = 1; i < returned; ++i) {
+        if (!ok[static_cast<std::size_t>(i)]) continue;
+        const float t = median(times[static_cast<std::size_t>(i)]);
+        if (t < best) {
+          best = t;
+          pick = i;
+        }
+      }
+      if (pick != 0 && best <= 0.98f * base) plan.algo = results[static_cast<std::size_t>(pick)].algo;
+    }
+    st.autotuned += 1;
+    if (!st.tune_path.empty()) {
+      st.disk[key] = plan.algo;
+      save_disk(st, key.device);
+    }
   }
   return plan;
 }
@@ -288,33 +426,9 @@ const char* to_string(Epilogue epilogue) noexcept {
   return "unknown";
 }
 
-void gemm(const GemmArgs& g, cudaStream_t stream) {
-  validate(g);
-  State& st = state();
-  std::lock_guard<std::mutex> lock(st.mutex);
-  const int device = current_device();
-  if (device >= kMaxDevices) {
-    throw TensorError("Nexus gemm: aygit indeksi sinir disinda");
-  }
-  DeviceContext& ctx = st.devices[static_cast<std::size_t>(device)];
-  if (ctx.handle == nullptr) {
-    NEXUS_LT_CHECK(cublasLtCreate(&ctx.handle));
-    ctx.workspace = DeviceBuffer(kWorkspaceBytes, Stream(nullptr, device));
-  }
-  const PlanKey key{device, g.m, g.n, g.k, g.lda, g.ldb, g.ldc, g.batch, static_cast<int>(g.a_type),
-                    static_cast<int>(g.c_type), static_cast<int>(g.bias_type), g.stride_a, g.stride_b, g.stride_c,
-                    g.trans_a, g.trans_b, static_cast<int>(g.epilogue), g_precision.load(), g.aux != nullptr,
-                    g.ldc, g.beta == 0.0f};
-  auto it = st.plans.find(key);
-  if (it == st.plans.end()) {
-    st.stats.misses += 1;
-    it = st.plans.emplace(key, build_plan(key, g, ctx, stream)).first;
-    st.stats.plans = st.plans.size();
-  } else {
-    st.stats.hits += 1;
-  }
-  Plan& plan = it->second;
-  // Isaretci ozellikleri her cagrida degisebilir.
+namespace {
+
+void set_pointers(const Plan& plan, const GemmArgs& g) {
   if (g.bias != nullptr) {
     NEXUS_LT_CHECK(cublasLtMatmulDescSetAttribute(plan.desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER, &g.bias, sizeof(g.bias)));
   }
@@ -326,11 +440,67 @@ void gemm(const GemmArgs& g, cudaStream_t stream) {
     NEXUS_LT_CHECK(
         cublasLtMatmulDescSetAttribute(plan.desc, CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER, &g.aux, sizeof(g.aux)));
   }
-  // Calisma alani aygit basina tektir ve serbest birakilmaz. Iki farkli akistan es zamanli
-  // GEMM ayni calisma alanini yarisa sokabilir; bu surumde Nexus GPU yolu tek hesap akisi
-  // kullanir (cok akisli calisma alani havuzu FAZ 10 kapsaminda).
-  NEXUS_LT_CHECK(cublasLtMatmul(ctx.handle, plan.desc, &g.alpha, g.b, plan.a, g.a, plan.b, &g.beta, g.c, plan.c, g.c,
-                                plan.c, &plan.algo, ctx.workspace.data(), kWorkspaceBytes, stream));
+}
+
+void launch(const Plan& plan, const GemmArgs& g, cublasLtHandle_t handle, void* workspace, cudaStream_t stream) {
+  NEXUS_LT_CHECK(cublasLtMatmul(handle, plan.desc, &g.alpha, g.b, plan.a, g.a, plan.b, &g.beta, g.c, plan.c, g.c,
+                                plan.c, &plan.algo, workspace, kWorkspaceBytes, stream));
+}
+
+}  // namespace
+
+void gemm(const GemmArgs& g, cudaStream_t stream) {
+  validate(g);
+  State& st = state();
+  const int device = current_device();
+  if (device >= kMaxDevices) {
+    throw TensorError("Nexus gemm: aygit indeksi sinir disinda");
+  }
+  const PlanKey key{device, g.m, g.n, g.k, g.lda, g.ldb, g.ldc, g.batch, static_cast<int>(g.a_type),
+                    static_cast<int>(g.c_type), static_cast<int>(g.bias_type), g.stride_a, g.stride_b, g.stride_c,
+                    g.trans_a, g.trans_b, static_cast<int>(g.epilogue), g_precision.load(), g.aux != nullptr,
+                    g.ldc, g.beta == 0.0f};
+  const std::pair<int, cudaStream_t> ws_key{device, stream};
+  {
+    // Sicak yol: paylasimli kilit (okuyucular birbirini beklemez); clear_gemm_cache ozel kilitle bekler.
+    std::shared_lock<std::shared_mutex> read(st.mutex);
+    const auto it = st.plans.find(key);
+    const auto ws = st.workspaces.find(ws_key);
+    if (it != st.plans.end() && ws != st.workspaces.end()) {
+      st.hits += 1;
+      Entry& e = *it->second;
+      const cublasLtHandle_t handle = st.handles[static_cast<std::size_t>(device)];
+      if (e.pointer_attrs) {
+        std::lock_guard<std::mutex> lock(e.mutex);
+        set_pointers(e.plan, g);
+        launch(e.plan, g, handle, ws->second.data(), stream);
+      } else {
+        launch(e.plan, g, handle, ws->second.data(), stream);
+      }
+      return;
+    }
+  }
+  std::unique_lock<std::shared_mutex> write(st.mutex);
+  cublasLtHandle_t& handle = st.handles[static_cast<std::size_t>(device)];
+  if (handle == nullptr) NEXUS_LT_CHECK(cublasLtCreate(&handle));
+  auto ws = st.workspaces.find(ws_key);
+  if (ws == st.workspaces.end()) {
+    // Akisa bagli ayirma: tampon yalniz bu akista kullanilir, sira akis sirasiyla korunur.
+    ws = st.workspaces.emplace(ws_key, DeviceBuffer(kWorkspaceBytes, Stream(stream, device))).first;
+  }
+  auto it = st.plans.find(key);
+  if (it == st.plans.end()) {
+    st.misses += 1;
+    auto e = std::make_unique<Entry>();
+    e->plan = build_plan(key, g, handle, ws->second.data(), stream);
+    e->pointer_attrs = g.bias != nullptr || g.bias_grad != nullptr || g.aux != nullptr;
+    it = st.plans.emplace(key, std::move(e)).first;
+  } else {
+    st.hits += 1;
+  }
+  Entry& e = *it->second;
+  set_pointers(e.plan, g);  // ozel kilit altinda: plan mutex'i gerekmez
+  launch(e.plan, g, handle, ws->second.data(), stream);
 }
 
 void set_float32_matmul_precision(MatmulPrecision precision) noexcept { g_precision.store(static_cast<int>(precision)); }
@@ -351,24 +521,44 @@ void set_float32_matmul_precision(const std::string& name) {
 
 void set_gemm_autotune(bool enabled) noexcept { g_autotune.store(enabled); }
 
+void set_gemm_tune_cache(const std::string& path) {
+  State& st = state();
+  std::unique_lock<std::shared_mutex> lock(st.mutex);
+  st.tune_path = path;
+  st.disk.clear();
+  st.disk_loaded = false;
+}
+
 GemmCacheStats gemm_cache_stats() noexcept {
   State& st = state();
-  std::lock_guard<std::mutex> lock(st.mutex);
-  return st.stats;
+  std::shared_lock<std::shared_mutex> lock(st.mutex);
+  GemmCacheStats out;
+  out.plans = st.plans.size();
+  out.hits = st.hits.load();
+  out.misses = st.misses.load();
+  out.autotuned = st.autotuned.load();
+  out.disk_hits = st.disk_hits.load();
+  out.disk_rejected = st.disk_rejected.load();
+  out.workspaces = st.workspaces.size();
+  return out;
 }
 
 void clear_gemm_cache() {
   State& st = state();
-  std::lock_guard<std::mutex> lock(st.mutex);
-  for (auto& [key, plan] : st.plans) {
-    cublasLtMatrixLayoutDestroy(plan.a);
-    cublasLtMatrixLayoutDestroy(plan.b);
-    cublasLtMatrixLayoutDestroy(plan.c);
-    cublasLtMatmulDescDestroy(plan.desc);
+  std::unique_lock<std::shared_mutex> lock(st.mutex);
+  for (auto& [key, e] : st.plans) {
+    cublasLtMatrixLayoutDestroy(e->plan.a);
+    cublasLtMatrixLayoutDestroy(e->plan.b);
+    cublasLtMatrixLayoutDestroy(e->plan.c);
+    cublasLtMatmulDescDestroy(e->plan.desc);
     (void)key;
   }
   st.plans.clear();
-  st.stats = {};
+  st.hits = 0;
+  st.misses = 0;
+  st.autotuned = 0;
+  st.disk_hits = 0;
+  st.disk_rejected = 0;
 }
 
 }  // namespace cuda

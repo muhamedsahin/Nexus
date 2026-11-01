@@ -1,0 +1,146 @@
+{
+ "bt": 1024,
+ "fused": true,
+ "graph": false,
+ "torch": "2.15.0+cu134",
+ "cuda": "13.4",
+ "cublas_bf16_reduced_reduction": true,
+ "device": "NVIDIA GeForce RTX 3070 Laptop GPU",
+ "shapes": [
+  {
+   "name": "fwd.qkv",
+   "ta": false,
+   "tb": false,
+   "m": 1024,
+   "n": 2304,
+   "k": 768,
+   "torch_ms": 0.14360575675964354
+  },
+  {
+   "name": "fwd.attn_proj",
+   "ta": false,
+   "tb": false,
+   "m": 1024,
+   "n": 768,
+   "k": 768,
+   "torch_ms": 0.058511362075805665
+  },
+  {
+   "name": "fwd.fc",
+   "ta": false,
+   "tb": false,
+   "m": 1024,
+   "n": 3072,
+   "k": 768,
+   "torch_ms": 0.2288230323791504
+  },
+  {
+   "name": "fwd.fc_proj",
+   "ta": false,
+   "tb": false,
+   "m": 1024,
+   "n": 768,
+   "k": 3072,
+   "torch_ms": 0.18413568496704102
+  },
+  {
+   "name": "fwd.lm_head",
+   "ta": false,
+   "tb": true,
+   "m": 1024,
+   "n": 50304,
+   "k": 768,
+   "torch_ms": 3.0069351196289062
+  },
+  {
+   "name": "bwd.lm_head.dx",
+   "ta": false,
+   "tb": false,
+   "m": 1024,
+   "n": 768,
+   "k": 50304,
+   "torch_ms": 2.8488705444335936
+  },
+  {
+   "name": "bwd.lm_head.dw",
+   "ta": true,
+   "tb": false,
+   "m": 50304,
+   "n": 768,
+   "k": 1024,
+   "torch_ms": 2.724024353027344
+  },
+  {
+   "name": "bwd.fc_proj.dx",
+   "ta": false,
+   "tb": true,
+   "m": 1024,
+   "n": 3072,
+   "k": 768,
+   "torch_ms": 0.1983897590637207
+  },
+  {
+   "name": "bwd.fc_proj.dw",
+   "ta": true,
+   "tb": false,
+   "m": 3072,
+   "n": 768,
+   "k": 1024,
+   "torch_ms": 0.16969728469848633
+  },
+  {
+   "name": "bwd.fc.dx",
+   "ta": false,
+   "tb": true,
+   "m": 1024,
+   "n": 768,
+   "k": 3072,
+   "torch_ms": 0.1840127944946289
+  },
+  {
+   "name": "bwd.fc.dw",
+   "ta": true,
+   "tb": false,
+   "m": 768,
+   "n": 3072,
+   "k": 1024,
+   "torch_ms": 0.17774591445922852
+  },
+  {
+   "name": "bwd.attn_proj.dx",
+   "ta": false,
+   "tb": true,
+   "m": 1024,
+   "n": 768,
+   "k": 768,
+   "torch_ms": 0.068853759765625
+  },
+  {
+   "name": "bwd.attn_proj.dw",
+   "ta": true,
+   "tb": false,
+   "m": 768,
+   "n": 768,
+   "k": 1024,
+   "torch_ms": 0.04528128147125244
+  },
+  {
+   "name": "bwd.qkv.dx",
+   "ta": false,
+   "tb": true,
+   "m": 1024,
+   "n": 768,
+   "k": 2304,
+   "torch_ms": 0.15073280334472655
+  },
+  {
+   "name": "bwd.qkv.dw",
+   "ta": true,
+   "tb": false,
+   "m": 768,
+   "n": 2304,
+   "k": 1024,
+   "torch_ms": 0.1681817626953125
+  }
+ ]
+}

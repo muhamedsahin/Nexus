@@ -23,8 +23,12 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <filesystem>
+#include <fstream>
+#include <memory>
 #include <random>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace nc = nexus::cuda;
@@ -293,6 +297,125 @@ void test_gemm() {
     threw = true;
   }
   nexus_test::expect(threw, "DGelu aux olmadan acik hata");
+}
+
+// Dalga 3.1: plan onbellegi paylasimli kilit + plan basina isaretci mutex'i + (aygit, akis) basina calisma
+// alani. 4 is parcacigi x kendi akisi, ayni iki sekil (Bias epilogu, her is parcaciginin kendi bias'i):
+// isaretci yarisi olsaydi baska is parcaciginin bias'i karisirdi. Sonuc tek is parcacikli kosuya bit bit esit.
+void test_gemm_concurrency() {
+  nexus_test::section("Dalga 3.1 GEMM: es zamanli is parcaciklari / akislar + autotune disk onbellegi");
+  constexpr int kThreads = 4, kIters = 40;
+  struct Job {
+    int m, n, k;
+    std::unique_ptr<Dev> a, b, bias, c, want;
+  };
+  const int dims[2][3] = {{64, 96, 80}, {33, 130, 47}};
+  std::vector<std::vector<Job>> jobs(kThreads);
+  for (int t = 0; t < kThreads; ++t) {
+    for (int j = 0; j < 2; ++j) {
+      Job job{dims[j][0], dims[j][1], dims[j][2], nullptr, nullptr, nullptr, nullptr, nullptr};
+      const std::uint64_t seed = 900 + 10 * t + j;
+      job.a = std::make_unique<Dev>(randv(static_cast<std::size_t>(job.m) * job.k, seed));
+      job.b = std::make_unique<Dev>(randv(static_cast<std::size_t>(job.k) * job.n, seed + 100));
+      job.bias = std::make_unique<Dev>(randv(static_cast<std::size_t>(job.n), seed + 200, 10.0f + t));
+      job.c = std::make_unique<Dev>(static_cast<std::size_t>(job.m) * job.n);
+      job.want = std::make_unique<Dev>(static_cast<std::size_t>(job.m) * job.n);
+      jobs[t].push_back(std::move(job));
+    }
+  }
+  auto args = [](const Job& job, float* out) {
+    nc::GemmArgs g;
+    g.m = job.m;
+    g.n = job.n;
+    g.k = job.k;
+    g.a = job.a->p();
+    g.lda = job.k;
+    g.b = job.b->p();
+    g.ldb = job.n;
+    g.c = out;
+    g.ldc = job.n;
+    g.epilogue = nc::Epilogue::Bias;
+    g.bias = job.bias->p();
+    return g;
+  };
+  nc::clear_gemm_cache();
+  for (auto& per : jobs) {
+    for (Job& job : per) nc::gemm(args(job, job.want->p()), g_stream);
+  }
+  NEXUS_CUDA_CHECK(cudaStreamSynchronize(g_stream));
+  std::vector<nc::Stream> streams;
+  for (int t = 0; t < kThreads; ++t) streams.push_back(nc::Stream::create(0));
+  std::vector<std::thread> threads;
+  std::vector<std::string> errors(kThreads);
+  for (int t = 0; t < kThreads; ++t) {
+    threads.emplace_back([&, t] {
+      try {
+        for (int i = 0; i < kIters; ++i) {
+          for (const Job& job : jobs[t]) nc::gemm(args(job, job.c->p()), streams[t].handle());
+        }
+        streams[t].synchronize();
+      } catch (const std::exception& e) {
+        errors[t] = e.what();
+      }
+    });
+  }
+  for (auto& th : threads) th.join();
+  bool same = true;
+  for (int t = 0; t < kThreads; ++t) {
+    nexus_test::expect(errors[t].empty(), "is parcacigi " + std::to_string(t) + " istisnasiz " + errors[t]);
+    for (const Job& job : jobs[t]) same = same && job.c->get() == job.want->get();
+  }
+  nexus_test::expect(same, "4 is parcacigi x 4 akis: her cikti tek is parcacikli kosuya bit bit esit (bias karismadi)");
+  nexus_test::expect(nc::gemm_cache_stats().plans == 2, "ayni iki sekil: 2 plan (is parcaciklari paylasti)");
+  nexus_test::expect(nc::gemm_cache_stats().workspaces >= kThreads + 1, "her akisa ayri calisma alani");
+
+  // Autotune disk onbellegi: olc -> yaz -> onbellegi temizle -> autotune kapali yukle -> ayni algoritma.
+  const std::string path = (std::filesystem::temp_directory_path() / "nexus_gemm_tune_test.txt").string();
+  std::remove(path.c_str());
+  const int m = 256, n = 384, k = 512;
+  Dev a(randv(static_cast<std::size_t>(m) * k, 77)), b(randv(static_cast<std::size_t>(k) * n, 78));
+  Dev c1(static_cast<std::size_t>(m) * n), c2(static_cast<std::size_t>(m) * n);
+  nc::GemmArgs g;
+  g.m = m;
+  g.n = n;
+  g.k = k;
+  g.a = a.p();
+  g.lda = k;
+  g.b = b.p();
+  g.ldb = n;
+  g.ldc = n;
+  nc::set_gemm_tune_cache(path);
+  nc::clear_gemm_cache();
+  nc::set_gemm_autotune(true);
+  g.c = c1.p();
+  nc::gemm(g, g_stream);
+  nc::set_gemm_autotune(false);
+  const auto tuned = nc::gemm_cache_stats();
+  nexus_test::expect(tuned.autotuned == 1 && tuned.disk_hits == 0, "ilk kosu olculdu (autotuned=1)");
+  nexus_test::expect(std::ifstream(path).good(), "secim diske yazildi");
+  nc::set_gemm_tune_cache(path);  // yeniden yukle
+  nc::clear_gemm_cache();
+  g.c = c2.p();
+  nc::gemm(g, g_stream);
+  const auto loaded = nc::gemm_cache_stats();
+  nexus_test::expect(loaded.disk_hits == 1 && loaded.autotuned == 0, "ikinci kosu diskten (olcum yok)");
+  nexus_test::expect(c1.get() == c2.get(), "diskten gelen algoritma ayni sonucu verir (bit bit)");
+  {
+    // Damga bozulursa dosya yok sayilir (baska surum / aygit), sessizce kullanilmaz.
+    std::ifstream in(path);
+    std::string stamp, rest, line;
+    std::getline(in, stamp);
+    while (std::getline(in, line)) rest += line + "\n";
+    in.close();
+    std::ofstream(path, std::ios::trunc) << stamp << " baska-aygit\n" << rest;
+  }
+  nc::set_gemm_tune_cache(path);
+  nc::clear_gemm_cache();
+  nc::gemm(g, g_stream);
+  nexus_test::expect(nc::gemm_cache_stats().disk_hits == 0, "damga uyusmazsa disk kaydi kullanilmaz");
+  nc::set_gemm_tune_cache("");
+  nc::clear_gemm_cache();
+  std::remove(path.c_str());
 }
 
 void test_norms() {
@@ -652,6 +775,7 @@ int run() {
   g_stream = stream.handle();
   nc::StreamGuard guard(stream);
   test_gemm();
+  test_gemm_concurrency();
   test_norms();
   test_softmax();
   test_embedding();
