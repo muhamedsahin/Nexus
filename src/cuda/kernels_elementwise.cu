@@ -9,6 +9,8 @@
  */
 
 #include "common.cuh"
+
+#include <cstdint>
 #include "nexus/core/error.hpp"
 #include "nexus/cuda/kernels.hpp"
 
@@ -90,6 +92,33 @@ __global__ void gelu_forward_kernel(float* __restrict__ out, const float* __rest
 template <typename T>
 __global__ void gelu_forward_typed_kernel(T* __restrict__ out, const T* __restrict__ x, std::size_t n) {
   NEXUS_GRID_STRIDE(i, n) {
+    const float v = detail::Num<T>::load(x[i]);
+    out[i] = detail::Num<T>::store(0.5f * v * (1.0f + tanhf(kGeluC * (v + kGeluA * v * v * v))));
+  }
+}
+
+// Dalga 3.1: 16 baytlik vektor okuma/yazma (BF16/F16: 8, F32: 4 eleman / is parcacigi). Eleman basina
+// formul yukaridakiyle ayni -> cikti bit bit ayni; yalniz bellek islemleri genis. Isaretciler 16 B hizali
+// olmali (cagiran denetler); n % V kuyrugu ayni cekirdekte skaler islenir.
+template <typename T>
+__global__ void gelu_forward_vec_kernel(T* __restrict__ out, const T* __restrict__ x, std::size_t n) {
+  constexpr int V = 16 / sizeof(T);
+  const std::size_t chunks = n / V;
+  const uint4* xv = reinterpret_cast<const uint4*>(x);
+  uint4* ov = reinterpret_cast<uint4*>(out);
+  NEXUS_GRID_STRIDE(c, chunks) {
+    uint4 raw = xv[c];
+    T* e = reinterpret_cast<T*>(&raw);
+#pragma unroll
+    for (int j = 0; j < V; ++j) {
+      const float v = detail::Num<T>::load(e[j]);
+      e[j] = detail::Num<T>::store(0.5f * v * (1.0f + tanhf(kGeluC * (v + kGeluA * v * v * v))));
+    }
+    ov[c] = raw;
+  }
+  const std::size_t tail = chunks * V;
+  if (blockIdx.x == 0 && tail + threadIdx.x < n) {
+    const std::size_t i = tail + threadIdx.x;
     const float v = detail::Num<T>::load(x[i]);
     out[i] = detail::Num<T>::store(0.5f * v * (1.0f + tanhf(kGeluC * (v + kGeluA * v * v * v))));
   }
@@ -275,10 +304,17 @@ void gelu_forward(float* out, const float* x, std::size_t n, cudaStream_t stream
 }
 
 void gelu_forward(void* out, const void* x, DType type, std::size_t n, cudaStream_t stream) {
+  const bool aligned = (reinterpret_cast<std::uintptr_t>(out) | reinterpret_cast<std::uintptr_t>(x)) % 16 == 0;
   detail::dispatch_storage(type, "gelu_forward", [&](auto tag) {
     using T = decltype(tag);
-    gelu_forward_typed_kernel<T><<<detail::blocks_for(n, 256), 256, 0, stream>>>(static_cast<T*>(out),
-                                                                                 static_cast<const T*>(x), n);
+    constexpr std::size_t V = 16 / sizeof(T);
+    if (aligned && n >= V) {
+      gelu_forward_vec_kernel<T><<<detail::blocks_for(n / V, 256), 256, 0, stream>>>(static_cast<T*>(out),
+                                                                                    static_cast<const T*>(x), n);
+    } else {
+      gelu_forward_typed_kernel<T><<<detail::blocks_for(n, 256), 256, 0, stream>>>(static_cast<T*>(out),
+                                                                                   static_cast<const T*>(x), n);
+    }
   });
   detail::check_launch("gelu_forward_typed_kernel");
 }

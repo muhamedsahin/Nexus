@@ -96,11 +96,14 @@ double time_ms(const nc::Stream& s, const std::function<void()>& fn) {
 int main(int argc, char** argv) {
   int bt = 1024;
   bool epilogue = false;
-  std::string out;
+  std::string out, only;
+  bool tune = true;
   for (int i = 1; i + 1 < argc; i += 2) {
     if (!std::strcmp(argv[i], "--bt")) bt = std::atoi(argv[i + 1]);
     else if (!std::strcmp(argv[i], "--out")) out = argv[i + 1];
     else if (!std::strcmp(argv[i], "--epilogue")) epilogue = std::atoi(argv[i + 1]) != 0;
+    else if (!std::strcmp(argv[i], "--only")) only = argv[i + 1];  // tek sekil (profil icin)
+    else if (!std::strcmp(argv[i], "--tune")) tune = std::atoi(argv[i + 1]) != 0;
   }
   int count = 0;
   if (cudaGetDeviceCount(&count) != cudaSuccess || count == 0) {
@@ -112,6 +115,7 @@ int main(int argc, char** argv) {
   std::printf("%-18s %6s %6s %6s %-10s %10s %10s %8s\n", "sekil", "m", "n", "k", "epilog", "sezgi_ms", "autot_ms", "TFLOP/s");
   bool first = true;
   for (const Shape& sh : shapes(bt)) {
+    if (!only.empty() && only != sh.name) continue;
     const std::size_t na = static_cast<std::size_t>(sh.m) * sh.k, nb = static_cast<std::size_t>(sh.k) * sh.n,
                       ncn = static_cast<std::size_t>(sh.m) * sh.n;
     const DType ct = epilogue ? sh.out : DType::BF16;
@@ -145,10 +149,10 @@ int main(int argc, char** argv) {
     if (epi == nc::Epilogue::BiasGelu || epi == nc::Epilogue::DGelu) g.aux = aux.data();
     if (epi == nc::Epilogue::BGradB) g.bias_grad = bias.data();
     double ms[2];
-    for (int tune = 0; tune < 2; ++tune) {
+    for (int t = 0; t < 2; ++t) {
       nc::clear_gemm_cache();
-      nc::set_gemm_autotune(tune == 1);
-      ms[tune] = time_ms(s, [&] { nc::gemm(g, s.handle()); });
+      nc::set_gemm_autotune(t == 1);
+      ms[t] = t == 1 && !tune ? 0.0 : time_ms(s, [&] { nc::gemm(g, s.handle()); });
     }
     nc::set_gemm_autotune(false);
     // BiasGelu karsiligi ayri yol (GptModel selective): Bias epiloglu GEMM -> on-aktivasyon (aux tamponu),

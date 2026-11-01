@@ -68,7 +68,39 @@ Tablolar şekil şekil: [table-bt1024.md](table-bt1024.md), [table-bt4096.md](ta
 | 4096 | 0.9595 ms | 0.9582 | 0.8707 | **0.907×** (yavaş) |
 
 - BT=1024'te plan hedefi "epilog dahil ≥ 1.10×" karşılandı.
-- BT=4096'da Nexus'un iki yolu da PyTorch'tan yavaş. Epilogsuz fc GEMM yaklaşık 0.75 ms olduğuna göre Nexus bias + GELU için yaklaşık 0.21 ms harcıyor, PyTorch yaklaşık 0.12 ms. Olası nedenler: Bias epiloglu BF16 GEMM yavaş algoritma seçiyor, ya da Nexus GELU çekirdeği bant genişliğini iyi kullanmıyor. **Kök neden ölçülmedi.** Sıradaki iş bu.
+- BT=4096'da Nexus'un iki yolu da PyTorch'tan yavaş.
+
+### BT=4096 bias + GELU yavaşlığı: kök neden
+
+nsys ile BT=4096'da çekirdek dizisi okundu (süreler çekirdek süresi):
+
+| Yol | Çekirdekler | Toplam |
+|---|---|---:|
+| Nexus füzyonlu (Lt BiasGelu + aux) | GEMM 0.627 ms + ayrı `cublasLt::epilogue::impl::globalKernel` 0.191 ms | ≈ 0.818 ms |
+| Nexus ayrı yol, eski skaler GELU | GEMM 0.621 ms + GELU 0.173 ms | ≈ 0.794 ms |
+| PyTorch addmm + gelu | GEMM 0.66 ms + vektörlü GELU 0.125 ms | ≈ 0.785 ms |
+
+- **Füzyonlu yol:** BT=2048 ve 4096'da cuBLASLt GELU_AUX_BIAS epilogu GEMM içinde değil, ayrı bir çekirdekte çalışıyor. "Tek çağrı" iki çekirdek oluyor. BT=1024'te GELU cutlass çekirdeğinin içinde, o yüzden orada hızlı.
+- **Ayrı yol:** Nexus GELU çekirdeği eleman başına skaler yükleme yapıyordu. PyTorch 16 baytlık vektörlü yükleme yapıyor.
+
+**Yapılan:** `gelu_forward` artık 16 bayt hizalı işaretçilerde vektörlü çekirdek kullanıyor (src/cuda/kernels_elementwise.cu). Bir iş parçacığı 8 BF16/F16 ya da 4 F32 eleman işliyor; formül aynı. Hizasız ya da kısa girişte eski skaler çekirdek. Yeni test `test_gelu_vectorized`: n = 1000003, üç tip, vektörlü yol skaler yola **bit bit eşit**. `test_cuda_kernels` 137/137.
+
+BT=4096'da GELU çekirdeği 0.173 → 0.124 ms. Ayrı yol (Bias GEMM + vektörlü GELU), süreç içi ölçüm, AC:
+
+| BT | Ayrı yol | Füzyonlu yol |
+|---|---:|---:|
+| 1024 | 0.210 ms | 0.225 ms |
+| 2048 | 0.393 ms | 0.405 ms |
+| 4096 | 0.745 ms | 0.818 ms |
+
+**GptModel'de füzyon korundu.** fc ileri geçişi ayrı yola çevrilip denendi, sonra geri alındı. Nedenler:
+- Ayrı yol sayısal sonucu değiştiriyor. Füzyonlu epilog GELU'yu FP32 birikimden hesaplıyor; ayrı yol önce BF16'ya yuvarlıyor (PyTorch gibi). tiny modelde adım 0 kaybı 9.08886 → 9.08883, 500 adımda B kaybı 6.759 → 6.866. `test_master_weight_modes` deneysel bandı düştü: C − B farkı −%1.5 → −%7.5.
+- 124M uçtan uca (BT=1024, AC, eski/yeni dönüşümlü 2'şer koşu): eski 64.08 / 64.17 ms, yeni 64.21 / 63.88 ms. **Fark ölçülemedi.**
+
+Sonuç:
+- BT=4096 füzyonlu fc hâlâ PyTorch'un 0.907×'i. Bu yavaşlık cuBLASLt'nin ayrı epilog çekirdeğinden geliyor ve çözülmedi.
+- Vektörlü GELU, `gelu_forward` kullanan yollarda (seçici geri hesaplama) devrede.
+- `dalga3_gemm_compare.py` ile 5 tekrarlı yeniden karşılaştırma **yapılmadı**: ölçüm sırasında laptop pile geçti.
 
 ## Ölçüm notu (geçersiz sayılan koşu)
 
@@ -77,7 +109,7 @@ Bir koşu sırasında laptop pile geçti (BatteryStatus 1, GPU 210 MHz). O koşu
 ## Açık kalanlar (Dalga 3)
 
 - 3.1:
-  - BT=4096'daki bias + GELU yavaşlığının kökü;
+  - BT ≥ 2048 füzyonlu fc'de cuBLASLt'nin ayrı epilog çekirdeği (kök bulundu, çözülmedi); FP32 ön-aktivasyonu koruyan ayrı yol ya da kendi epilogumuz;
   - residual epilogu (ayrı C girişi, D çıkışı);
   - dgelu yolunun ölçümü;
   - decode için split-K.

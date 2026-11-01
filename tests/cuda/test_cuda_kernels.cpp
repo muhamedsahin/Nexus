@@ -418,6 +418,31 @@ void test_gemm_concurrency() {
   std::remove(path.c_str());
 }
 
+// Dalga 3.1: vektorlu GELU (16 B okuma) skaler cekirdege bit bit esit. Hizasiz isaretci (1 eleman kaydirma)
+// skaler yola duser; ayni giris iki yoldan gecer. n tek sayi: vektor yolunda kuyruk da sinanir.
+void test_gelu_vectorized() {
+  nexus_test::section("Dalga 3.1 vektorlu GELU ileri == skaler (BF16 / F16 / F32)");
+  const std::size_t n = 1000003;
+  const auto host = randv(n + 1, 4242, 3.0f);
+  Dev src(host);
+  for (const nexus::DType t : {nexus::DType::BF16, nexus::DType::F16, nexus::DType::F32}) {
+    const std::size_t e = nexus::size_of(t);
+    nc::DeviceBuffer xa((n + 8) * e), xu((n + 8) * e), ya((n + 8) * e), yu((n + 8) * e);
+    nc::cast(xa.data(), t, src.p(), nexus::DType::F32, n, g_stream);
+    char* xu_p = static_cast<char*>(xu.data()) + e;  // hizasiz
+    char* yu_p = static_cast<char*>(yu.data()) + e;
+    nc::cast(xu_p, t, src.p(), nexus::DType::F32, n, g_stream);
+    nc::gelu_forward(ya.data(), xa.data(), t, n, g_stream);
+    nc::gelu_forward(yu_p, xu_p, t, n, g_stream);
+    std::vector<unsigned char> a(n * e), u(n * e);
+    NEXUS_CUDA_CHECK(cudaMemcpyAsync(a.data(), ya.data(), n * e, cudaMemcpyDeviceToHost, g_stream));
+    NEXUS_CUDA_CHECK(cudaMemcpyAsync(u.data(), yu_p, n * e, cudaMemcpyDeviceToHost, g_stream));
+    NEXUS_CUDA_CHECK(cudaStreamSynchronize(g_stream));
+    nexus_test::expect(a == u, std::string("GELU ") + std::string(nexus::to_string(t)) +
+                                   ": vektor yolu (hizali) == skaler yol (hizasiz), n=1000003 bit bit");
+  }
+}
+
 void test_norms() {
   nexus_test::section("LayerNorm / RMSNorm / add&norm ileri-geri (FP64 referans)");
   struct S {
@@ -776,6 +801,7 @@ int run() {
   nc::StreamGuard guard(stream);
   test_gemm();
   test_gemm_concurrency();
+  test_gelu_vectorized();
   test_norms();
   test_softmax();
   test_embedding();
