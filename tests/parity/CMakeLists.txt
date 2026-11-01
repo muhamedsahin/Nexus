@@ -406,3 +406,12 @@ add_test(NAME test_tensor_ops_dispatch COMMAND test_tensor_core ops)
 add_test(NAME test_tensor_legacy_api COMMAND test_tensor_core legacy)
 add_test(NAME test_tensor_autograd_bridge COMMAND test_tensor_core bridge)
 add_test(NAME test_tensor_autograd COMMAND test_tensor_core autograd)
+
+# Dalga 2: tum autograd op'larinin Tensor yolu + TensorAdamW + uctan uca egitim
+add_executable(test_tensor_autograd_ops test_tensor_autograd_ops.cpp)
+target_link_libraries(test_tensor_autograd_ops PRIVATE nexus::nexus nexus_test_support)
+nexus_configure_target(test_tensor_autograd_ops)
+add_test(NAME test_tensor_autograd_parity COMMAND test_tensor_autograd_ops parity)
+add_test(NAME test_tensor_autograd_gradcheck COMMAND test_tensor_autograd_ops gradcheck)
+add_test(NAME test_tensor_adamw COMMAND test_tensor_autograd_ops adamw)
+add_test(NAME test_tensor_train_e2e COMMAND test_tensor_autograd_ops train)

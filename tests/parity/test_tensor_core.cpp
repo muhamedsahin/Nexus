@@ -383,7 +383,9 @@ void test_autograd() {
     bool ok = !x.grad().is_tensor_backed() && t.grad().is_tensor_backed();
     for (std::size_t i = 0; i < M * K; ++i) ok = ok && x.grad().values()[i] == (av[i] > 0 ? 1.0f : 0.0f) && t.grad().tensor()[i] == 1.0f;
     nexus_test::expect(ok, "karisik grafik: vector yapraga F32 vector gradyan, Tensor yapraga Tensor gradyan");
-    nexus_test::expect(throws([&] { (void)ag::relu(t); }, "values"), "FAZ 2 vector op'u Tensor depolamada acik hata");
+    // relu artik Tensor yolunda (Dalga 2 kalan op'lar); vector erisimi Tensor depolamada hala acik hata
+    nexus_test::expect(ag::relu(t).is_tensor_backed(), "relu Tensor depolamada Tensor yolu");
+    nexus_test::expect(throws([&] { (void)t.values(); }, "values"), "Tensor depolamada values() acik hata");
   }
   // 5) surum denetimi: kaydedilmis Tensor yerinde degisince geri gecis hata
   {

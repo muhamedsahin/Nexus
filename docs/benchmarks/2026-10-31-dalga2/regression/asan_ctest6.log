@@ -1,0 +1,75 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-asan
+Test project C:/Users/muham/Desktop/Nexus/build-asan
+      Start   5: test_phase2_hardware
+ 1/30 Test   #5: test_phase2_hardware ..................   Passed    0.46 sec
+      Start   7: test_phase4_custom_extensions
+ 2/30 Test   #7: test_phase4_custom_extensions .........   Passed    0.15 sec
+      Start  16: test_nxs
+ 3/30 Test  #16: test_nxs ..............................   Passed    0.33 sec
+      Start  20: test_phase2_autograd
+ 4/30 Test  #20: test_phase2_autograd ..................   Passed    2.66 sec
+      Start  22: test_phase2_engine
+ 5/30 Test  #22: test_phase2_engine ....................   Passed    0.24 sec
+      Start  31: test_swiglu_gradcheck
+ 6/30 Test  #31: test_swiglu_gradcheck .................   Passed    0.19 sec
+      Start  32: test_decoder_block_parity
+ 7/30 Test  #32: test_decoder_block_parity .............   Passed   56.92 sec
+      Start  35: test_lm_nxs_roundtrip
+ 8/30 Test  #35: test_lm_nxs_roundtrip .................   Passed    0.24 sec
+      Start  36: test_lm_mup_multipliers
+ 9/30 Test  #36: test_lm_mup_multipliers ...............   Passed    0.11 sec
+      Start  38: test_checkpoint_grad_equal
+10/30 Test  #38: test_checkpoint_grad_equal ............   Passed    1.12 sec
+      Start  75: test_sharded_checkpoint_reshard
+11/30 Test  #75: test_sharded_checkpoint_reshard .......   Passed    0.56 sec
+      Start  77: test_dtensor_redistribute_all_pairs
+12/30 Test  #77: test_dtensor_redistribute_all_pairs ...   Passed    1.81 sec
+      Start 110: test_kv_cache_matches_full_cpu
+13/30 Test #110: test_kv_cache_matches_full_cpu ........   Passed    4.01 sec
+      Start 111: test_kv_cache_generate_cpu
+14/30 Test #111: test_kv_cache_generate_cpu ............   Passed    3.09 sec
+      Start 141: test_phase21_bench
+15/30 Test #141: test_phase21_bench ....................   Passed    2.48 sec
+      Start 142: test_phase20_evidence
+16/30 Test #142: test_phase20_evidence .................   Passed    1.18 sec
+      Start 144: test_tensor_views
+17/30 Test #144: test_tensor_views .....................   Passed    0.12 sec
+      Start 145: test_tensor_dtype_cast
+18/30 Test #145: test_tensor_dtype_cast ................   Passed    0.07 sec
+      Start 146: test_tensor_ops_dispatch
+19/30 Test #146: test_tensor_ops_dispatch ..............   Passed    3.72 sec
+      Start 147: test_tensor_legacy_api
+20/30 Test #147: test_tensor_legacy_api ................   Passed    0.06 sec
+      Start 148: test_tensor_autograd_bridge
+21/30 Test #148: test_tensor_autograd_bridge ...........   Passed    0.06 sec
+      Start 149: test_tensor_autograd
+22/30 Test #149: test_tensor_autograd ..................   Passed    0.15 sec
+      Start 150: test_tensor_autograd_parity
+23/30 Test #150: test_tensor_autograd_parity ...........   Passed    0.23 sec
+      Start 151: test_tensor_autograd_gradcheck
+24/30 Test #151: test_tensor_autograd_gradcheck ........   Passed    0.76 sec
+      Start 152: test_tensor_adamw
+25/30 Test #152: test_tensor_adamw .....................   Passed    0.07 sec
+      Start 153: test_tensor_train_e2e
+26/30 Test #153: test_tensor_train_e2e .................***Failed    7.75 sec
+train: uctan uca kucuk dil modeli (CPU)
+
+      Start 155: bench_phase2_heterogeneous
+27/30 Test #155: bench_phase2_heterogeneous ............   Passed    0.14 sec
+      Start 157: bench_phase4_custom
+28/30 Test #157: bench_phase4_custom ...................   Passed    0.30 sec
+      Start 165: bench_phase24_close
+29/30 Test #165: bench_phase24_close ...................   Passed    0.68 sec
+      Start 171: bench_phase2
+30/30 Test #171: bench_phase2 ..........................***Not Run (Disabled)   0.00 sec
+
+97% tests passed, 1 tests failed out of 29
+
+Total Test time (real) =  89.81 sec
+
+The following tests did not run:
+	171 - bench_phase2 (Disabled)
+
+The following tests FAILED:
+	153 - test_tensor_train_e2e (Failed)
+Errors while running CTest

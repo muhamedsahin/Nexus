@@ -1,0 +1,7 @@
+========= COMPUTE-SANITIZER
+train: uctan uca kucuk dil modeli cihazda (TensorAdamW)
+  info  kayip 3.4925 -> host 2.2318 | cihaz F32 2.2318 | cihaz BF16 AMP 2.2300; en kotu adim farki F32 1.48e-07, BF16 7.98e-04
+  PASS  cihaz F32 egitim egrisi == host (<= 1e-4)
+  PASS  cihaz BF16 AMP ogreniyor ve host egrisine <= 3e-2
+test_tensor_cuda: 2 gecti, 0 basarisiz
+========= ERROR SUMMARY: 0 errors

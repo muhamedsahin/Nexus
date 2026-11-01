@@ -48,6 +48,7 @@ add_library(nexus STATIC
     src/core/memory.cpp
     src/core/tensor.cpp
     src/core/tensor_ops.cpp
+    src/core/tensor_ops_autograd.cpp
     src/core/mirrored_tensor.cpp
     src/backend/registry.cpp
     src/backend/vulkan.cpp
@@ -58,6 +59,7 @@ add_library(nexus STATIC
     src/backend/pjrt_plugin.cpp
     src/autograd/engine.cpp
     src/autograd/ops.cpp
+    src/autograd/tensor_optim.cpp
     src/autograd/checkpoint.cpp
     src/memory/planner.cpp
     src/fused/fused.cpp

@@ -114,6 +114,274 @@ void require_same_shape(const Variable& a, const Variable& b, const char* op) {
   return make_op_output_tensor(std::move(out), std::move(node), std::move(edges));
 }
 
+
+// Kaydedilmis cikti (sigmoid / tanh / exp / softmax): kopya yerine surum damgali sig gorunum.
+struct SavedOut {
+  nexus::Tensor t;
+  std::uint64_t version = 0;
+  [[nodiscard]] const nexus::Tensor& get(const char* op) const {
+    if (t.version() != version)
+      throw std::runtime_error(std::string("Nexus autograd: ") + op + " ciktisi geri gecisten once yerinde degisti (surum)");
+    return t;
+  }
+};
+
+[[nodiscard]] Variable tensor_unary(const Variable& a, nexus::ops::UnaryFn fn, double scalar, const char* name) {
+  using F = nexus::ops::UnaryFn;
+  const nexus::Tensor ta = a.tensor();
+  nexus::Tensor out = nexus::ops::unary(fn, ta, scalar);
+  if (!(grad_enabled() && a.requires_grad())) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = std::string(name) + "Backward(Tensor)";
+  const bool a_vec = !a.is_tensor_backed();
+  const bool uses_out = fn == F::Sigmoid || fn == F::Tanh || fn == F::Exp;
+  const bool uses_in = fn == F::Pow || fn == F::Relu || fn == F::Log || fn == F::Gelu || fn == F::Silu;
+  const SavedTensor saved_in = uses_in ? save_variable(a) : SavedTensor{};
+  const SavedOut saved_out = uses_out ? SavedOut{out.shallow(), out.version()} : SavedOut{};
+  const std::string op = name;
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    const nexus::Tensor g = grads[0].tensor();
+    const nexus::Tensor sv = uses_out ? saved_out.get(op.c_str()) : uses_in ? saved_in.unpack(op.c_str()).tensor() : g;
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, nexus::ops::unary_grad(fn, g, sv.dtype() == g.dtype() ? sv : sv.to(g.dtype()), scalar)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+[[nodiscard]] Variable tensor_sub_div(const Variable& a, const Variable& b, bool is_div) {
+  require_same_shape(a, b, is_div ? "div" : "sub");
+  const nexus::Tensor ta = a.tensor(), tb = b.tensor();
+  nexus::Tensor out = is_div ? nexus::ops::div(ta, tb) : nexus::ops::sub(ta, tb);
+  const bool needs = grad_enabled() && (a.requires_grad() || b.requires_grad());
+  if (!needs) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = is_div ? "DivBackward(Tensor)" : "SubBackward(Tensor)";
+  const bool a_req = a.requires_grad(), b_req = b.requires_grad();
+  const bool a_vec = !a.is_tensor_backed(), b_vec = !b.is_tensor_backed();
+  std::vector<Edge> edges;
+  if (a_req) edges.push_back(edge_of(a));
+  if (b_req) edges.push_back(edge_of(b));
+  const SavedTensor sa = is_div ? save_variable(a) : SavedTensor{};
+  const SavedTensor sb = is_div ? save_variable(b) : SavedTensor{};
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    using F = nexus::ops::UnaryFn;
+    const nexus::Tensor g = grads[0].tensor();
+    std::vector<Variable> result;
+    if (!is_div) {
+      if (a_req) result.push_back(grad_as(a_vec, g.shallow()));
+      if (b_req) result.push_back(grad_as(b_vec, nexus::ops::unary(F::Neg, g)));
+      return result;
+    }
+    const nexus::Tensor av = sa.unpack("div").tensor(), bv = sb.unpack("div").tensor();
+    if (a_req) result.push_back(grad_as(a_vec, nexus::ops::div(g, bv)));
+    if (b_req) result.push_back(grad_as(b_vec, nexus::ops::unary(F::Neg, nexus::ops::div(nexus::ops::mul(g, av), nexus::ops::mul(bv, bv)))));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::move(edges));
+}
+
+// Gorunum op'lari (kopyasiz): reshape / transpose / narrow
+template <typename Fwd, typename Bwd>
+[[nodiscard]] Variable tensor_view_op(const Variable& a, const char* name, Fwd fwd, Bwd bwd) {
+  nexus::Tensor out = fwd(a.tensor());
+  if (!(grad_enabled() && a.requires_grad())) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = std::string(name) + "Backward(Tensor)";
+  const bool a_vec = !a.is_tensor_backed();
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, bwd(grads[0].tensor())));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+[[nodiscard]] Variable tensor_softmax(const Variable& a, bool log) {
+  if (a.shape().rank() != 2) throw std::invalid_argument(log ? "Nexus autograd: log_softmax yalnizca 2D" : "Nexus autograd: softmax yalnizca 2D");
+  nexus::Tensor out = nexus::ops::row_softmax(a.tensor(), log);
+  if (!(grad_enabled() && a.requires_grad())) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = log ? "LogSoftmaxBackward(Tensor)" : "SoftmaxBackward(Tensor)";
+  const bool a_vec = !a.is_tensor_backed();
+  const SavedOut y{out.shallow(), out.version()};
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, nexus::ops::row_softmax_grad(grads[0].tensor(), y.get(log ? "log_softmax" : "softmax"), log)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+[[nodiscard]] nexus::Tensor index_tensor(const std::vector<std::int64_t>& v, const nexus::Tensor& like) {
+  nexus::Tensor h = nexus::Tensor::empty(nexus::Shape{v.size()}, nexus::DType::I64);
+  if (!v.empty()) std::copy(v.begin(), v.end(), h.data_as<std::int64_t>());
+  return like.space() == nexus::MemorySpace::Device ? h.to(like.space(), like.device()) : h;
+}
+
+[[nodiscard]] Variable tensor_cross_entropy(const Variable& logits, const std::vector<std::int64_t>& targets) {
+  if (logits.shape().rank() != 2) throw std::invalid_argument("Nexus autograd: cross_entropy logits 2D olmali");
+  if (static_cast<std::int64_t>(targets.size()) != logits.shape().dims[0])
+    throw std::invalid_argument("Nexus autograd: cross_entropy hedef sayisi uyusmazligi");
+  const nexus::Tensor tl = logits.tensor();
+  const nexus::Tensor tt = index_tensor(targets, tl);
+  nexus::Tensor out = nexus::ops::cross_entropy(tl, tt);  // F32 {1} (F64 logitte F64)
+  if (!(grad_enabled() && logits.requires_grad())) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "CrossEntropyBackward(Tensor)";
+  const bool l_vec = !logits.is_tensor_backed();
+  const SavedTensor sl = save_variable(logits);
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    nexus::Tensor g = grads[0].tensor();
+    const nexus::DType loss_dt = tl.dtype() == nexus::DType::F64 ? nexus::DType::F64 : nexus::DType::F32;
+    if (g.dtype() != loss_dt) g = g.to(loss_dt);
+    std::vector<Variable> result;
+    result.push_back(grad_as(l_vec, nexus::ops::cross_entropy_grad(sl.unpack("cross_entropy").tensor(), tt, g)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(logits)});
+}
+
+[[nodiscard]] Variable tensor_add_bias(const Variable& x, const Variable& bias) {
+  const auto& xs = x.shape().dims;
+  if (xs.empty()) throw std::invalid_argument("Nexus autograd: add_bias giris boyutsuz");
+  if (bias.numel() != xs.back() || bias.shape().rank() != 1) throw std::invalid_argument("Nexus autograd: add_bias bias [D] olmali");
+  nexus::Tensor out = nexus::ops::add(x.tensor(), bias.tensor());  // son eksende yayin
+  const bool needs = grad_enabled() && (x.requires_grad() || bias.requires_grad());
+  if (!needs) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "AddBiasBackward(Tensor)";
+  const bool x_req = x.requires_grad(), b_req = bias.requires_grad();
+  const bool x_vec = !x.is_tensor_backed(), b_vec = !bias.is_tensor_backed();
+  std::vector<Edge> edges;
+  if (x_req) edges.push_back(edge_of(x));
+  if (b_req) edges.push_back(edge_of(bias));
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    const nexus::Tensor g = grads[0].tensor();
+    std::vector<Variable> result;
+    if (x_req) result.push_back(grad_as(x_vec, g.shallow()));
+    if (b_req) result.push_back(grad_as(b_vec, nexus::ops::reduce_rows(g)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::move(edges));
+}
+
+[[nodiscard]] Variable tensor_dropout(const Variable& a, float p, std::uint64_t seed) {
+  // FAZ 2 ile ayni LCG maskesi (host'ta uretilir, girdinin dtype / cihazina tasinir): F32 CPU'da bit bit ayni.
+  const nexus::Tensor ta = a.tensor();
+  nexus::Tensor mask = nexus::Tensor::empty(ta.shape(), nexus::DType::F32);
+  std::uint64_t state = seed == 0 ? 0x9E3779B97F4A7C15ULL : seed;
+  auto next_uniform = [&state]() {
+    state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+    return static_cast<float>((state >> 11) & 0x1FFFFFFFFFFFFFULL) / static_cast<float>(1ULL << 53);
+  };
+  const float scale = 1.0f / (1.0f - p);
+  float* mp = mask.data();
+  for (std::size_t i = 0; i < mask.numel(); ++i) mp[i] = next_uniform() < p ? 0.0f : scale;
+  if (ta.dtype() != nexus::DType::F32) mask = mask.to(ta.dtype());
+  if (ta.space() == nexus::MemorySpace::Device) mask = mask.to(ta.space(), ta.device());
+  nexus::Tensor out = nexus::ops::mul(ta.is_contiguous() ? ta : ta.contiguous(), mask);
+  if (!(grad_enabled() && a.requires_grad())) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "DropoutBackward(Tensor)";
+  const bool a_vec = !a.is_tensor_backed();
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    std::vector<Variable> result;
+    result.push_back(grad_as(a_vec, nexus::ops::mul(grads[0].tensor().contiguous(), mask)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(a)});
+}
+
+[[nodiscard]] Variable tensor_embedding(const Variable& weight, const std::vector<std::int64_t>& indices, std::int64_t padding_idx) {
+  if (weight.shape().rank() != 2) throw std::invalid_argument("Nexus autograd: embedding agirligi [V,D] olmali");
+  const std::int64_t vocab = weight.shape().dims[0];
+  for (const std::int64_t r : indices)
+    if (r < 0 || r >= vocab) throw std::out_of_range("Nexus autograd: embedding indeksi sozluk disinda");
+  const nexus::Tensor tw = weight.tensor();
+  const nexus::Tensor idx = index_tensor(indices, tw);
+  nexus::Tensor out = nexus::ops::gather_rows(tw, idx);
+  if (!(grad_enabled() && weight.requires_grad())) return Variable::wrap(std::move(out), false);
+  // Belirlenimci plan (host): kararli siralama -> perm, segment satiri, segment ofseti
+  const auto L = static_cast<std::int64_t>(indices.size());
+  std::vector<std::int64_t> perm(indices.size());
+  for (std::size_t i = 0; i < perm.size(); ++i) perm[i] = static_cast<std::int64_t>(i);
+  std::stable_sort(perm.begin(), perm.end(), [&](std::int64_t x, std::int64_t y) { return indices[static_cast<std::size_t>(x)] < indices[static_cast<std::size_t>(y)]; });
+  std::vector<std::int64_t> seg_row, seg_off;
+  for (std::size_t q = 0; q < perm.size(); ++q) {
+    const std::int64_t r = indices[static_cast<std::size_t>(perm[q])];
+    if (seg_row.empty() || seg_row.back() != r) {
+      seg_row.push_back(r);
+      seg_off.push_back(static_cast<std::int64_t>(q));
+    }
+  }
+  seg_off.push_back(L);
+  std::vector<std::int64_t> plan_v(perm);
+  plan_v.insert(plan_v.end(), seg_row.begin(), seg_row.end());
+  plan_v.insert(plan_v.end(), seg_off.begin(), seg_off.end());
+  const nexus::Tensor plan = index_tensor(plan_v, tw);
+  const auto U = static_cast<std::int64_t>(seg_row.size());
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "EmbeddingBackward(Tensor)";
+  const bool w_vec = !weight.is_tensor_backed();
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    std::vector<Variable> result;
+    result.push_back(grad_as(w_vec, nexus::ops::embedding_grad(grads[0].tensor(), plan, vocab, L, U, padding_idx)));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::vector<Edge>{edge_of(weight)});
+}
+
+[[nodiscard]] Variable tensor_cat(const std::vector<Variable>& parts, int dim) {
+  if (parts.empty() || (dim != 0 && dim != 1)) throw std::invalid_argument("Nexus autograd: cat bos olmayan liste ve dim 0/1 bekler");
+  std::vector<nexus::Tensor> ts;
+  for (const Variable& p : parts) ts.push_back(p.tensor());
+  const int other = dim == 0 ? 1 : 0;
+  std::size_t total = 0;
+  for (const nexus::Tensor& t : ts) {
+    if (t.rank() != 2 || t.shape()[static_cast<std::size_t>(other)] != ts[0].shape()[static_cast<std::size_t>(other)])
+      throw std::invalid_argument("Nexus autograd: cat parcalari 2D ve diger boyutta esit olmali");
+    if (t.dtype() != ts[0].dtype() || t.space() != ts[0].space() || t.device() != ts[0].device())
+      throw std::invalid_argument("Nexus autograd: cat parcalari ayni dtype ve cihazda olmali (otomatik donusum yok)");
+    total += t.shape()[static_cast<std::size_t>(dim)];
+  }
+  const std::size_t rows = dim == 0 ? total : ts[0].shape()[0], cols = dim == 1 ? total : ts[0].shape()[1];
+  nexus::Tensor out = nexus::Tensor::empty(nexus::Shape{rows, cols}, ts[0].dtype(), ts[0].space(), ts[0].device());
+  std::vector<std::size_t> offs;
+  std::size_t off = 0;
+  for (const nexus::Tensor& t : ts) {
+    const std::size_t len = t.shape()[static_cast<std::size_t>(dim)];
+    nexus::Tensor dst = out.narrow(static_cast<std::size_t>(dim), off, len);
+    dst.copy_from(t);
+    offs.push_back(off);
+    off += len;
+  }
+  bool any = false;
+  std::vector<bool> req, vec;
+  for (const Variable& p : parts) {
+    req.push_back(p.requires_grad());
+    vec.push_back(!p.is_tensor_backed());
+    any = any || p.requires_grad();
+  }
+  if (!(grad_enabled() && any)) return Variable::wrap(std::move(out), false);
+  auto node = std::make_shared<LambdaNode>();
+  node->name = "CatBackward(Tensor)";
+  std::vector<Edge> edges;
+  std::vector<std::size_t> lens;
+  for (std::size_t i = 0; i < parts.size(); ++i) {
+    lens.push_back(ts[i].shape()[static_cast<std::size_t>(dim)]);
+    if (req[i]) edges.push_back(edge_of(parts[i]));
+  }
+  node->backward_fn = [=](std::vector<Variable>&& grads) {
+    const nexus::Tensor g = grads[0].tensor();
+    std::vector<Variable> result;
+    for (std::size_t i = 0; i < req.size(); ++i)
+      if (req[i]) result.push_back(grad_as(vec[i], g.narrow(static_cast<std::size_t>(dim), offs[i], lens[i]).contiguous()));
+    return result;
+  };
+  return make_op_output_tensor(std::move(out), std::move(node), std::move(edges));
+}
+
 [[nodiscard]] Variable tensor_sum(const Variable& a) {
   const nexus::Tensor ta = a.tensor();
   nexus::Tensor out = nexus::ops::sum(ta);  // sekil {1}
@@ -217,6 +485,7 @@ Variable add(const Variable& a, const Variable& b) {
 
 // ---- sub -------------------------------------------------------------------------------
 Variable sub(const Variable& a, const Variable& b) {
+  if (tensor_path(a) || tensor_path(b)) return tensor_sub_div(a, b, false);
   require_same_shape(a, b, "sub");
   const auto& av = a.values();
   const auto& bv = b.values();
@@ -310,6 +579,7 @@ Variable mul(const Variable& a, const Variable& b) {
 
 // ---- div -------------------------------------------------------------------------------
 Variable div(const Variable& a, const Variable& b) {
+  if (tensor_path(a) || tensor_path(b)) return tensor_sub_div(a, b, true);
   require_same_shape(a, b, "div");
   const auto& av = a.values();
   const auto& bv = b.values();
@@ -360,6 +630,7 @@ Variable div(const Variable& a, const Variable& b) {
 
 // ---- neg -------------------------------------------------------------------------------
 Variable neg(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Neg, 0.0, "Neg");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -384,6 +655,7 @@ Variable neg(const Variable& a) {
 
 // ---- add_scalar --------------------------------------------------------------------------
 Variable add_scalar(const Variable& a, float scalar) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::AddScalar, scalar, "AddScalar");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -401,6 +673,7 @@ Variable add_scalar(const Variable& a, float scalar) {
 
 // ---- mul_scalar --------------------------------------------------------------------------
 Variable mul_scalar(const Variable& a, float scalar) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::MulScalar, scalar, "MulScalar");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -425,6 +698,7 @@ Variable mul_scalar(const Variable& a, float scalar) {
 
 // ---- pow -----------------------------------------------------------------------------------
 Variable pow(const Variable& a, float exponent) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Pow, exponent, "Pow");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -451,6 +725,7 @@ Variable pow(const Variable& a, float exponent) {
 
 // ---- relu -----------------------------------------------------------------------------------
 Variable relu(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Relu, 0.0, "Relu");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -477,6 +752,7 @@ Variable relu(const Variable& a) {
 
 // ---- sigmoid --------------------------------------------------------------------------------
 Variable sigmoid(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Sigmoid, 0.0, "Sigmoid");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -502,6 +778,7 @@ Variable sigmoid(const Variable& a) {
 
 // ---- tanh ------------------------------------------------------------------------------------
 Variable tanh(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Tanh, 0.0, "Tanh");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -527,6 +804,7 @@ Variable tanh(const Variable& a) {
 
 // ---- exp --------------------------------------------------------------------------------------
 Variable exp(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Exp, 0.0, "Exp");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -552,6 +830,7 @@ Variable exp(const Variable& a) {
 
 // ---- log --------------------------------------------------------------------------------------
 Variable log(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Log, 0.0, "Log");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -578,6 +857,7 @@ Variable log(const Variable& a) {
 
 // ---- gelu (exact erf) -----------------------------------------------------------------------
 Variable gelu(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Gelu, 0.0, "Gelu");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   constexpr float kInvSqrt2 = 0.7071067811865475f;
@@ -610,6 +890,7 @@ Variable gelu(const Variable& a) {
 
 // ---- silu (swish) ---------------------------------------------------------------------------
 Variable silu(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(a, nexus::ops::UnaryFn::Silu, 0.0, "Silu");
   const auto& av = a.values();
   std::vector<float> out(av.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
@@ -659,6 +940,7 @@ Variable sum(const Variable& a) {
 
 // ---- mean --------------------------------------------------------------------------------------
 Variable mean(const Variable& a) {
+  if (tensor_path(a)) return tensor_unary(sum(a), nexus::ops::UnaryFn::MulScalar, 1.0 / static_cast<double>(a.numel()), "Mean");
   const auto& av = a.values();
   float total = 0.0f;
   for (const float value : av) {
@@ -684,6 +966,15 @@ Variable reshape(const Variable& a, Shape shape) {
   if (a.numel() != shape.numel()) {
     throw std::invalid_argument("Nexus autograd: reshape eleman sayisini degistiremez");
   }
+  if (tensor_path(a)) {
+    std::vector<std::size_t> nd;
+    for (const std::int64_t d : shape.dims) nd.push_back(static_cast<std::size_t>(d));
+    if (nd.empty()) nd.push_back(1);
+    const nexus::Shape target(nd);
+    const nexus::Shape original = a.tensor().shape();
+    return tensor_view_op(a, "Reshape", [target](const nexus::Tensor& t) { return t.reshape(target); },
+                          [original](const nexus::Tensor& g) { return g.reshape(original); });
+  }
   std::vector<float> out = a.values();  // kopya (görünüm yerine basitlik)
   const bool needs = grad_enabled() && a.requires_grad();
   if (!needs) {
@@ -703,6 +994,10 @@ Variable reshape(const Variable& a, Shape shape) {
 Variable transpose(const Variable& a) {
   if (a.shape().rank() != 2) {
     throw std::invalid_argument("Nexus autograd: transpose yalnizca 2D");
+  }
+  if (tensor_path(a)) {
+    return tensor_view_op(a, "Transpose", [](const nexus::Tensor& t) { return t.transpose(0, 1); },
+                          [](const nexus::Tensor& g) { return g.transpose(0, 1); });
   }
   const std::int64_t m = a.shape().dims[0];
   const std::int64_t n = a.shape().dims[1];
@@ -816,6 +1111,7 @@ Variable matmul(const Variable& a, const Variable& b) {
 
 // ---- softmax (2D, son boyut) ---------------------------------------------------------------------
 Variable softmax(const Variable& a) {
+  if (tensor_path(a)) return tensor_softmax(a, false);
   if (a.shape().rank() != 2) {
     throw std::invalid_argument("Nexus autograd: softmax yalnizca 2D");
   }
@@ -865,6 +1161,7 @@ Variable softmax(const Variable& a) {
 
 // ---- cross_entropy -------------------------------------------------------------------------------
 Variable cross_entropy(const Variable& logits, const std::vector<std::int64_t>& targets) {
+  if (tensor_path(logits)) return tensor_cross_entropy(logits, targets);
   if (logits.shape().rank() != 2) {
     throw std::invalid_argument("Nexus autograd: cross_entropy logits 2D olmali");
   }
@@ -917,6 +1214,7 @@ Variable cross_entropy(const Variable& logits, const std::vector<std::int64_t>& 
 
 // ---- add_bias (son boyutta yayin) -----------------------------------------------------------------
 Variable add_bias(const Variable& x, const Variable& bias) {
+  if (tensor_path(x) || tensor_path(bias)) return tensor_add_bias(x, bias);
   const auto& xs = x.shape().dims;
   if (xs.empty()) {
     throw std::invalid_argument("Nexus autograd: add_bias giris boyutsuz");
@@ -972,6 +1270,7 @@ Variable dropout(const Variable& a, float p, bool training, std::uint64_t seed) 
   if (!training) {
     return a;  // eval: ozdeslik
   }
+  if (tensor_path(a)) return tensor_dropout(a, p, seed);
   const auto& av = a.values();
   std::vector<float> out(av.size());
   std::vector<float> mask(av.size());
@@ -1004,6 +1303,7 @@ Variable dropout(const Variable& a, float p, bool training, std::uint64_t seed) 
 
 // ---- log_softmax (2D, son boyut) -------------------------------------------------------------------
 Variable log_softmax(const Variable& a) {
+  if (tensor_path(a)) return tensor_softmax(a, true);
   if (a.shape().rank() != 2) {
     throw std::invalid_argument("Nexus autograd: log_softmax yalnizca 2D");
   }
@@ -1054,6 +1354,7 @@ Variable log_softmax(const Variable& a) {
 
 // ---- embedding (satir toplama) ----------------------------------------------------------------------
 Variable embedding(const Variable& weight, const std::vector<std::int64_t>& indices, std::int64_t padding_idx) {
+  if (tensor_path(weight)) return tensor_embedding(weight, indices, padding_idx);
   if (weight.shape().rank() != 2) {
     throw std::invalid_argument("Nexus autograd: embedding agirligi [V,D] olmali");
   }
@@ -1105,6 +1406,21 @@ Variable narrow(const Variable& a, int dim, std::int64_t start, std::int64_t len
   if (start < 0 || length < 0 || start + length > extent) {
     throw std::out_of_range("Nexus autograd: narrow araligi sinir disinda");
   }
+  if (tensor_path(a)) {
+    const nexus::Tensor ta = a.tensor();
+    const nexus::Shape full = ta.shape();
+    const nexus::DType dt = ta.dtype();
+    const nexus::MemorySpace sp = ta.space();
+    const nexus::DeviceRef dv = ta.device();
+    const auto d = static_cast<std::size_t>(dim), st = static_cast<std::size_t>(start), len = static_cast<std::size_t>(length);
+    return tensor_view_op(a, "Narrow", [=](const nexus::Tensor& t) { return t.narrow(d, st, len); },
+                          [=](const nexus::Tensor& g) {
+                            nexus::Tensor z = nexus::Tensor::zeros(full, dt, sp, dv);
+                            nexus::Tensor view = z.narrow(d, st, len);
+                            view.copy_from(g);
+                            return z;
+                          });
+  }
   const std::int64_t out_rows = dim == 0 ? length : rows;
   const std::int64_t out_cols = dim == 1 ? length : cols;
   const auto& av = a.values();
@@ -1140,6 +1456,7 @@ Variable narrow(const Variable& a, int dim, std::int64_t start, std::int64_t len
 
 // ---- cat (2D, dim 0/1) -------------------------------------------------------------------------------
 Variable cat(const std::vector<Variable>& parts, int dim) {
+  if (std::any_of(parts.begin(), parts.end(), [](const Variable& p) { return p.is_tensor_backed(); })) return tensor_cat(parts, dim);
   if (parts.empty() || (dim != 0 && dim != 1)) {
     throw std::invalid_argument("Nexus autograd: cat bos olmayan liste ve dim 0/1 bekler");
   }

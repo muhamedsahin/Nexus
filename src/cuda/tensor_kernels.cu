@@ -19,6 +19,7 @@
 #include <mutex>
 #include <type_traits>
 #include <climits>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -141,6 +142,8 @@ template <> struct Calc<__nv_bfloat16> {
 
 struct AddOp { template <typename C> __device__ C operator()(C x, C y) const { return x + y; } };
 struct MulOp { template <typename C> __device__ C operator()(C x, C y) const { return x * y; } };
+struct SubOp { template <typename C> __device__ C operator()(C x, C y) const { return x - y; } };
+struct DivOp { template <typename C> __device__ C operator()(C x, C y) const { return x / y; } };
 
 template <typename T, typename Op>
 __global__ void binary_kernel(T* out, const T* a, const T* b, Geo g, long long n, bool flat) {
@@ -326,6 +329,401 @@ void matmul_device(const ops::KernelArgs& k) {
   gemm(g, kStream);
 }
 
+
+// ---- Dalga 2: autograd Tensor yolu cihaz cekirdekleri (girdiler bitisik; API girisleri garanti eder) -----------
+template <typename C>
+__device__ __forceinline__ C unary_d(int fn, C x, C s) {
+  const C kInvSqrt2 = static_cast<C>(0.7071067811865475);
+  switch (static_cast<ops::UnaryFn>(fn)) {
+    case ops::UnaryFn::Neg: return -x;
+    case ops::UnaryFn::AddScalar: return x + s;
+    case ops::UnaryFn::MulScalar: return x * s;
+    case ops::UnaryFn::Pow: return pow(x, s);
+    case ops::UnaryFn::Relu: return x > C(0) ? x : C(0);
+    case ops::UnaryFn::Sigmoid: return C(1) / (C(1) + exp(-x));
+    case ops::UnaryFn::Tanh: return tanh(x);
+    case ops::UnaryFn::Exp: return exp(x);
+    case ops::UnaryFn::Log: return log(x);
+    case ops::UnaryFn::Gelu: return C(0.5) * x * (C(1) + erf(x * kInvSqrt2));
+    case ops::UnaryFn::Silu: return x / (C(1) + exp(-x));
+  }
+  return x;
+}
+
+template <typename C>
+__device__ __forceinline__ C unary_grad_d(int fn, C g, C v, C s) {
+  const C kInvSqrt2 = static_cast<C>(0.7071067811865475);
+  const C kInvSqrt2Pi = static_cast<C>(0.3989422804014327);
+  switch (static_cast<ops::UnaryFn>(fn)) {
+    case ops::UnaryFn::Neg: return -g;
+    case ops::UnaryFn::AddScalar: return g;
+    case ops::UnaryFn::MulScalar: return g * s;
+    case ops::UnaryFn::Pow: return g * s * pow(v, s - C(1));
+    case ops::UnaryFn::Relu: return v > C(0) ? g : C(0);
+    case ops::UnaryFn::Sigmoid: return g * v * (C(1) - v);
+    case ops::UnaryFn::Tanh: return g * (C(1) - v * v);
+    case ops::UnaryFn::Exp: return g * v;
+    case ops::UnaryFn::Log: return g / v;
+    case ops::UnaryFn::Gelu: {
+      const C cdf = C(0.5) * (C(1) + erf(v * kInvSqrt2));
+      return g * (cdf + v * kInvSqrt2Pi * exp(C(-0.5) * v * v));
+    }
+    case ops::UnaryFn::Silu: {
+      const C sig = C(1) / (C(1) + exp(-v));
+      return g * sig * (C(1) + v * (C(1) - sig));
+    }
+  }
+  return g;
+}
+
+template <typename T>
+__global__ void unary_kernel(T* y, const T* x, long long n, int fn, double s) {
+  using K = Calc<T>;
+  for (long long i = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; i < n; i += static_cast<long long>(gridDim.x) * blockDim.x)
+    y[i] = K::st(unary_d<typename K::C>(fn, K::ld(x[i]), static_cast<typename K::C>(s)));
+}
+
+template <typename T>
+__global__ void unary_grad_kernel(T* d, const T* g, const T* v, long long n, int fn, double s) {
+  using K = Calc<T>;
+  for (long long i = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; i < n; i += static_cast<long long>(gridDim.x) * blockDim.x)
+    d[i] = K::st(unary_grad_d<typename K::C>(fn, K::ld(g[i]), K::ld(v[i]), static_cast<typename K::C>(s)));
+}
+
+template <typename A>
+__device__ A block_reduce_sum(A v, A* sh) {
+  sh[threadIdx.x] = v;
+  __syncthreads();
+  for (int s = kThreads / 2; s > 0; s >>= 1) {
+    if (static_cast<int>(threadIdx.x) < s) sh[threadIdx.x] += sh[threadIdx.x + s];
+    __syncthreads();
+  }
+  const A r = sh[0];
+  __syncthreads();
+  return r;
+}
+
+template <typename A>
+__device__ A block_reduce_max(A v, A* sh) {
+  sh[threadIdx.x] = v;
+  __syncthreads();
+  for (int s = kThreads / 2; s > 0; s >>= 1) {
+    if (static_cast<int>(threadIdx.x) < s) sh[threadIdx.x] = fmax(sh[threadIdx.x], sh[threadIdx.x + s]);
+    __syncthreads();
+  }
+  const A r = sh[0];
+  __syncthreads();
+  return r;
+}
+
+// blok basina bir satir
+template <typename T>
+__global__ void row_softmax_kernel(T* y, const T* x, long long c, int log_mode) {
+  using K = Calc<T>;
+  using C = typename K::C;
+  __shared__ double shd[kThreads];
+  __shared__ C shc[kThreads];
+  const T* row = x + blockIdx.x * c;
+  T* out = y + blockIdx.x * c;
+  C mx = -INFINITY;
+  for (long long j = threadIdx.x; j < c; j += blockDim.x) mx = fmax(mx, K::ld(row[j]));
+  mx = block_reduce_max<C>(mx, shc);
+  double total = 0;
+  for (long long j = threadIdx.x; j < c; j += blockDim.x) total += exp(static_cast<double>(K::ld(row[j]) - mx));
+  total = block_reduce_sum<double>(total, shd);
+  if (log_mode) {
+    const C lse = mx + static_cast<C>(log(total));
+    for (long long j = threadIdx.x; j < c; j += blockDim.x) out[j] = K::st(K::ld(row[j]) - lse);
+  } else {
+    for (long long j = threadIdx.x; j < c; j += blockDim.x) out[j] = K::st(static_cast<C>(exp(K::ld(row[j]) - mx) / static_cast<C>(total)));
+  }
+}
+
+template <typename T>
+__global__ void row_softmax_grad_kernel(T* d, const T* g, const T* y, long long c, int log_mode) {
+  using K = Calc<T>;
+  using C = typename K::C;
+  __shared__ double shd[kThreads];
+  const long long base = blockIdx.x * c;
+  double acc = 0;
+  for (long long j = threadIdx.x; j < c; j += blockDim.x)
+    acc += log_mode ? static_cast<double>(K::ld(g[base + j])) : static_cast<double>(K::ld(g[base + j])) * K::ld(y[base + j]);
+  const C dot = static_cast<C>(block_reduce_sum<double>(acc, shd));
+  for (long long j = threadIdx.x; j < c; j += blockDim.x) {
+    const C gj = K::ld(g[base + j]), yj = K::ld(y[base + j]);
+    d[base + j] = K::st(log_mode ? gj - exp(yj) * dot : yj * (gj - dot));
+  }
+}
+
+// CE: satir basina kayip (kismi), sonra sirali toplam / N. Olasilik FP32 (alt sinir 1e-12).
+template <typename T>
+__device__ void ce_row_stats(const T* row, long long c, float* sh, float& mx, float& total) {
+  using K = Calc<T>;
+  float m = -INFINITY;
+  for (long long j = threadIdx.x; j < c; j += blockDim.x) m = fmaxf(m, static_cast<float>(K::ld(row[j])));
+  mx = block_reduce_max<float>(m, sh);
+  double t = 0;
+  for (long long j = threadIdx.x; j < c; j += blockDim.x) t += expf(static_cast<float>(K::ld(row[j])) - mx);
+  __shared__ double shd[kThreads];
+  total = static_cast<float>(block_reduce_sum<double>(t, shd));
+}
+
+template <typename T>
+__global__ void ce_rows_kernel(const T* x, const long long* tgt, long long c, float* row_loss, int* err) {
+  using K = Calc<T>;
+  __shared__ float sh[kThreads];
+  const T* row = x + blockIdx.x * c;
+  float mx, total;
+  ce_row_stats<T>(row, c, sh, mx, total);
+  if (threadIdx.x == 0) {
+    const long long t = tgt[blockIdx.x];
+    if (t < 0 || t >= c) {
+      atomicExch(err, 3);
+      row_loss[blockIdx.x] = 0;
+      return;
+    }
+    const float p = expf(static_cast<float>(K::ld(row[t])) - mx) / total;
+    row_loss[blockIdx.x] = -logf(fmaxf(p, 1.0e-12f));
+  }
+}
+
+__global__ void ce_final_kernel(const float* row_loss, long long n, float* out) {
+  float acc = 0;
+  for (long long i = 0; i < n; ++i) acc += row_loss[i];  // sabit sira
+  *out = acc / static_cast<float>(n);
+}
+
+template <typename T>
+__global__ void ce_grad_kernel(T* d, const T* x, const long long* tgt, const float* g, long long n, long long c) {
+  using K = Calc<T>;
+  __shared__ float sh[kThreads];
+  const T* row = x + blockIdx.x * c;
+  float mx, total;
+  ce_row_stats<T>(row, c, sh, mx, total);
+  const float scale = *g / static_cast<float>(n);
+  const long long t = tgt[blockIdx.x];
+  for (long long j = threadIdx.x; j < c; j += blockDim.x) {
+    const float p = expf(static_cast<float>(K::ld(row[j])) - mx) / total;
+    d[blockIdx.x * c + j] = K::st(static_cast<typename K::C>((p - (j == t ? 1.0f : 0.0f)) * scale));
+  }
+}
+
+template <typename T>
+__global__ void reduce_rows_kernel(T* y, const T* x, long long rows, long long c) {
+  using K = Calc<T>;
+  for (long long j = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; j < c; j += static_cast<long long>(gridDim.x) * blockDim.x) {
+    double acc = 0;
+    for (long long i = 0; i < rows; ++i) acc += static_cast<double>(K::ld(x[i * c + j]));  // sabit sira
+    y[j] = K::st(static_cast<typename K::C>(acc));
+  }
+}
+
+template <typename T>
+__global__ void gather_rows_kernel(T* y, const T* w, const long long* idx, long long L, long long D, long long V, int* err) {
+  const long long n = L * D;
+  for (long long e = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; e < n; e += static_cast<long long>(gridDim.x) * blockDim.x) {
+    const long long i = e / D, j = e % D;
+    const long long r = idx[i];
+    if (r < 0 || r >= V) {
+      atomicExch(err, 4);
+      continue;
+    }
+    y[e] = w[r * D + j];
+  }
+}
+
+template <typename T>
+__global__ void embedding_grad_kernel(T* d, const T* g, const long long* plan, long long L, long long U, long long D, long long pad) {
+  using K = Calc<T>;
+  const long long* perm = plan;
+  const long long* seg_row = plan + L;
+  const long long* seg_off = plan + L + U;
+  const long long n = U * D;
+  for (long long e = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; e < n; e += static_cast<long long>(gridDim.x) * blockDim.x) {
+    const long long s = e / D, j = e % D;
+    if (seg_row[s] == pad) continue;
+    typename K::C acc = 0;
+    for (long long q = seg_off[s]; q < seg_off[s + 1]; ++q) acc += K::ld(g[perm[q] * D + j]);  // indeks sirasi
+    d[seg_row[s] * D + j] = K::st(acc);
+  }
+}
+
+template <typename T>
+__global__ void sq_partial_kernel(const T* x, long long n, double* partial) {
+  __shared__ double sh[kThreads];
+  double acc = 0;
+  for (long long i = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; i < n; i += static_cast<long long>(gridDim.x) * blockDim.x) {
+    const double v = static_cast<double>(Calc<T>::ld(x[i]));
+    acc += v * v;
+  }
+  acc = block_reduce_sum<double>(acc, sh);
+  if (threadIdx.x == 0) partial[blockIdx.x] = acc;
+}
+
+__global__ void sq_final_kernel(const double* partial, int count, double* out) {
+  double acc = 0;
+  for (int i = 0; i < count; ++i) acc += partial[i];
+  *out = acc;
+}
+
+// FAZ 2 / CPU ile ayni sira; __f*_rn: nvcc'nin FMA kasilmasini engeller (CPU ile bit bit)
+template <typename T>
+__global__ void adamw_kernel(T* p, const T* g, float* m, float* v, long long n, float b1, float ob1, float b2, float ob2, float inv1,
+                             float inv2, float lr, float lr_wd, float eps, const float* clip, int decay) {
+  using K = Calc<T>;
+  const float cl = *clip;
+  for (long long i = blockIdx.x * static_cast<long long>(blockDim.x) + threadIdx.x; i < n; i += static_cast<long long>(gridDim.x) * blockDim.x) {
+    float pp = static_cast<float>(K::ld(p[i]));
+    const float gg = __fmul_rn(static_cast<float>(K::ld(g[i])), cl);
+    if (decay) pp = __fsub_rn(pp, __fmul_rn(lr_wd, pp));
+    const float mt = __fadd_rn(__fmul_rn(b1, m[i]), __fmul_rn(ob1, gg));
+    const float vt = __fadd_rn(__fmul_rn(b2, v[i]), __fmul_rn(__fmul_rn(ob2, gg), gg));
+    m[i] = mt;
+    v[i] = vt;
+    const float upd = __fdiv_rn(__fmul_rn(lr, __fmul_rn(mt, inv1)), __fadd_rn(__fsqrt_rn(__fmul_rn(vt, inv2)), eps));
+    p[i] = K::st(static_cast<typename K::C>(__fsub_rn(pp, upd)));
+  }
+}
+
+// ---- host sarmalayicilari ------------------------------------------------------------------------------------------
+template <typename T> T* dp(const Tensor& t) { return static_cast<T*>(t.raw_data()); }
+
+void check_flag(int device, const char* what) {
+  int h = 0;
+  NEXUS_CUDA_CHECK(cudaMemcpy(&h, error_flag(device), sizeof(int), cudaMemcpyDeviceToHost));
+  if (h) throw TensorError(std::string("Nexus cuda: ") + what);
+}
+
+template <typename T>
+void unary_dev(const ops::KernelArgs& k) {
+  const long long n = static_cast<long long>(k.out->numel());
+  DeviceGuard guard(device_of(*k.out));
+  unary_kernel<T><<<blocks_for(n), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), n, k.fn, k.scalar);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void unary_grad_dev(const ops::KernelArgs& k) {
+  const long long n = static_cast<long long>(k.out->numel());
+  DeviceGuard guard(device_of(*k.out));
+  unary_grad_kernel<T><<<blocks_for(n), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), dp<T>(*k.b), n, k.fn, k.scalar);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void row_softmax_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.out));
+  const auto rows = static_cast<unsigned>(k.a->shape()[0]);
+  row_softmax_kernel<T><<<rows, kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), static_cast<long long>(k.a->shape()[1]), k.fn);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void row_softmax_grad_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.out));
+  const auto rows = static_cast<unsigned>(k.a->shape()[0]);
+  row_softmax_grad_kernel<T><<<rows, kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), dp<T>(*k.b),
+                                                            static_cast<long long>(k.a->shape()[1]), k.fn);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void ce_dev(const ops::KernelArgs& k) {
+  const int dev = device_of(*k.a);
+  DeviceGuard guard(dev);
+  const long long n = static_cast<long long>(k.a->shape()[0]), c = static_cast<long long>(k.a->shape()[1]);
+  Tensor rows = Tensor::empty(Shape{static_cast<std::size_t>(n)}, DType::F32, MemorySpace::Device, k.a->device());
+  int* err = error_flag(dev);
+  NEXUS_CUDA_CHECK(cudaMemsetAsync(err, 0, sizeof(int), kStream));
+  ce_rows_kernel<T><<<static_cast<unsigned>(n), kThreads, 0, kStream>>>(dp<T>(*k.a), dp<long long>(*k.b), c, dp<float>(rows), err);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+  ce_final_kernel<<<1, 1, 0, kStream>>>(dp<float>(rows), n, dp<float>(*k.out));
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+  check_flag(dev, "cross_entropy hedefi sinif araligi disinda");
+}
+
+template <typename T>
+void ce_grad_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.a));
+  const long long n = static_cast<long long>(k.a->shape()[0]), c = static_cast<long long>(k.a->shape()[1]);
+  ce_grad_kernel<T><<<static_cast<unsigned>(n), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), dp<long long>(*k.b), dp<float>(*k.c), n, c);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void reduce_rows_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.a));
+  const long long c = static_cast<long long>(k.out->numel()), rows = static_cast<long long>(k.a->numel()) / c;
+  reduce_rows_kernel<T><<<blocks_for(c), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), rows, c);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void gather_rows_dev(const ops::KernelArgs& k) {
+  const int dev = device_of(*k.a);
+  DeviceGuard guard(dev);
+  const long long L = static_cast<long long>(k.b->numel()), D = static_cast<long long>(k.a->shape()[1]),
+                  V = static_cast<long long>(k.a->shape()[0]);
+  int* err = error_flag(dev);
+  NEXUS_CUDA_CHECK(cudaMemsetAsync(err, 0, sizeof(int), kStream));
+  gather_rows_kernel<T><<<blocks_for(L * D), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), dp<long long>(*k.b), L, D, V, err);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+  check_flag(dev, "gather_rows / embedding indeksi sozluk disinda");
+}
+
+template <typename T>
+void embedding_grad_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.a));
+  const auto L = static_cast<long long>(k.p[0]), U = static_cast<long long>(k.p[1]), pad = static_cast<long long>(k.p[2]);
+  const long long D = static_cast<long long>(k.out->shape()[1]);
+  embedding_grad_kernel<T><<<blocks_for(U * D), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), dp<long long>(*k.b), L, U, D, pad);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void sq_norm_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.a));
+  const long long n = static_cast<long long>(k.a->numel());
+  const unsigned blocks = blocks_for(n) < 1024 ? blocks_for(n) : 1024;
+  Tensor partial = Tensor::empty(Shape{blocks}, DType::F64, MemorySpace::Device, k.a->device());
+  sq_partial_kernel<T><<<blocks, kThreads, 0, kStream>>>(dp<T>(*k.a), n, dp<double>(partial));
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+  sq_final_kernel<<<1, 1, 0, kStream>>>(dp<double>(partial), static_cast<int>(blocks), dp<double>(*k.out));
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void adamw_dev(const ops::KernelArgs& k) {
+  DeviceGuard guard(device_of(*k.out));
+  const long long n = static_cast<long long>(k.out->numel());
+  const auto f = [&](int i) { return static_cast<float>(k.p[i]); };
+  adamw_kernel<T><<<blocks_for(n), kThreads, 0, kStream>>>(dp<T>(*k.out), dp<T>(*k.a), dp<float>(*k.out2), dp<float>(*k.out3), n, f(0), f(1),
+                                                         f(2), f(3), f(4), f(5), f(6), f(7), static_cast<float>(k.scalar),
+                                                         dp<float>(*k.c), k.fn);
+  NEXUS_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename T>
+void register_float_dev(DType t) {
+  using ops::Op;
+  constexpr auto D = ops::DeviceKind::Device;
+  ops::register_kernel(Op::Sub, t, D, binary_device<T, SubOp>);
+  ops::register_kernel(Op::Div, t, D, binary_device<T, DivOp>);
+  ops::register_kernel(Op::Unary, t, D, unary_dev<T>);
+  ops::register_kernel(Op::UnaryGrad, t, D, unary_grad_dev<T>);
+  ops::register_kernel(Op::RowSoftmax, t, D, row_softmax_dev<T>);
+  ops::register_kernel(Op::RowSoftmaxGrad, t, D, row_softmax_grad_dev<T>);
+  if (t != DType::F64) {  // cihaz CE FP32 hesaplar ve F32 kayip yazar; F64 logit (F64 kayip) cihazda kayitli degil
+    ops::register_kernel(Op::CrossEntropy, t, D, ce_dev<T>);
+    ops::register_kernel(Op::CrossEntropyGrad, t, D, ce_grad_dev<T>);
+  }
+  ops::register_kernel(Op::ReduceRows, t, D, reduce_rows_dev<T>);
+  ops::register_kernel(Op::GatherRows, t, D, gather_rows_dev<T>);
+  ops::register_kernel(Op::EmbeddingGrad, t, D, embedding_grad_dev<T>);
+  ops::register_kernel(Op::SqNorm, t, D, sq_norm_dev<T>);
+  if (t != DType::F64) ops::register_kernel(Op::AdamW, t, D, adamw_dev<T>);
+}
+
 void register_all() {
   using ops::DeviceKind;
   using ops::Op;
@@ -355,6 +753,10 @@ void register_all() {
   ops::register_kernel(Op::Matmul, DType::F32, D, matmul_device);
   ops::register_kernel(Op::Matmul, DType::F16, D, matmul_device);
   ops::register_kernel(Op::Matmul, DType::BF16, D, matmul_device);
+  register_float_dev<float>(DType::F32);
+  register_float_dev<double>(DType::F64);
+  register_float_dev<__half>(DType::F16);
+  register_float_dev<__nv_bfloat16>(DType::BF16);
 }
 
 }  // namespace

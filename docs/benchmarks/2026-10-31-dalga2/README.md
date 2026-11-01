@@ -128,10 +128,56 @@ Hız ölçülmedi. Bu adım doğruluk ve kapsam içindi; cihaz eager ek yükü v
 
 ### Kapsam dışı (açık)
 
-- **Tensor yolu yalnız 5 op:** add, mul, matmul, sum, to. Diğer FAZ 2 op'ları (sub, div, relu, gelu, softmax, cross_entropy, layernorm, embedding, …) hâlâ yalnız F32 vektör yolunda. Yani **BF16 / GPU uçtan uca bir model henüz Variable üzerinden eğitilemiyor**. Bu op'ların taşınması sıradaki iş.
-- Optimizer'lar (AdamW vb.) Tensor depolamalı parametreleri güncellemiyor.
+- ~~Tensor yolu yalnız 5 op~~ → aşağıdaki bölümde tümü taşındı; TensorAdamW eklendi.
 - Tensor yolunda yayın ve eksenli indirgeme yok.
 - Hız ölçülmedi.
+
+## Tüm autograd op'ları + TensorAdamW + uçtan uca eğitim (Dalga 2 devamı, 2026-10-31)
+
+Önceki adımda Tensor yolunda 5 op vardı. Artık FAZ 2'nin **tüm** op'ları Tensor depolamalı girdilerde (her kayan dtype, CPU ve CUDA) çalışıyor:
+
+- **Eleman işlemleri:** `sub`, `div`, `neg`, `add_scalar`, `mul_scalar`, `pow`, `relu`, `sigmoid`, `tanh`, `exp`, `log`, `gelu` (erf), `silu`.
+- **İndirgeme / satır işlemleri:** `mean`, `softmax`, `log_softmax`, `cross_entropy`.
+- **Diğerleri:** `add_bias`, `dropout` (FAZ 2 ile aynı LCG maskesi), `embedding` (`padding_idx`), `reshape`, `transpose`, `narrow` (kopyasız görünüm), `cat`.
+
+Bunlara ek olarak:
+
+- **`TensorAdamW`:** Tensor parametreleri için, F32 / BF16 / F16 parametre, m / v F32.
+- **Kayıp dtype'ı:** `cross_entropy` kaybı F32. F64 logitlerde F64; ilk sürüm F64'ü sessizce F32'ye düşürüyordu, gradcheck yakaladı.
+
+**Dağıtıcıya eklenen çekirdekler (CPU + CUDA):**
+
+- `Sub`, `Div`;
+- `Unary` / `UnaryGrad` (11 işlev);
+- `RowSoftmax` / `RowSoftmaxGrad`;
+- `CrossEntropy` / `CrossEntropyGrad`;
+- `ReduceRows` (bias gradyanı);
+- `GatherRows`;
+- `EmbeddingGrad`: host'ta kararlı sıralı segment planı, segment içinde özgün sıra → atomiksiz ve belirlenimci;
+- `SqNorm` (FP64);
+- `AdamW`.
+
+Formüller FAZ 2 ile aynı: FP32, aynı sıra. CUDA AdamW `__f*_rn` ile FMA kasılmasını engelliyor. Cihazda F64 `cross_entropy` kayıtlı değil (açık hata).
+
+**Kaydedilen çıktılar** (sigmoid / tanh / exp / softmax) kopya yerine sürüm damgalı görünüm olarak tutuluyor. Geri geçişten önce yerinde değişirse açık hata.
+
+| Test | Sonuç |
+|---|---|
+| `test_tensor_autograd_parity` | ✅ 59/59. 27 op vakası (embedding padding'li ve padding'siz, cat dim 0 / 1, narrow dim 0 / 1 dahil), ileri + her girdinin gradyanı. **26 / 27 FAZ 2 ile bit bit aynı**; en kötü `add_bias` 5.3e-8 (bias gradyanı FP64 indirgeme). |
+| `test_tensor_autograd_gradcheck` | ✅ 26/26. F64 Tensor yolunda sonlu fark, en kötü **1.7e-9**. Padding vakası tasarım gereği hariç: padding satırı ileri geçişte kullanılıyor ama gradyan almıyor (FAZ 2 / PyTorch anlamı). |
+| `test_tensor_adamw` | ✅ 3/3:<br>• TensorAdamW F32 ile `fused::adamw_multi_tensor` 5 adım, global norm kırpma + decay / decay'siz gruplar: **bit bit aynı**;<br>• BF16 parametre dtype'ını koruyor, F32'ye 4.8e-3;<br>• FAZ 2 vektör parametresi açık hata. |
+| `test_tensor_train_e2e` (CPU) | ✅ embedding + matmul + add_bias + gelu + matmul + add_bias + cross_entropy dil modeli, 60 adım:<br>• FAZ 2 (vektör + fused AdamW) 3.4925 → 2.2318;<br>• **Tensor F32 + TensorAdamW eğrisi en çok 1.6e-7 ayrışıyor**;<br>• **BF16 AMP** (F32 ana ağırlık → `to(BF16)` hesap, F32 kayıp) 2.2299, eğriye 8.4e-4. |
+| `test_tensor_cuda_autograd_ops` | ✅ 56/56: her op cihazda F32 ve BF16, host Tensor yoluyla. F32 en kötü **1.4e-7**; BF16 küçük vakalarda 0 (FP32 farklarını BF16 yuvarlaması yutuyor). Büyük şekilde gerçek fark kanıtı: [64,512] GELU 333 / 32768 bit farklı (cihaz / host `erf`), softmax 0. |
+| `test_tensor_cuda_train_e2e` | ✅ aynı model GPU'da: **F32 eğrisi host'a 1.5e-7**; **BF16 AMP** 2.2300, 8.0e-4, öğreniyor. |
+| compute-sanitizer (autograd_ops, train) | ✅ memcheck / initcheck / synccheck: `autograd_ops` (56) ve `train` (2) **0 hata**; racecheck `autograd_ops` **0 hazard**. ⚠️ racecheck `train`: test geçti (2/2) ama süreç racecheck kapanışında dondu, 5.5 saat sonra elle öldürüldü; özet satırı yok (rc=127). Kayıtlar: [cuda-sanitizer/](cuda-sanitizer/). |
+| Regresyon | CPU 173 test: 169 geçti, 2 atlandı (hip/pjrt), 2 düştü:<br>• `test_grouped_gemm_vs_loop` bilinen hız flake'i (Dalga 2'den bağımsız, A/B ile gösterildi);<br>• `test_tensor_autograd` eskimiş beklenti: relu artık Tensor yolunda olduğundan "relu Tensor'da açık hata" testi geçersizdi → test "relu Tensor yolunda + `values()` açık hata" olarak güncellendi, yeniden koşu 10/10.<br>GPU 229 test: aynı iki düşüş + 2 atlama, gerisi geçti. `bench_cuda_phase7` donmuş racecheck süreci GPU'yu tuttuğu için kesildi, ayrı koşuda geçti (332 sn). Aynı süreç yüzünden `bench_cuda_phase5` 3238 sn sürdü (normalde çok daha kısa; ölçüm değeri kullanılmıyor).<br>ASan alt küme (29 test): ilk koşuda `test_tensor_train_e2e` düştü. Sebep: test yardımcısı bias için `std::normal_distribution(0, 0)` kuruyordu (sigma 0 tanımsız, Debug STL yakaladı, Release'de sessiz). Düzeltildi, ASan'da 2/2 geçiyor. Kayıtlar: [regression/](regression/). |
+
+**Hâlâ yapılmayanlar:**
+
+- Tensor yolunda genel yayın (yalnız `add_bias` son eksende) ve eksenli `sum` / `mean` yok.
+- LayerNorm / RMSNorm autograd op'u değil (`lm` kendi op'larını kullanıyor), taşınmadı.
+- `lm::LanguageModel` hâlâ FAZ 2 vektör yolunda. GPT-2 boyutunda bir modeli bu yoldan eğitmek için `lm` op'larının da taşınması gerekiyor.
+- Hız ölçülmedi: küçük tensörlerde her op ayrı çekirdek başlatıyor, füzyon yok.
 
 ## Açık kalanlar
 

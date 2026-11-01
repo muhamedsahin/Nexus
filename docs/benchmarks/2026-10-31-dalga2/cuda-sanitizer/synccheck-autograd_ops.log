@@ -1,0 +1,62 @@
+========= COMPUTE-SANITIZER
+autograd_ops: her op cihazda (F32 / BF16) == host Tensor yolu
+  PASS  neg float32: cikti ve gradyanlar cihazda
+  PASS  neg bfloat16: cikti ve gradyanlar cihazda
+  PASS  add_scalar float32: cikti ve gradyanlar cihazda
+  PASS  add_scalar bfloat16: cikti ve gradyanlar cihazda
+  PASS  mul_scalar float32: cikti ve gradyanlar cihazda
+  PASS  mul_scalar bfloat16: cikti ve gradyanlar cihazda
+  PASS  pow float32: cikti ve gradyanlar cihazda
+  PASS  pow bfloat16: cikti ve gradyanlar cihazda
+  PASS  relu float32: cikti ve gradyanlar cihazda
+  PASS  relu bfloat16: cikti ve gradyanlar cihazda
+  PASS  sigmoid float32: cikti ve gradyanlar cihazda
+  PASS  sigmoid bfloat16: cikti ve gradyanlar cihazda
+  PASS  tanh float32: cikti ve gradyanlar cihazda
+  PASS  tanh bfloat16: cikti ve gradyanlar cihazda
+  PASS  exp float32: cikti ve gradyanlar cihazda
+  PASS  exp bfloat16: cikti ve gradyanlar cihazda
+  PASS  log float32: cikti ve gradyanlar cihazda
+  PASS  log bfloat16: cikti ve gradyanlar cihazda
+  PASS  gelu float32: cikti ve gradyanlar cihazda
+  PASS  gelu bfloat16: cikti ve gradyanlar cihazda
+  PASS  silu float32: cikti ve gradyanlar cihazda
+  PASS  silu bfloat16: cikti ve gradyanlar cihazda
+  PASS  softmax float32: cikti ve gradyanlar cihazda
+  PASS  softmax bfloat16: cikti ve gradyanlar cihazda
+  PASS  log_softmax float32: cikti ve gradyanlar cihazda
+  PASS  log_softmax bfloat16: cikti ve gradyanlar cihazda
+  PASS  transpose float32: cikti ve gradyanlar cihazda
+  PASS  transpose bfloat16: cikti ve gradyanlar cihazda
+  PASS  reshape float32: cikti ve gradyanlar cihazda
+  PASS  reshape bfloat16: cikti ve gradyanlar cihazda
+  PASS  narrow_d1 float32: cikti ve gradyanlar cihazda
+  PASS  narrow_d1 bfloat16: cikti ve gradyanlar cihazda
+  PASS  narrow_d0 float32: cikti ve gradyanlar cihazda
+  PASS  narrow_d0 bfloat16: cikti ve gradyanlar cihazda
+  PASS  dropout float32: cikti ve gradyanlar cihazda
+  PASS  dropout bfloat16: cikti ve gradyanlar cihazda
+  PASS  mean float32: cikti ve gradyanlar cihazda
+  PASS  mean bfloat16: cikti ve gradyanlar cihazda
+  PASS  cross_entropy float32: cikti ve gradyanlar cihazda
+  PASS  cross_entropy bfloat16: cikti ve gradyanlar cihazda
+  PASS  sub float32: cikti ve gradyanlar cihazda
+  PASS  sub bfloat16: cikti ve gradyanlar cihazda
+  PASS  div float32: cikti ve gradyanlar cihazda
+  PASS  div bfloat16: cikti ve gradyanlar cihazda
+  PASS  add_bias float32: cikti ve gradyanlar cihazda
+  PASS  add_bias bfloat16: cikti ve gradyanlar cihazda
+  PASS  embedding float32: cikti ve gradyanlar cihazda
+  PASS  embedding bfloat16: cikti ve gradyanlar cihazda
+  PASS  embedding_pad float32: cikti ve gradyanlar cihazda
+  PASS  embedding_pad bfloat16: cikti ve gradyanlar cihazda
+  PASS  cat_d0 float32: cikti ve gradyanlar cihazda
+  PASS  cat_d0 bfloat16: cikti ve gradyanlar cihazda
+  PASS  cat_d1 float32: cikti ve gradyanlar cihazda
+  PASS  cat_d1 bfloat16: cikti ve gradyanlar cihazda
+  info  cihaz vs host Tensor yolu: F32 en kotu 1.36e-07 (softmax), BF16 en kotu 0.00e+00 ()
+  PASS  tum op'lar cihaz F32 == host F32 (<= 1e-5)
+  PASS  tum op'lar cihaz BF16 == host BF16 (<= 2e-2; farkli toplama sirasi + BF16 yuvarlama)
+  info  BF16 [64,512] cihaz vs host farkli bit: softmax 0 / 32768, gelu 333 / 32768
+test_tensor_cuda: 56 gecti, 0 basarisiz
+========= ERROR SUMMARY: 0 errors

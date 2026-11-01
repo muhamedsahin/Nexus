@@ -130,6 +130,15 @@ void mul_k(const KernelArgs& k) {
 }
 
 template <DType T>
+void sub_k(const KernelArgs& k) {
+  binary<T>(k, [](auto x, auto y) { return x - y; });
+}
+template <DType T>
+void div_k(const KernelArgs& k) {
+  binary<T>(k, [](auto x, auto y) { return x / y; });
+}
+
+template <DType T>
 void sum_k(const KernelArgs& k) {
   using E = Elem<T>;
   using S = typename E::S;
@@ -232,8 +241,23 @@ void matmul_f64(const KernelArgs& k) {
     }
 }
 
+}  // namespace
+namespace detail {
+void register_autograd_cpu_kernels();  // tensor_ops_autograd.cpp
+}
+namespace {
+
 void register_builtin_cpu() {
   constexpr auto H = DeviceKind::Host;
+  register_kernel(Op::Sub, DType::F32, H, sub_k<DType::F32>);
+  register_kernel(Op::Sub, DType::F64, H, sub_k<DType::F64>);
+  register_kernel(Op::Sub, DType::BF16, H, sub_k<DType::BF16>);
+  register_kernel(Op::Sub, DType::F16, H, sub_k<DType::F16>);
+  register_kernel(Op::Div, DType::F32, H, div_k<DType::F32>);
+  register_kernel(Op::Div, DType::F64, H, div_k<DType::F64>);
+  register_kernel(Op::Div, DType::BF16, H, div_k<DType::BF16>);
+  register_kernel(Op::Div, DType::F16, H, div_k<DType::F16>);
+  detail::register_autograd_cpu_kernels();
   for (const DType t : kAllDTypes) {
     register_kernel(Op::Copy, t, H, copy_host);
     register_kernel(Op::Fill, t, H, fill_host);
@@ -303,6 +327,19 @@ std::string_view op_name(Op op) noexcept {
     case Op::Mul: return "mul";
     case Op::Matmul: return "matmul";
     case Op::Sum: return "sum";
+    case Op::Sub: return "sub";
+    case Op::Div: return "div";
+    case Op::Unary: return "unary";
+    case Op::UnaryGrad: return "unary_grad";
+    case Op::RowSoftmax: return "row_softmax";
+    case Op::RowSoftmaxGrad: return "row_softmax_grad";
+    case Op::CrossEntropy: return "cross_entropy";
+    case Op::CrossEntropyGrad: return "cross_entropy_grad";
+    case Op::ReduceRows: return "reduce_rows";
+    case Op::GatherRows: return "gather_rows";
+    case Op::EmbeddingGrad: return "embedding_grad";
+    case Op::SqNorm: return "sq_norm";
+    case Op::AdamW: return "adamw";
     case Op::Count: break;
   }
   return "?";
@@ -347,6 +384,8 @@ Shape broadcast_shapes(const Shape& a, const Shape& b) {
 }
 
 Tensor add(const Tensor& a, const Tensor& b) { return binary(Op::Add, a, b); }
+Tensor sub(const Tensor& a, const Tensor& b) { return binary(Op::Sub, a, b); }
+Tensor div(const Tensor& a, const Tensor& b) { return binary(Op::Div, a, b); }
 Tensor mul(const Tensor& a, const Tensor& b) { return binary(Op::Mul, a, b); }
 void add_out(Tensor& out, const Tensor& a, const Tensor& b) { binary_out(Op::Add, out, a, b); }
 void mul_out(Tensor& out, const Tensor& a, const Tensor& b) { binary_out(Op::Mul, out, a, b); }

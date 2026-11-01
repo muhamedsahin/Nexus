@@ -1,0 +1,22 @@
+Internal ctest changing into directory: C:/Users/muham/Desktop/Nexus/build-phase1
+Test project C:/Users/muham/Desktop/Nexus/build-phase1
+    Start  98: test_grouped_gemm_vs_loop
+1/3 Test  #98: test_grouped_gemm_vs_loop ........***Failed    2.93 sec
+  info  gruplu GEMM (E=8, 8192 satir, d=256, F=512): sirali uzman dongusu 439.2 ms (14.7 GFLOP/s), paralel gruplu 457.8 ms (14.1 GFLOP/s, 0.96x), token basina dongu ~286 ms (tahmini, 256 satirdan); token dongusu farki 0.0e+00
+  PASS  paralel gruplu GEMM == sirali uzman dongusu (bit bit)
+  FAIL  paralel gruplu GEMM sirali donguden hizli
+  PASS  token basina dongu ile ayni sonuc (satir bagimsiz)
+test_phase14_moe: 2 gecti, 1 basarisiz
+
+    Start 149: test_tensor_autograd
+2/3 Test #149: test_tensor_autograd .............   Passed    0.02 sec
+    Start 229: bench_cuda_phase7
+3/3 Test #229: bench_cuda_phase7 ................   Passed  332.32 sec
+
+67% tests passed, 1 tests failed out of 3
+
+Total Test time (real) = 335.51 sec
+
+The following tests FAILED:
+	 98 - test_grouped_gemm_vs_loop (Failed)
+Errors while running CTest

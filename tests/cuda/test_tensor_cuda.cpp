@@ -18,6 +18,7 @@
 #include "nexus/cuda/runtime.hpp"
 #include "nexus/cuda/tensor_kernels.hpp"
 #include "nexus_test.hpp"
+#include "../parity/tensor_autograd_cases.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -218,6 +219,67 @@ void test_autograd() {
   nexus_test::expect(ok, "host vector yaprak -> to(GPU) -> matmul: gradyan host F32 vector olarak doner, dogru");
 }
 
+void test_autograd_ops() {
+  nexus_test::section("autograd_ops: her op cihazda (F32 / BF16) == host Tensor yolu");
+  double w32 = 0, w16 = 0;
+  std::string o32, o16;
+  for (const tac::OpCase& oc : tac::cases()) {
+    for (const DType t : {DType::F32, DType::BF16}) {
+      std::vector<ag::Variable> xh, xd;
+      for (const tac::Input& in : oc.inputs) {
+        xh.push_back(tac::make_input(in, true, t, false));
+        xd.push_back(tac::make_input(in, true, t, true));
+      }
+      const ag::Variable oh = oc.fn(xh), od = oc.fn(xd);
+      double e = tac::max_rel(tac::to_vec(od), tac::to_vec(oh));
+      tac::loss_of(oh, oc.scalar_out, true, t).backward();
+      tac::loss_of(od, oc.scalar_out, true, t).backward();
+      bool on_dev = od.on_device();
+      for (std::size_t i = 0; i < xh.size(); ++i) {
+        e = std::max(e, tac::max_rel(tac::to_vec(xd[i].grad()), tac::to_vec(xh[i].grad())));
+        on_dev = on_dev && xd[i].grad().on_device();
+      }
+      nexus_test::expect(on_dev, oc.name + " " + std::string(nexus::to_string(t)) + ": cikti ve gradyanlar cihazda");
+      double& w = t == DType::F32 ? w32 : w16;
+      if (e > w) {
+        w = e;
+        (t == DType::F32 ? o32 : o16) = oc.name;
+      }
+    }
+  }
+  std::printf("  info  cihaz vs host Tensor yolu: F32 en kotu %.2e (%s), BF16 en kotu %.2e (%s)\n", w32, o32.c_str(), w16, o16.c_str());
+  nexus_test::expect(w32 <= 1e-5, "tum op'lar cihaz F32 == host F32 (<= 1e-5)");
+  nexus_test::expect(w16 <= 2e-2, "tum op'lar cihaz BF16 == host BF16 (<= 2e-2; farkli toplama sirasi + BF16 yuvarlama)");
+  // BF16'da kucuk vakalarda fark 0 cikabilir (FP32 farklarini BF16 yuvarlamasi yutar): buyuk sekilde bit farki say
+  const auto big = randv(64 * 512, 77, 3.0);
+  const Tensor hb = Tensor::from_values(Shape{64, 512}, big, DType::BF16);
+  int dsm = 0, dge = 0;
+  const Tensor sm_h = ops::row_softmax(hb, false), sm_d = host(ops::row_softmax(gpu(hb), false));
+  const Tensor ge_h = ops::unary(ops::UnaryFn::Gelu, hb), ge_d = host(ops::unary(ops::UnaryFn::Gelu, gpu(hb)));
+  for (std::size_t i = 0; i < hb.numel(); ++i) {
+    dsm += sm_h.data_as<std::uint16_t>()[i] != sm_d.data_as<std::uint16_t>()[i];
+    dge += ge_h.data_as<std::uint16_t>()[i] != ge_d.data_as<std::uint16_t>()[i];
+  }
+  std::printf("  info  BF16 [64,512] cihaz vs host farkli bit: softmax %d / 32768, gelu %d / 32768\n", dsm, dge);
+}
+
+void test_train() {
+  nexus_test::section("train: uctan uca kucuk dil modeli cihazda (TensorAdamW)");
+  nexus::cuda::set_float32_matmul_precision(nexus::cuda::MatmulPrecision::Highest);
+  const int steps = 60;
+  const auto host = tac::train_tensor(steps, false, false), dev = tac::train_tensor(steps, false, true),
+             dev16 = tac::train_tensor(steps, true, true);
+  double e32 = 0, e16 = 0;
+  for (int i = 0; i < steps; ++i) {
+    e32 = std::max(e32, std::fabs(static_cast<double>(dev[i]) - host[i]) / host[i]);
+    e16 = std::max(e16, std::fabs(static_cast<double>(dev16[i]) - host[i]) / host[i]);
+  }
+  std::printf("  info  kayip %.4f -> host %.4f | cihaz F32 %.4f | cihaz BF16 AMP %.4f; en kotu adim farki F32 %.2e, BF16 %.2e\n",
+              host[0], host.back(), dev.back(), dev16.back(), e32, e16);
+  nexus_test::expect(e32 <= 1e-4, "cihaz F32 egitim egrisi == host (<= 1e-4)");
+  nexus_test::expect(e16 <= 3e-2 && dev16.back() < 0.7f * dev16[0], "cihaz BF16 AMP ogreniyor ve host egrisine <= 3e-2");
+}
+
 void test_errors() {
   nexus_test::section("errors: acik hatalar");
   const Tensor d = gpu(Tensor::from_values(Shape{4}, randv(4, 9), DType::F32));
@@ -250,6 +312,8 @@ int main(int argc, char** argv) {
     else if (mode == "ops") test_ops();
     else if (mode == "errors") test_errors();
     else if (mode == "autograd") test_autograd();
+    else if (mode == "autograd_ops") test_autograd_ops();
+    else if (mode == "train") test_train();
     else {
       std::printf("bilinmeyen mod: %s\n", mode.c_str());
       return 2;
